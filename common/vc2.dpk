@@ -1,0 +1,49 @@
+
+(*
+	----------------------------------------------
+
+	  vc2.dpk - VC components 2.5 registration package
+
+	----------------------------------------------
+	  Copyright (c) 2001-2010 Lake of Soft
+		     All rights reserved
+
+	  http://lakeofsoft.com/
+	----------------------------------------------
+
+	  created by:
+		Lake, 01 Jun 2001
+
+	  modified by:
+		Lake, Jun-Dec 2002
+		Lake, Jan-May 2003
+		Lake, Oct 2005
+	        Lake, Mar 2010
+
+	----------------------------------------------
+*)
+
+{$I unaDef.inc }
+
+package 
+  vc2;
+
+{$R *.res }
+{$R 'vc2ico.res' }
+{$DESCRIPTION 'VC 2.5 components' }
+{$IMPLICITBUILD OFF }
+{$DEFINE NO_UNA_DESCR }
+
+contains
+  unavcIDE in 'unavcIDE.pas',
+  unaEncoderAPI in 'unaEncoderAPI.pas',
+  unaMsMixer in 'unaMsMixer.pas',
+  unaMpglibAPI in 'unaMpglibAPI.pas',
+  unaAudioFeedback in 'unaAudioFeedback.pas',
+  unaOpenH323PluginAPI in 'unaOpenH323PluginAPI.pas',
+  unaVCDSComp in 'unaVCDSComp.pas',
+  unaDspControls in 'unaDspControls.pas',
+  unavcApp in 'unavcApp.pas';
+
+
+end.
