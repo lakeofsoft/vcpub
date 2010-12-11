@@ -272,7 +272,7 @@ begin
   if (f_streamDone) then
     c_button_stop.click();
   //
-  if (vcDTMFDecoder.enter(20)) then begin
+  if (vcDTMFDecoder.enter(true, 20)) then begin
     //
     try
       if ('' <> f_addText) then
@@ -280,7 +280,7 @@ begin
       //
       f_addText := '';
     finally
-      vcDTMFDecoder.leave();
+      vcDTMFDecoder.leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -320,12 +320,12 @@ end;
 // --  --
 procedure Tc_form_main.vcDTMFDecoderDTMFCodeDetected(sender: TObject; code: Char; const param: Single);
 begin
-  if (vcDTMFDecoder.enter(200)) then begin
+  if (vcDTMFDecoder.enter(true, 200)) then begin
     //
     try
       f_addText := f_addText + code;
     finally
-      vcDTMFDecoder.leave();
+      vcDTMFDecoder.leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;

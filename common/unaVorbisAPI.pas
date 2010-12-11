@@ -6,7 +6,7 @@
 	  API for Vorbis and Ogg libraries
 
 	----------------------------------------------
-	  Delphi API wrapper: 
+	  Delphi API wrapper:
 
 	  Copyright (c) 2002-2010 Lake of Soft
 		     All rights reserved
@@ -19,17 +19,23 @@
 
 	  modified by:
 		Lake, Nov 2002
+		Lake, Dec 2010
 
 	----------------------------------------------
 *)
 
 {$I unaDef.inc }
 
+{$I unaVorbisDef.inc }
+
 {*
   OGG/Vorbis wrapper.
 
   @Author Lake
   @Version 2.5.2008.07 Still here
+
+  @Author Lake
+  @Version 2.5.2008.12 libvorbis.dll stuff
 }
 
 unit
@@ -38,7 +44,7 @@ unit
 interface
 
 uses
-  unaTypes;
+  unaTypes, unaClasses;
 
 (********************************************************************
  *                                                                  *
@@ -77,6 +83,27 @@ type
     {+10}storage: ogg_int32_t;
     {+14}
   end;
+
+  // --  --
+  pOgg_packet = ^tOgg_packet;
+  tOgg_packet = packed record
+    packet: pointer;
+    bytes: ogg_int32_t;
+    b_o_s: ogg_int32_t;
+    e_o_s: ogg_int32_t;
+    //
+    granulepos: ogg_int64_t;
+
+    packetno: ogg_int64_t;     ///* sequence number for decode; the framing
+			       // knows where there's a hole in the data,
+			       // but we need coupling so that the codec
+			       // (which is in a seperate abstraction
+			       // layer) also knows about the gap */
+    {+20}
+  end;
+
+
+{$IFNDEF VC_LIBVORBIS_ONLY }
 
 //* ogg_page is used to encapsulate the data in one Ogg bitstream page *****/
 
@@ -130,25 +157,6 @@ type
 
 //* ogg_packet is used to encapsulate the data and metadata belonging
 //   to a single raw Ogg/Vorbis packet *************************************/
-
-  // --  --
-  pOgg_packet = ^tOgg_packet;
-  tOgg_packet = packed record
-    packet: pointer;
-    bytes: ogg_int32_t;
-    b_o_s: ogg_int32_t;
-    e_o_s: ogg_int32_t;
-    //
-    granulepos: ogg_int64_t;
-
-    packetno: ogg_int64_t;     ///* sequence number for decode; the framing
-			       // knows where there's a hole in the data,
-			       // but we need coupling so that the codec
-			       // (which is in a seperate abstraction
-			       // layer) also knows about the gap */
-    {+20}
-  end;
-
 
   // --  --
   pOgg_sync_state = ^tOgg_sync_state;
@@ -362,6 +370,8 @@ function ogg_page_pageno(const og: tOgg_page): ogg_int32_t;
 function ogg_page_packets(const og: tOgg_page): ogg_int32_t;
 procedure ogg_packet_clear(const op: tOgg_packet);
 
+{$ENDIF VC_LIBVORBIS_ONLY }
+
 
 (********************************************************************
  *                                                                  *
@@ -381,10 +391,10 @@ procedure ogg_packet_clear(const op: tOgg_packet);
  ********************************************************************)
 
 type
-
   // --  --
   pVorbis_info = ^tVorbis_info;
   tVorbis_info = packed record
+    //
     version: ogg_int32_t;
     channels: ogg_int32_t;
     rate: ogg_int32_t;
@@ -413,10 +423,6 @@ type
 
 type
   // --  --
-
-  pSingleArray = ^tSingleArray;
-  tSingleArray = array[0..maxInt div sizeOf(single) - 1] of single;	// individual samples
-
   pSingleSamples = ^tSingleSamples;
   tSingleSamples = array[byte] of pSingleArray;		// array of channels with samples
 
@@ -469,6 +475,7 @@ type
 
   pAlloc_chain = ^tAlloc_chain;
   tAlloc_chain = packed record
+    //
     ptr: pointer;
     next: pAlloc_chain;
   end;
@@ -656,6 +663,8 @@ const
   OV_EBADLINK   = -137;
   OV_ENOSEEK    = -138;
 
+
+{$IFNDEF VC_LIBVORBIS_ONLY }
 
 //------------------------------------------
 
@@ -1020,12 +1029,127 @@ function vorbis_load_library(libraryToLoad: int; const libraryName: wideString =
 }
 procedure vorbis_unload_library(libraryToUnload: int);
 
+{$ENDIF VC_LIBVORBIS_ONLY }
+
+
+// -- libvorbis.dll --
+
+type
+  // new since 2002:
+  tvorbis_granule_time = function(v: pVorbis_dsp_state; granulepos: ogg_int64_t): double; cdecl;
+  tvorbis_version_string = function(): paChar; cdecl;
+  //
+  tvorbis_synthesis_halfrate = function(v: pvorbis_info; flag: int32): ogg_int32_t; cdecl;
+  tvorbis_synthesis_halfrate_p = function(v: pvorbis_info): ogg_int32_t; cdecl;
+  tvorbis_synthesis_idheader = function(op: pogg_packet): ogg_int32_t; cdecl;
+  tvorbis_synthesis_lapout = function(v: pvorbis_dsp_state; var pcm: pSingleSamples): ogg_int32_t; cdecl;
+  tvorbis_synthesis_restart = function(v: pvorbis_dsp_state): ogg_int32_t; cdecl;
+
+
+  //
+  pLibvorbisAPI = ^tLibvorbisAPI;
+  tLibvorbisAPI = packed record
+    //
+    r_refCount: int;
+    r_module: hModule;
+    //
+    // Functions used by both decode and encode
+    r_vorbis_block_clear	: tvorbis_block_clear;
+    r_vorbis_block_init		: tvorbis_block_init;
+    r_vorbis_dsp_clear		: tvorbis_dsp_clear;
+    r_vorbis_granule_time	: tvorbis_granule_time;
+    r_vorbis_info_blocksize	: tvorbis_info_blocksize;
+    r_vorbis_info_clear		: tvorbis_info_clear;
+    r_vorbis_info_init		: tvorbis_info_init;
+//    r_vorbis_version_string	: tvorbis_version_string;	// not exported by libvorbis.dll as of 1.3.2
+    // Decoding
+    r_vorbis_packet_blocksize	: tvorbis_packet_blocksize;
+    r_vorbis_synthesis            : tvorbis_synthesis;
+    r_vorbis_synthesis_blockin    : tvorbis_synthesis_blockin;
+    r_vorbis_synthesis_halfrate   : tvorbis_synthesis_halfrate;
+    r_vorbis_synthesis_halfrate_p : tvorbis_synthesis_halfrate_p;
+    r_vorbis_synthesis_headerin   : tvorbis_synthesis_headerin;
+//    r_vorbis_synthesis_idheader   : tvorbis_synthesis_idheader; // not exported by libvorbis.dll as of 1.3.2
+    r_vorbis_synthesis_init       : tvorbis_synthesis_init;
+    r_vorbis_synthesis_lapout     : tvorbis_synthesis_lapout;
+    r_vorbis_synthesis_pcmout     : tvorbis_synthesis_pcmout;
+    r_vorbis_synthesis_read       : tvorbis_synthesis_read;
+    r_vorbis_synthesis_restart    : tvorbis_synthesis_restart;
+    r_vorbis_synthesis_trackonly  : tvorbis_synthesis_trackonly;
+    // Encoding
+    r_vorbis_analysis             : tvorbis_analysis;
+    r_vorbis_analysis_blockout    : tvorbis_analysis_blockout;
+    r_vorbis_analysis_buffer      : tvorbis_analysis_buffer;
+    r_vorbis_analysis_headerout   : tvorbis_analysis_headerout;
+    r_vorbis_analysis_init        : tvorbis_analysis_init;
+    r_vorbis_analysis_wrote       : tvorbis_analysis_wrote;
+    r_vorbis_bitrate_addblock     : tvorbis_bitrate_addblock;
+    r_vorbis_bitrate_flushpacket  : tvorbis_bitrate_flushpacket;
+    // Metadata
+    r_vorbis_comment_add          : tvorbis_comment_add;
+    r_vorbis_comment_add_tag      : tvorbis_comment_add_tag;
+    r_vorbis_comment_clear        : tvorbis_comment_clear;
+    r_vorbis_comment_init         : tvorbis_comment_init;
+    r_vorbis_comment_query        : tvorbis_comment_query;
+    r_vorbis_comment_query_count  : tvorbis_comment_query_count;
+    r_vorbis_commentheader_out    : tvorbis_commentheader_out;
+  end;
+
+
+  {*
+  }
+  unaLibvorbisCoder = class(unaObject)
+  private
+    f_api: tLibvorbisAPI;
+    f_lastError: int;
+    f_active: bool;
+  protected
+    function doOpen(): int; virtual; abstract;
+    procedure doClose(); virtual; abstract;
+  public
+    constructor create(const libname: wString = '');
+    procedure BeforeDestruction(); override;
+    //
+    {*
+    }
+    function open(): int;
+    {*
+    }
+    procedure close();
+    //
+    {*
+    }
+    property lastError: int read f_lastError;
+    {*
+    }
+    property active: bool read f_active;
+  end;
+
+
+const
+  //
+  c_libvorbis_name = 'libvorbis.dll';
+
+{*
+}
+function loadLibvorbis(var api: tLibvorbisAPI; const libname: wString = ''): int;
+
+{*
+}
+procedure unloadLibvorbis(var api: tLibvorbisAPI);
+
 
 implementation
 
 
 uses
-  Windows, unaUtils;
+  Windows, unaUtils
+{$IFDEF __SYSUTILS_H_ }
+  , SysUtils
+{$ENDIF __SYSUTILS_H_ }
+  ;
+
+{$IFNDEF VC_LIBVORBIS_ONLY }
 
 var
   proc_ogg_packet_clear               : togg_packet_clear;
@@ -2018,7 +2142,7 @@ begin
 {$ENDIF NO_ANSI_SUPPORT }
             g_dllLoad_ogg := Windows.LoadLibraryW(pWideChar(libraryName))
 {$IFNDEF NO_ANSI_SUPPORT }
-          else
+	  else
             g_dllLoad_ogg := Windows.LoadLibraryA(pAnsiChar(AnsiString(libraryName)))
 {$ENDIF NO_ANSI_SUPPORT }
           ;
@@ -2378,10 +2502,12 @@ begin
     cunav_dll_ogg: begin
       // --  --
       if (0 < g_dllLoad_ogg_refCount) then begin
+	//
 	dec(g_dllLoad_ogg_refCount);
 	if (1 > g_dllLoad_ogg_refCount) then begin
+	  //
 	  g_dllLoad_ogg_refCount := -2;
-	  Windows.FreeLibrary(g_dllLoad_ogg);
+	  FreeLibrary(g_dllLoad_ogg);
 	  g_dllLoad_ogg_refCount := 0;
 	end;
       end;
@@ -2390,10 +2516,12 @@ begin
     cunav_dll_vorbis: begin
       // --  --
       if (0 < g_dllLoad_vorbis_refCount) then begin
+	//
 	dec(g_dllLoad_vorbis_refCount);
 	if (1 > g_dllLoad_vorbis_refCount) then begin
+	  //
 	  g_dllLoad_vorbis_refCount := -2;
-	  Windows.FreeLibrary(g_dllLoad_vorbis);
+	  FreeLibrary(g_dllLoad_vorbis);
 	  g_dllLoad_vorbis_refCount := 0;
 	end;
       end;
@@ -2402,10 +2530,12 @@ begin
     cunav_dll_vorbisenc: begin
       // --  --
       if (0 < g_dllLoad_vorbisenc_refCount) then begin
+	//
 	dec(g_dllLoad_vorbisenc_refCount);
 	if (1 > g_dllLoad_vorbisenc_refCount) then begin
+	  //
 	  g_dllLoad_vorbisenc_refCount := -2;
-	  Windows.FreeLibrary(g_dllLoad_vorbisenc);
+	  FreeLibrary(g_dllLoad_vorbisenc);
 	  g_dllLoad_vorbisenc_refCount := 0;
 	end;
       end;
@@ -2414,16 +2544,174 @@ begin
     cunav_dll_vorbisfile: begin
       // --  --
       if (0 < g_dllLoad_vorbisfile_refCount) then begin
+	//
 	dec(g_dllLoad_vorbisfile_refCount);
 	if (1 > g_dllLoad_vorbisfile_refCount) then begin
+	  //
 	  g_dllLoad_vorbisfile_refCount := -2;
-	  Windows.FreeLibrary(g_dllLoad_vorbisfile);
+	  FreeLibrary(g_dllLoad_vorbisfile);
 	  g_dllLoad_vorbisfile_refCount := 0;
 	end;
       end;
     end;
   end;
 end;
+
+{$ENDIF VC_LIBVORBIS_ONLY }
+
+
+// -- libvorbis.dll --
+
+// --  --
+function loadLibvorbis(var api: tLibvorbisAPI; const libname: wString): int;
+var
+  libFile: wString;
+begin
+  with api do begin
+    //
+    if (0 = r_module) then begin
+      //
+      r_module := 1;	// not zero
+      //
+      libFile := trimS(libname);
+      if ('' = libFile) then
+	libFile := c_libvorbis_name;
+      //
+{$IFNDEF NO_ANSI_SUPPORT }
+      if (g_wideApiSupported) then
+{$ENDIF NO_ANSI_SUPPORT }
+	result := LoadLibraryW(pwChar(libFile))
+{$IFNDEF NO_ANSI_SUPPORT }
+      else
+	result := LoadLibraryA(paChar(aString(libFile)));
+{$ENDIF NO_ANSI_SUPPORT }
+      ;
+      if (0 = result) then begin
+	//
+	result := GetLastError();
+	r_module := 0;
+      end
+      else begin
+	//
+	r_module := result;
+	//
+	// map DLL entries
+	r_vorbis_block_clear	:= GetProcAddress(r_module, 'vorbis_block_clear');
+	r_vorbis_block_init	:= GetProcAddress(r_module, 'vorbis_block_init');
+	r_vorbis_dsp_clear	:= GetProcAddress(r_module, 'vorbis_dsp_clear');
+	r_vorbis_granule_time	:= GetProcAddress(r_module, 'vorbis_granule_time');
+	r_vorbis_info_blocksize	:= GetProcAddress(r_module, 'vorbis_info_blocksize');
+	r_vorbis_info_clear	:= GetProcAddress(r_module, 'vorbis_info_clear');
+	r_vorbis_info_init	:= GetProcAddress(r_module, 'vorbis_info_init');
+	//r_vorbis_version_string	:= GetProcAddress(r_module, 'vorbis_version_string');
+	// Decoding
+	r_vorbis_packet_blocksize     := GetProcAddress(r_module, 'vorbis_packet_blocksize');
+	r_vorbis_synthesis            := GetProcAddress(r_module, 'vorbis_synthesis');
+	r_vorbis_synthesis_blockin    := GetProcAddress(r_module, 'vorbis_synthesis_blockin');
+	r_vorbis_synthesis_halfrate   := GetProcAddress(r_module, 'vorbis_synthesis_halfrate');
+	r_vorbis_synthesis_halfrate_p := GetProcAddress(r_module, 'vorbis_synthesis_halfrate_p');
+	r_vorbis_synthesis_headerin   := GetProcAddress(r_module, 'vorbis_synthesis_headerin');
+	//r_vorbis_synthesis_idheader   := GetProcAddress(r_module, 'vorbis_synthesis_idheader');
+	r_vorbis_synthesis_init       := GetProcAddress(r_module, 'vorbis_synthesis_init');
+	r_vorbis_synthesis_lapout     := GetProcAddress(r_module, 'vorbis_synthesis_lapout');
+	r_vorbis_synthesis_pcmout     := GetProcAddress(r_module, 'vorbis_synthesis_pcmout');
+	r_vorbis_synthesis_read       := GetProcAddress(r_module, 'vorbis_synthesis_read');
+	r_vorbis_synthesis_restart    := GetProcAddress(r_module, 'vorbis_synthesis_restart');
+	r_vorbis_synthesis_trackonly  := GetProcAddress(r_module, 'vorbis_synthesis_trackonly');
+	// Encoding
+	r_vorbis_analysis             := GetProcAddress(r_module, 'vorbis_analysis');
+	r_vorbis_analysis_blockout    := GetProcAddress(r_module, 'vorbis_analysis_blockout');
+	r_vorbis_analysis_buffer      := GetProcAddress(r_module, 'vorbis_analysis_buffer');
+	r_vorbis_analysis_headerout   := GetProcAddress(r_module, 'vorbis_analysis_headerout');
+	r_vorbis_analysis_init        := GetProcAddress(r_module, 'vorbis_analysis_init');
+	r_vorbis_analysis_wrote       := GetProcAddress(r_module, 'vorbis_analysis_wrote');
+	r_vorbis_bitrate_addblock     := GetProcAddress(r_module, 'vorbis_bitrate_addblock');
+	r_vorbis_bitrate_flushpacket  := GetProcAddress(r_module, 'vorbis_bitrate_flushpacket');
+	// Metadata
+	r_vorbis_comment_add          := GetProcAddress(r_module, 'vorbis_comment_add');
+	r_vorbis_comment_add_tag      := GetProcAddress(r_module, 'vorbis_comment_add_tag');
+	r_vorbis_comment_clear        := GetProcAddress(r_module, 'vorbis_comment_clear');
+	r_vorbis_comment_init         := GetProcAddress(r_module, 'vorbis_comment_init');
+	r_vorbis_comment_query        := GetProcAddress(r_module, 'vorbis_comment_query');
+	r_vorbis_comment_query_count  := GetProcAddress(r_module, 'vorbis_comment_query_count');
+	r_vorbis_commentheader_out    := GetProcAddress(r_module, 'vorbis_commentheader_out');
+	//
+	r_refCount := 1;	// also, makes it non-zero (see below mscand)
+	if (nil <> mscand(@api, sizeof(tLibvorbisAPI) shr 2, 0)) then begin
+	  //
+	  // something is missing, close the library
+	  FreeLibrary(r_module);
+	  r_module := 0;
+	  result := -1;
+	end
+	else
+	  result := 0;
+      end;
+    end
+    else begin
+      //
+      if (0 < r_refCount) then
+	inc(r_refCount);
+      //
+      result := 0;
+    end;
+  end;
+end;
+
+// --  --
+procedure unloadLibvorbis(var api: tLibvorbisAPI);
+begin
+  with api do begin
+    //
+    if (0 <> r_module) then begin
+      //
+      if (0 < r_refCount) then
+	dec(r_refCount);
+      //
+      if (1 > r_refCount) then begin
+	//
+	FreeLibrary(r_module);
+	fillChar(api, sizeof(tLibvorbisAPI), 0)
+      end;
+    end;
+  end;
+end;
+
+
+{ unaLibvorbisCodec }
+
+// --  --
+procedure unaLibvorbisCoder.BeforeDestruction();
+begin
+  inherited;
+  //
+  unloadLibvorbis(f_api);
+end;
+
+// --  --
+procedure unaLibvorbisCoder.close();
+begin
+
+end;
+
+// --  --
+constructor unaLibvorbisCoder.create(const libname: wString);
+begin
+  if (0 <> loadLibvorbis(f_api, libname)) then
+    Abort();
+  //
+  inherited create();
+end;
+
+// --  --
+function unaLibvorbisCoder.open(): int;
+begin
+  if (active) then
+    result := f_lastError
+  else
+    result := doOpen();
+end;
+
 
 end.
 

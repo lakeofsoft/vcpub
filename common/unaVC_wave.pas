@@ -2479,7 +2479,7 @@ begin
   //
   inherited;
   //
-  if (lockNonEmptyList(_providers)) then
+  if (lockNonEmptyList(_providers, true)) then begin
     try
       i := 0;
       while (i < _providers.count) do begin
@@ -2489,8 +2489,9 @@ begin
 	inc(i);
       end;
     finally
-      unlockList(_providers);
+      unlockList(_providers{$IFDEF DEBUG }, true{$ENDIF DEBUG });
     end;
+  end;
 end;
 
 // --  --

@@ -856,7 +856,7 @@ end;
 // --  --
 procedure unaLameEncoder.close();
 begin
-  if (acquire(100)) then try
+  if (acquire(false, 100)) then try
     //
     if (0 <> f_stream) then begin
       //
@@ -868,7 +868,7 @@ begin
     //
     mrealloc(f_buf);
   finally
-    release();
+    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 
@@ -897,7 +897,7 @@ var
   nOutBufUsed: DWORD;
 begin
   result := BE_ERR_INVALID_HANDLE;
-  if (active and acquire(100)) then try
+  if (active and acquire(false, 100)) then try
     //
     if (1 < len) then begin
       //
@@ -927,7 +927,7 @@ begin
       result := BE_ERR_BUFFER_TOO_SMALL;
     //
   finally
-    release();
+    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 
@@ -937,20 +937,20 @@ var
   nOutBufUsed: DWORD;
 begin
   result := BE_ERR_INVALID_HANDLE;
-  if (locked or acquire(100)) then try
+  if (locked or acquire(false, 100)) then try
     //
     if (active and f_gotAnyData) then begin
       //
       result := f_proc.r_lameDeinitStream(f_stream, f_buf, nOutBufUsed);
       if ((BE_ERR_SUCCESSFUL = result) and (0 < nOutBufUsed)) then
-      	onEncodedData(f_frameSize, f_buf, nOutBufUsed);
+	onEncodedData(f_frameSize, f_buf, nOutBufUsed);
     end
     else
       result := BE_ERR_SUCCESSFUL;
     //
   finally
     if (not locked) then
-      release();
+      release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 
@@ -974,7 +974,7 @@ begin
   close();
   //
   result := BE_ERR_INVALID_HANDLE;
-  if (acquire(100)) then try
+  if (acquire(false, 100)) then try
     //
     fillChar(cfg, sizeof(tBE_CONFIG_LHV1), #0);
     cfg.dwConfig := BE_CONFIG_LAME;
@@ -1030,7 +1030,7 @@ begin
     else
       close();
   finally
-    release();
+    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 
@@ -1042,7 +1042,7 @@ begin
   close();
   //
   result := BE_ERR_INVALID_HANDLE;
-  if (acquire(100)) then try
+  if (acquire(false, 100)) then try
     //
     fillChar(cfg, sizeof(tBE_CONFIG_LHV1), #0);
     cfg.dwConfig := BE_CONFIG_LAME;
@@ -1093,7 +1093,7 @@ begin
       close();
     //
   finally
-    release();
+    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 

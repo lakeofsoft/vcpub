@@ -27,6 +27,7 @@
 
 {$I unaDef.inc}
 {$I unaBassDef.inc }
+{$I unaVorbisDef.inc }
 
 {*
   Contains library API and wrapper classes for Blade/Lame MP3 encoders, Vorbis/Ogg libraries, BASS library and OpenH323 plugin model.
@@ -68,7 +69,7 @@ type
   {*
     Base abstract class for stream encoder/decoder.
   }
-  unaAbstractEncoder = class
+  unaAbstractEncoder = class(unaObject)
   private
     f_priority: integer;
     //
@@ -77,7 +78,7 @@ type
     f_lazyThread: unaThread;
     //
     f_onDA: tUnaEncoderDataAvailableEvent;
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     //
     function get_priority(): integer;
     procedure set_priority(value: integer);
@@ -319,6 +320,8 @@ type
     function doEncode(data: pointer; nBytes: unsigned; out bytesUsed: unsigned): UNA_ENCODER_ERR; override;
   end;
 
+
+{$IFNDEF VC_LIBVORBIS_ONLY }	// classes below are doomed to full version of Vorbis API
 
 // =========================== VORBIS ENCODER/DECODER ==========================
 
@@ -624,6 +627,8 @@ type
     property errorCode: int read f_errorCode;
     property onDataAvailable: tUnaDataAvailableEvent read f_onDA write f_onDA;
   end;
+
+{$ENDIF VC_LIBVORBIS_ONLY }
 
 
 // ================== BASS LIBRARY WITH MP3 DECODER ======================
@@ -1112,7 +1117,7 @@ begin
     //
     if (f_waitEvent.waitFor(100)) then begin
       //
-      if (enter(100)) then begin
+      if (enter(false, 100)) then begin
 	try
 	  avail := f_lazyStream.getAvailableSize();
 	  if ((size <= avail) or f_needToFlush) then begin
@@ -1148,7 +1153,7 @@ begin
 	      size := f_encoder.f_inputChunkSize;
 	  end;
 	finally
-	  leave();
+	  leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
 	end
       end
       else
@@ -1163,11 +1168,11 @@ end;
 // --  --
 procedure unaLazyWriteThread.flush();
 begin
-  if (enter(3000)) then
+  if (enter(false, 3000)) then
     try
       //f_needToFlush := true;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   //
   f_needToFlush := true;	// must be set anyway
@@ -1208,7 +1213,7 @@ begin
   f_outBufSize := 0;
   f_outStream := unaMemoryStream.create();
   f_inStream := unaMemoryStream.create();
-  f_gate := unaInProcessGate.create();
+  //f_gate := unaInProcessGate.create();
   //
   f_lazyThread := unaLazyWriteThread.create(self);
   //priority := f_priority;	- not required since thread will use our f_priority field
@@ -1227,7 +1232,7 @@ begin
   f_outBufSize := 0;
   f_errorCode := BE_ERR_SUCCESSFUL;
   //
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
   freeAndNil(f_outStream);
   freeAndNil(f_inStream);
   freeAndNil(f_lazyThread);
@@ -1379,7 +1384,7 @@ end;
 // --  --
 function unaAbstractEncoder.enter(timeout: unsigned): bool;
 begin
-  result := f_gate.enter(timeout);
+  result := acquire(false, timeout);
 end;
 
 // --  --
@@ -1411,7 +1416,8 @@ end;
 // --  --
 function unaAbstractEncoder.leave(): bool;
 begin
-  f_gate.leave();
+  //f_gate.leave();
+  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   result := true;
 end;
 
@@ -1633,6 +1639,7 @@ begin
   result := lame_unloadDLL(f_lameProc);
 end;
 
+{$IFNDEF VC_LIBVORBIS_ONLY }
 
 { unaVorbisAbstract }
 
@@ -2501,6 +2508,8 @@ begin
     decoder.f_oggFile := self;
 end;
 
+{$ENDIF VC_LIBVORBIS_ONLY }
+
 
 // ================================ BASS =========================
 
@@ -2650,7 +2659,7 @@ procedure unaBass.bass_free();
 var
   i: int;
 begin
-  if (lockNonEmptyList(f_consumers, 1000)) then
+  if (lockNonEmptyList(f_consumers, false, 1000)) then
     try
       i := 0;
       while (i < f_consumers.count) do begin
@@ -2660,7 +2669,7 @@ begin
 	inc(i);
       end;
     finally
-      unlockList(f_consumers);
+      unlockList(f_consumers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
     end;
   //
   if (f_isValid) then

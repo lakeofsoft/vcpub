@@ -151,7 +151,7 @@ implementation
 {$R *.dfm}
 
 uses
-  unaUtils, unaMsAcmClasses, 
+  unaUtils, unaMsAcmClasses,
   unaVcIDEutils,
   u_surround_main;
 
@@ -162,7 +162,6 @@ type
   private
     f_waveIn: unaWaveInDevice;
     f_subChunk: pointer;
-    f_sbGate: unaInProcessGate;
     //
     procedure onWaveDA(sender: tObject; data: pointer; size: unsigned);
   protected
@@ -334,8 +333,6 @@ begin
   index := deviceId2index(str2intInt(f_param));
   f_name := 'Live from ' + c_form_sourceManage.c_cb_liveIndex.items[index];
   //
-  f_sbGate := unaInProcessGate.create();
-  //
   inherited;
 end;
 
@@ -346,7 +343,6 @@ begin
   //
   mrealloc(f_subChunk);
   freeAndNil(f_waveIn);
-  freeAndNil(f_sbGate);
 end;
 
 // --  --
@@ -366,14 +362,14 @@ procedure unaASLive.doPrepareNextChunk();
 var
   swap: pointer;
 begin
-  if (f_sbGate.enter(10)) then try
+  if (acquire(false, 10)) then try
     // swap chunk buffers
     swap := f_chunk;
     f_chunk := f_subChunk;
     f_subChunk := swap;
     //
   finally
-    f_sbGate.leave();
+    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 
@@ -387,11 +383,11 @@ end;
 procedure unaASLive.onWaveDA(sender: tObject; data: pointer; size: unsigned);
 begin
   size := min(size, f_chunkSizeInSamples shl 1);
-  if ((0 < size) and (f_sbGate.enter(20))) then try
+  if ((0 < size) and (acquire(false, 20))) then try
     //
     move(data^, f_subChunk^, size);
   finally
-    f_sbGate.leave();
+    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 

@@ -268,7 +268,7 @@ end;
 // --  --
 function TunadspFFTPipe.applyFormat(data: pointer; len: unsigned; provider: unavclInOutPipe; restoreActiveState: bool): bool;
 begin
-  if (enter(100)) then
+  if (enter(false, 100)) then
     try
       mrealloc(f_localFormat, len);
       f_localFormatSize := len;
@@ -280,7 +280,7 @@ begin
 	f_fft.setFormat(formatOriginal.pcmBitsPerSample, formatOriginal.pcmNumChannels);
       //
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   //
   result := inherited applyFormat(data, len, provider, restoreActiveState);
@@ -340,7 +340,7 @@ end;
 // --  --
 function TunadspFFTPipe.getFormatExchangeData(out data: pointer): unsigned;
 begin
-  if (enter(100)) then begin
+  if (enter(true, 100)) then begin
     try
       result := f_localFormatSize;
       //
@@ -352,7 +352,7 @@ begin
 	data := nil;
       //
     finally
-      leave();
+      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end
   else begin
@@ -376,11 +376,11 @@ end;
 // --  --
 procedure TunadspFFTPipe.onTimer(sender: tObject);
 begin
-  if (enter(100)) then
+  if (enter(true, 100)) then
     try
       f_fft.fft_complex_forward(@f_dataProxy, f_channel);
     finally
-      leave();
+      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   //
   if (assigned(f_onFFTDone)) then

@@ -199,7 +199,7 @@ begin
   //
   for i := 0 to f_graphCount - 1 do begin
     //
-    if (lockList(f_historyData[i])) then try
+    if (lockList(f_historyData[i], false)) then try
       //
       f_historyData[i].add(0);
       //
@@ -207,7 +207,7 @@ begin
 	f_historyData[i].removeFromEdge(true);	// remove older values first
       //
     finally
-      unlockList(f_historyData[i]);
+      unlockList(f_historyData[i]{$IFDEF DEBUG }, false{$ENDIF DEBUG });
     end;
   end;
   //
@@ -472,13 +472,13 @@ procedure TunaCustomGridMonitor.setValue(index: int; value: int);
 begin
   if (active and (0 <= index) and (index < f_graphCount)) then begin
     //
-    if (lockNonEmptyList(f_historyData[index])) then try
+    if (lockNonEmptyList(f_historyData[index], false)) then try
       //
       with (f_historyData[index]) do
 	setItem(count - 1, int(get(count - 1)) + value)
       //
     finally
-      unlockList(f_historyData[index]);
+      unlockList(f_historyData[index]{$IFDEF DEBUG }, false{$ENDIF DEBUG });
     end
     else
       f_historyData[index].add(value)

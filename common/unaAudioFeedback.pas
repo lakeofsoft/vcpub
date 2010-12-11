@@ -54,7 +54,6 @@ const
   c_recordWaveCmd_stop	= 2;	// stops recording
 
 
-
 type
   // --  --
   myWaveOutDevice = class(unaWaveOutDevice)
@@ -157,6 +156,7 @@ begin
   //
   f_waveIn := unaWaveInDevice.create();
   f_waveOut := myWaveOutDevice.create();
+  f_waveOut.jitterImprove := false;
   //
   f_waveIn.assignStream(false, nil);	// remove outgoing stream
   //
@@ -184,7 +184,7 @@ begin
     //
   while (not shouldStop) do begin
     //
-    sleep(100);
+    sleep(50);
   end;
   //
   result := 0;
@@ -243,14 +243,14 @@ begin
     onWaveDataAvailable(sender, f_silence, waveIn.chunkSize);
   end;
   //
-  if (enter(20)) then begin
+  if (enter(true, 20)) then begin
     //
     try
       if (nil <> f_waveFile) then
 	f_waveFile.write(data, len);
       //
     finally
-      leave();
+      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
   //
@@ -265,7 +265,7 @@ var
 begin
   result := HRESULT(-2);
   //
-  if (enter(100)) then begin
+  if (enter(true, 100)) then begin
     //
     try
       //
@@ -308,7 +308,7 @@ begin
       end;
       //
     finally
-      leave();
+      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;

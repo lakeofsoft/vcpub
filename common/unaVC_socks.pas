@@ -160,7 +160,7 @@ type
   }
   tunavclInOutIpPipeSwapBuf = packed record
     //
-    r_swapSubLock: unaInProcessGate;
+    r_swapSubLock: unaObject;//unaInProcessGate;
     r_swapSubBuf: pArray;
     r_swapSubBufSize: uint32;
     r_swapSubBufUsedSize: uint32;
@@ -1219,8 +1219,8 @@ end;
 procedure unavclIpPacketsStack.beforeDestruction();
 begin
   // try to make sure no one else is locking us
-  if (enter(1000)) then
-    leave();
+  if (enter(false, 1000)) then
+    leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
   //
   inherited;
   //
@@ -1915,8 +1915,8 @@ begin
   streamByteOrderOutput := unasbo_dontCare;
   //
   fillChar(f_swapSubBuf, sizeOf(f_swapSubBuf), #0);
-  f_swapSubBuf[0].r_swapSubLock := unaInProcessGate.create();
-  f_swapSubBuf[1].r_swapSubLock := unaInProcessGate.create();
+  f_swapSubBuf[0].r_swapSubLock := unaObject.create(); //unaInProcessGate.create();
+  f_swapSubBuf[1].r_swapSubLock := unaObject.create(); //unaInProcessGate.create();
   //
   f_socks := getSocks(self);
   //
@@ -2000,7 +2000,7 @@ begin
   if (unasbo_dontCare <> mode) then begin
     //
     swapBufIndex := choice(isInput, int(0), 1);
-    if (f_swapSubBuf[swapBufIndex].r_swapSubLock.enter(50)) then try
+    if (f_swapSubBuf[swapBufIndex].r_swapSubLock.acquire(false, 50)) then try
       //
       if ((nil <> data) and (100 < len + int(f_swapSubBuf[swapBufIndex].r_swapSubBufSize))) then begin
 	//
@@ -2174,7 +2174,7 @@ begin
 	end;
       end;
     finally
-      f_swapSubBuf[swapBufIndex].r_swapSubLock.leave();
+      f_swapSubBuf[swapBufIndex].r_swapSubLock.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -2238,11 +2238,11 @@ begin
   //
   for i := low(f_swapSubBuf) to high(f_swapSubBuf) do begin
     //
-    if (f_swapSubBuf[i].r_swapSubLock.enter()) then begin
+    if (f_swapSubBuf[i].r_swapSubLock.acquire(false, 1000)) then begin
       try
 	mrealloc(f_swapSubBuf[i].r_swapSubBuf);
       finally
-	f_swapSubBuf[i].r_swapSubLock.leave();
+	f_swapSubBuf[i].r_swapSubLock.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
     end;
     //
@@ -2838,7 +2838,7 @@ procedure unavclInOutIpPipe.writeIntoSwapBuf(bufIndex: int; data: pointer; len: 
 var
   sz: unsigned;
 begin
-  if ((nil <> data) and (0 < len) and f_swapSubBuf[bufIndex].r_swapSubLock.enter(50)) then try
+  if ((nil <> data) and (0 < len) and f_swapSubBuf[bufIndex].r_swapSubLock.acquire(false, 50)) then try
     //
     with f_swapSubBuf[bufIndex] do begin
       //
@@ -2854,7 +2854,7 @@ begin
       inc(r_swapSubBufUsedSize, len);
     end;
   finally
-    f_swapSubBuf[bufIndex].r_swapSubLock.leave();
+    f_swapSubBuf[bufIndex].r_swapSubLock.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 
@@ -3292,12 +3292,12 @@ begin
 	  //
     {$ENDIF VCX_DEMO_LIMIT_CLIENTS }
 	  //
-	  if ((nil <> packetStack) and (packetStack.enter(timeout + 66))) then begin
+	  if ((nil <> packetStack) and (packetStack.enter(true, timeout + 66))) then begin
 	    //
 	    try
 	      result := packetStack.doSendPacket(cmd, asynch, data, len, timeout);
 	    finally
-	      packetStack.leave();
+	      packetStack.leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
 	    end;
 	  end;
 	  //
@@ -3501,9 +3501,9 @@ begin
     result := false;
 {$ELSE }
   if (allowEmpty) then
-    result := lockList(f_clients, timeout)
+    result := lockList(f_clients, false, timeout)
   else
-    result := lockNonEmptyList(f_clients, timeout);
+    result := lockNonEmptyList(f_clients, false, timeout);
 {$ENDIF VCX_DEMO_LIMIT_CLIENTS }
 end;
 
@@ -3667,7 +3667,7 @@ begin
 {$IFDEF VCX_DEMO_LIMIT_CLIENTS }
   f_clientsLock.leave();
 {$ELSE }
-  unlockList(f_clients);
+  unlockList(f_clients{$IFDEF DEBUG }, false{$ENDIF DEBUG });
 {$ENDIF VCX_DEMO_LIMIT_CLIENTS }
 end;
 
@@ -3965,7 +3965,7 @@ var
   rawSize: unsigned;
   wasChanged: bool;
 begin
-  if (enter(100)) then begin
+  if (enter(true, 100)) then begin
     try
       //
       wasChanged := f_waveFormatChanged;
@@ -3996,7 +3996,7 @@ begin
       result := sendPacket(rawSize);
       //
     finally
-      leave();
+      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end
   end
   else
@@ -4010,7 +4010,7 @@ var
 begin
   if ((nil <> data) and (0 < len) and (len <= $FFFF)) then begin
     //
-    if (enter(100)) then begin
+    if (enter(true, 100)) then begin
       //
       try
 	rawSize := allocPacket(unavcl_packet_selector11_custom, len);
@@ -4020,7 +4020,7 @@ begin
 	//
 	result := sendPacket(rawSize);
       finally
-	leave();
+	leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
       end
     end
     else
@@ -4082,7 +4082,7 @@ begin
     else
       dec(f_formatCountdown);
     //
-    if (enter(100)) then begin
+    if (enter(true, 100)) then begin
       //
       try
 	f_channelSeqNum := (f_channelSeqNum + 1) and unavcl_union01_channelSeqNum_mask;
@@ -4104,7 +4104,7 @@ begin
 	result := sendPacket(rawSize);
 	//
       finally
-	leave();
+	leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
       end
     end
     else
@@ -4121,7 +4121,7 @@ function unavclIPBroadcastServer.sendStreamSync(sync: unsigned): tunaSendResult;
 var
   rawSize: unsigned;
 begin
-  if (enter(100)) then begin
+  if (enter(true, 100)) then begin
     try
       rawSize := allocPacket(unavcl_packet_selector10_sync);
       f_packet.r_selector := f_packet.r_selector or (((sync shr 16) and unavcl_packet_selector10_high6bitsSync_mask) shl unavcl_packet_selector10_high6bitsSync_shift);
@@ -4129,7 +4129,7 @@ begin
       //
       result := sendPacket(rawSize);
     finally
-      leave();
+      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end
   end
   else

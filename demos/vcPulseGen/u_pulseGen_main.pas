@@ -237,12 +237,12 @@ begin
   //
   f_noMoreFeed := true;
   //
-  if (lockNonEmptyList(pulses, 500)) then
+  if (lockNonEmptyList(pulses, false, 500)) then
     try
       while (0 < pulses.count) do
 	tObject(pulses[0]).free;
     finally
-      unlockList(pulses);
+      unlockList(pulses{$IFDEF DEBUG }, false{$ENDIF DEBUG });
     end;
   //
   mixer.close();
@@ -298,13 +298,13 @@ begin
   move(data^, f_samples1, len);
   //
   // notify pulses they have to add new chunk
-  if (not f_noMoreFeed and lockNonEmptyList(pulses, 50)) then
+  if (not f_noMoreFeed and lockNonEmptyList(pulses, true, 50)) then
     try
       for i := 0 to pulses.count - 1 do
 	Tc_form_pulse(pulses[i]).feedSine(self);
       //
     finally
-      unlockList(pulses);
+      unlockList(pulses{$IFDEF DEBUG }, true{$ENDIF DEBUG });
     end;
 end;
 

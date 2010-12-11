@@ -23,7 +23,7 @@
 		Lake, Mar-Dec 2007
 		Lake, Jan-Nov 2008
 		Lake, Jan-Feb 2009
-		Lake, Feb-Jul 2010
+		Lake, Feb-Dec 2010
 
 	----------------------------------------------
 *)
@@ -50,6 +50,10 @@
 
   @Version 2.5.2010.02:
     + new VAD mode based on 3GPP codec;
+
+  @Version 2.5.2010.12:
+    * jitter effect on WaveOut;
+
 }
 
 unit
@@ -69,6 +73,7 @@ interface
   {xx $DEFINE DEBUG_LOG_MIXER }
   {xx $DEFINE DEBUG_LOG_MIXER2 }
   {xx $DEFINE DEBUG_LOG_MARKBUFF }
+  {xx $DEFINE DEBUG_LOG_JITTER }
 {$ENDIF DEBUG }
 
 uses
@@ -77,8 +82,7 @@ uses
 {$IFNDEF VC_LIC_PUBLIC }
   unaMpeg,
 {$ENDIF VC_LIC_PUBLIC }
-  unaOpenH323PluginAPI, unaBladeEncAPI, unaEncoderAPI,
-  unaSpeexAPI,
+  unaOpenH323PluginAPI, unaBladeEncAPI, unaEncoderAPI, unaSpeexAPI,
 {$IFDEF VC25_ENTERPRISE }
   una3GPPVAD,
 {$ENDIF VC25_ENTERPRISE }
@@ -107,7 +111,7 @@ var
 	Number of chunks which should be present in input buffer
 	of waveOutDevice component, before actual driver will be fed with data
 	(helps avoid cuts, but increases the latency)
-	Default value is 3
+	Default value is 4
   }
   c_defPlaybackChunksAheadNumber: unsigned	= 4;
 
@@ -618,7 +622,7 @@ type
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
     f_needRePrepare: bool;
     f_isFree: bool;
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
   protected
     {*
       Returns status of header. Descendant classes must override this method.
@@ -765,7 +769,7 @@ type
     f_openCloseEvent: unaEvent;
     //f_dataInEvent: unaEvent;
     //f_dataOutEvent: unaEvent;
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     f_deviceEvent: unaEvent;
     //
     f_inStream: unaAbstractStream;
@@ -1538,6 +1542,11 @@ type
     f_outOfStream: int64;
     f_outOfData: int64;
     //
+{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+    f_paused: bool;
+    f_ji: bool;
+{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+    //
     f_inWOMDONE: bool;
     //
     f_onACF: unaWaveDataEvent;
@@ -1618,6 +1627,12 @@ type
       Fires every time chunk was just played out by wave-out device.
     }
     property onAfterChunkDone: unaWaveDataEvent read f_onACD write f_onACD;
+{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+    {*
+	Jitter improve.
+    }
+    property jitterImprove: bool read f_ji write f_ji;
+{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
   end;
 
 
@@ -1954,6 +1969,10 @@ $0FFFFFFF - no init
     f_useSpeexDSP: bool;
     f_speexdsp: array[0..31] of unaSpeexDSP;	// up to 32 channels
     f_speexavail: bool;
+    //
+    f_subBuf: pArray;
+    f_subBufSize: int;
+    f_subBufPos: int;
     //
     f_channelBuf: pointer;
     f_channelBufOut: pointer;
@@ -2982,7 +3001,7 @@ procedure unaMsAcmDeviceHeader.AfterConstruction();
 begin
   inherited;
   //
-  f_gate := unaInProcessGate.create();
+  //f_gate := unaInProcessGate.create();
 end;
 
 // --  --
@@ -2995,7 +3014,7 @@ begin
       leave();
     end;
   //
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
   //
   inherited;
 end;
@@ -3013,13 +3032,14 @@ end;
 // --  --
 function unaMsAcmDeviceHeader.enter(timeout: unsigned): bool;
 begin
-  result := f_gate.enter(timeout);
+  result := acquire(false, timeout); //f_gate.enter(timeout);
 end;
 
 // --  --
 procedure unaMsAcmDeviceHeader.leave();
 begin
-  f_gate.leave();
+  //f_gate.leave();
+  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -3060,7 +3080,7 @@ end;
 // --  --
 function unaMsAcmStreamDevice.addConsumer(device: unaMsAcmStreamDevice; removeOutStream: bool): unsigned;
 begin
-  if (enter(1000)) then begin
+  if (enter(false, 1000)) then begin
     //
     try
       if ((nil <> device) and (0 > f_consumers.indexOf(device))) then begin
@@ -3074,7 +3094,7 @@ begin
       if (removeOutStream) then
 	assignStream(false, nil, false{, true});
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else
@@ -3226,7 +3246,7 @@ end;
 // --  --
 function unaMsAcmStreamDevice.assignStream(isInStream: bool; stream: unaAbstractStream; careDestroy: bool): unaAbstractStream;
 begin
-  if (enter(1000)) then begin
+  if (enter(false, 1000)) then begin
     //
     try
       destroyStream(isInStream);
@@ -3254,7 +3274,7 @@ begin
       //
       result := stream;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end
   end
   else
@@ -3686,7 +3706,7 @@ end;
 // --  --
 function unaMsAcmStreamDevice.close2(timeout: unsigned): MMRESULT;
 begin
-  if (f_gate.enter(1100)) then begin
+  if (enter(false, 1100)) then begin
     //
     try
       //
@@ -3744,7 +3764,7 @@ begin
 	result := MMSYSERR_NOERROR;
       //
     finally
-      f_gate.leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end
   end
   else
@@ -3786,7 +3806,7 @@ begin
   //
   f_consumers := unaList.create(uldt_ptr);
   f_notifyDevices := unaList.create(uldt_ptr);
-  f_gate := unaInProcessGate.create({$IFDEF DEBUG }_classID + '(f_gate)'{$ENDIF DEBUG });
+  //f_gate := unaInProcessGate.create({$IFDEF DEBUG }_classID + '(f_gate)'{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -3805,7 +3825,7 @@ begin
   freeAndNil(f_headers);
   freeAndNil(f_consumers);
   freeAndNil(f_notifyDevices);
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
 end;
 
 // --  --
@@ -3885,7 +3905,7 @@ begin
   //
   if (isOpen() and (not f_closing or f_flushing)) then begin
     //
-    if ((nil <> inStream) and inStream.enter(f_waitInterval shl 2)) then begin
+    if ((nil <> inStream) and inStream.enter(false, f_waitInterval shl 2)) then begin
       //
       try
 	if ((0 < overNumIn) and (inStream.getAvailableSize() > int(f_inOverSize))) then begin
@@ -3901,7 +3921,7 @@ begin
 	  result := inStream.write(buf, size);
 	//
       finally
-	inStream.leave();
+	inStream.leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
     end;
   end;
@@ -4239,7 +4259,7 @@ end;
 // --  --
 function unaMsAcmStreamDevice.open2(query: bool; timeout, flags: unsigned; startDevice: bool): MMRESULT;
 begin
-  if (f_gate.enter(1100)) then
+  if (enter(false, 1100)) then
     try
       //
       if (not isOpen()) then begin
@@ -4308,7 +4328,7 @@ begin
 	result := MMSYSERR_NOERROR;
       //
     finally
-      f_gate.leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end
   else
     result := MMSYSERR_HANDLEBUSY;	//
@@ -4334,14 +4354,14 @@ end;
 // --  --
 function unaMsAcmStreamDevice.removeConsumer(device: unaMsAcmStreamDevice): bool;
 begin
-  if (enter(1000)) then
+  if (enter(false, 1000)) then
     try
       if (nil <> device) then
 	device.removeNotification(self);
       //
       result := f_consumers.removeItem(device);
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end
   else
     result := false;
@@ -4408,7 +4428,7 @@ var
   wFormatExt: PWAVEFORMATEXTENSIBLE;
   isPCM: bool;
 begin
-  if (enter(1000)) then
+  if (enter(false, 1000)) then
     try
       //
       if (isSrc) then begin
@@ -4485,7 +4505,7 @@ begin
       //
       result := true;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end
   else
     result := false;
@@ -5263,7 +5283,7 @@ begin
   {$ENDIF DEBUG_LOG_MARKBUFF }
   if ((nil <> buf) and (0 < size) and beforeNewChunk(buf, size, srcFormatExt)) then begin
     //
-    if (enter(100)) then begin
+    if (enter(false, 100)) then begin
       try
 	try
 	  srcSize := size;
@@ -5445,7 +5465,7 @@ begin
 	  // ignore exceptions
 	end;
       finally
-        leave();
+        leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
     end;
   end;
@@ -6867,6 +6887,9 @@ begin
 	  //
 	  if (0 <> dwParam1) then begin
 	    //
+    {$IFDEF DEBUG_LOG_JITTER }
+	    logMessage('WIM_DATA, size=' + int2str(pWAVEHDR(dwParam1).dwBytesRecorded));
+    {$ENDIF DEBUG_LOG_JITTER }
 	    //
     {$IFDEF DEBUG_LOG }
 	    logMessage(wave.className + '.myMMWaveInCallback() - WIM_DATA, size=' + int2str(pWAVEHDR(dwParam1).dwBytesRecorded));
@@ -7043,15 +7066,15 @@ end;
 class function unaWaveInDevice.getErrorText(errorCode: MMRESULT): string;
 var
 {$IFNDEF NO_ANSI_SUPPORT }
-  bufA: array[0..MAXERRORLENGTH] of aChar;
+  bufA: array[0..MAXERRORLENGTH + 20] of aChar;
 {$ENDIF NO_ANSI_SUPPORT }
-  bufW: array[0..MAXERRORLENGTH] of wChar;
+  bufW: array[0..MAXERRORLENGTH + 20] of wChar;
 begin
 {$IFNDEF NO_ANSI_SUPPORT }
   if (g_wideAPISupported) then begin
 {$ENDIF NO_ANSI_SUPPORT }
     //
-    if (mmNoError(waveInGetErrorTextW(errorCode, bufW, sizeOf(bufW)))) then
+    if (mmNoError(waveInGetErrorTextW(errorCode, bufW, sizeOf(bufW) shr 1))) then
       result := bufW
     else
       result := mmGetErrorCodeTextEx(errorCode);
@@ -7175,12 +7198,32 @@ begin
   hdr := @unaWaveHeader(header).f_header;
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
   //
+  {$IFDEF DEBUG_LOG_JITTER }
+  logMessage('Add header: 0x' + int2str(int(header), 16) + ':' + int2str(header.dwBufferLength) + '; INP=' + int2str(f_inProgress));
+  {$ENDIF DEBUG_LOG_JITTER }
+  //
+  hdr.dwFlags := hdr.dwFlags and not WHDR_DONE;
   result := waveOutWrite(int(f_handle), hdr, sizeof(WAVEHDR));
   //
   {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
   if (not mmNoError(result)) then
     logMessage(self._classID + '.addHeader() fails, code=' + getErrorText(result));
   {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+  //
+{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+  if (f_paused and (MMSYSERR_NOERROR = result)) then begin
+    //
+    if (3 < f_inProgress) then begin
+      //
+  {$IFDEF DEBUG_LOG_JITTER }
+      logMessage('WaveOut unpaused.');
+  {$ENDIF DEBUG_LOG_JITTER }
+      //
+      waveOutRestart(f_handle);
+      f_paused := false;
+    end;
+  end;
+{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
 end;
 
 // --  --
@@ -7206,6 +7249,10 @@ end;
 constructor unaWaveOutDevice.create(deviceID: unsigned; mapped, direct: bool; overNum: unsigned);
 begin
   inherited create(deviceID, mapped, direct, false, overNum);
+  //
+  {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+  f_ji := true;
+  {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
 end;
 
 // --  --
@@ -7214,10 +7261,6 @@ begin
   result := waveOutClose(int(f_handle));
   //
   inherited doClose(timeout);
-  //
-  {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-  //f_readyHeaders.clear();
-  {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
 end;
 
 // --  --
@@ -7271,6 +7314,9 @@ begin
 	  //
 	  if (0 <> dwParam1) then begin
 	    //
+  {$IFDEF DEBUG_LOG_JITTER }
+	    logMessage('WOM_DONE, hdr=' + int2str(int(dwParam1), 16));
+  {$ENDIF DEBUG_LOG_JITTER }
     {$IFDEF DEBUG_LOG }
 	    logMessage(wave.className + '.myMMWaveOutCallback() - WOM_DONE, size=' + int2str(pWAVEHDR(dwParam1).dwBytesRecorded));
     {$ENDIF DEBUG_LOG }
@@ -7327,11 +7373,23 @@ begin
   {$ELSE }
 	  result := waveOutOpen(PHWAVEOUT(@f_handle), f_deviceID, fmt, f_deviceEvent.handle, cardinal(self), flags);
   {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-        //
+	//
       finally
 	mrealloc(fmt);
       end;
     end;
+    //
+{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+    //
+    if (f_ji and (MMSYSERR_NOERROR = result)) then begin
+      //
+      waveOutPause(f_handle);
+      f_paused := true;
+    end
+    else
+      f_paused := false;
+    //
+{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
   end;
 end;
 
@@ -7390,7 +7448,7 @@ begin
 	inc(c);
       end;
       //
-      addNewHdr := not f_inWOMDONE and (result < size) and (f_nextHdr < high(f_headers)) and (f_nextHdr < int(f_inOverCN) shl 2);
+      addNewHdr := not f_inWOMDONE and (result < size) and (f_nextHdr < high(f_headers)) and (f_nextHdr <= int(f_inOverCN) + 1);
       if (addNewHdr) then begin
 	//
 	c := InterlockedIncrement(f_nextHdr);
@@ -7459,7 +7517,7 @@ begin
 	  f_flushing := true;	// write() checks this flag
 	  //
 {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-          while (i < f_inOverCN) do begin
+	  while (i < f_inOverCN) do begin
 {$ELSE }
 	  while (i < c_defPlaybackChunksAheadNumber) do begin
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
@@ -7554,15 +7612,15 @@ end;
 class function unaWaveOutDevice.getErrorText(errorCode: MMRESULT): string;
 var
 {$IFNDEF NO_ANSI_SUPPORT }
-  bufA: array[0..MAXERRORLENGTH] of aChar;
+  bufA: array[0..MAXERRORLENGTH + 20] of aChar;
 {$ENDIF NO_ANSI_SUPPORT }
-  bufW: array[0..MAXERRORLENGTH] of wChar;
+  bufW: array[0..MAXERRORLENGTH + 20] of wChar;
 begin
 {$IFNDEF NO_ANSI_SUPPORT }
   if (g_wideAPISupported) then begin
 {$ENDIF NO_ANSI_SUPPORT }
     //
-    if (mmNoError(waveOutGetErrorTextW(errorCode, bufW, sizeof(bufW)))) then
+    if (mmNoError(waveOutGetErrorTextW(errorCode, bufW, sizeof(bufW) shr 1))) then
       result := int2str(errorCode) + ' (' + bufW + ')'
     else
       result := mmGetErrorCodeTextEx(errorCode);
@@ -7610,6 +7668,11 @@ var
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
   size: unsigned;
 begin
+  {$IFDEF DEBUG_LOG_JITTER }
+  if (nil <> header) then
+    logMessage('Header done: 0x' + int2str(int(header), 16) + ':' + int2str(header.dwBufferLength));
+  {$ENDIF DEBUG_LOG_JITTER }
+  //
   result := inherited onHeaderDone(header, wakeUpByHeaderDone);
   if (not shouldStop and result) then begin
     //
@@ -8984,7 +9047,7 @@ begin
 	  else
 	    v := 0;
 	  //
-	  fillChar(pAnsiChar(f_srcChunk)[tsize], chunkSize - tsize, AnsiChar(v));
+	  fillChar(pArray(f_srcChunk)[tsize], chunkSize - tsize, aChar(v));
 	  tsize := chunkSize;
 	  f_readingIsDone := true;
 	  break;	// no more chunks and loop = false
@@ -8994,6 +9057,10 @@ begin
   end;
   //
   result := (0 < tsize) and (chunkSize = tsize);
+  //
+  {$IFDEF DEBUG_LOG_JITTER }
+  logMessage('Riff: read next chunk, size = ' + int2str(tsize));
+  {$ENDIF DEBUG_LOG_JITTER }
 end;
 
 // --  --
@@ -9021,7 +9088,7 @@ end;
 // --  --
 function unaWaveMultiStreamDevice.addStream(stream: unaAbstractStream): unaAbstractStream;
 begin
-  if (enter(1000)) then
+  if (enter(false, 1000)) then
     try
       if (nil = stream) then begin
 	//
@@ -9033,7 +9100,7 @@ begin
       //
       f_streams.add(result);
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end
   else
     result := nil;
@@ -9092,18 +9159,18 @@ function unaWaveMultiStreamDevice.removeStream(stream: unaAbstractStream): bool;
 var
   i: int;
 begin
-  if (enter(1000)) then
+  if (enter(false, 1000)) then
     try
       i := f_streams.indexOf(stream);
       if (0 <= i) then begin
-        //
+	//
 	f_streams.removeByIndex(i);
 	result := true;
       end
       else
 	result := false;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end
   else
     result := false;
@@ -9353,7 +9420,7 @@ begin
       f_lastBuffSMXSize := samples shl 2
     end;
     //
-    if (enter(1000)) then begin
+    if (enter(false, 1000)) then begin
       //
       try
 	//
@@ -9426,12 +9493,10 @@ begin
 	end;
 	//
       finally
-	leave();
+	leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
       //
     end;
-
-    //
   end;
 {$IFDEF UNA_PROFILE }
   profileMarkLeave(profId_unaWaveExclusiveMixer_pump);
@@ -9460,6 +9525,8 @@ begin
   //
   if ((MMSYSERR_NOERROR = result) and (not realTime) and (nil <> inStream)) then
     f_nonrealTimeDelay := 20;	// resmapler will rely on inStream.dataEvent, so do not hammer system
+  //
+  f_subBufPos := 0;
 end;
 
 // --  --
@@ -9483,6 +9550,8 @@ begin
   //
   mrealloc(f_channelBuf);
   mrealloc(f_channelBufOut);
+  //
+  mrealloc(f_subBuf);
 end;
 
 // --  --
@@ -9495,7 +9564,7 @@ begin
   else begin
     //
     result := 0;
-    if ((0 < size) and not shouldStop and enter(f_waitInterval shl 1)) then try
+    if ((0 < size) and not shouldStop and enter(false, f_waitInterval shl 1)) then try
       //
       if (f_srcChunk.chunkBufSize <= size) then begin
 	//
@@ -9514,6 +9583,7 @@ begin
 	    f_dstChunk.chunkDataLen := f_dstChunk.chunkDataLen shl 1;
 	  end
 	  else begin
+	    //
 	    // resample each channel individually
 	    //
 	    cs := size div f_srcChunk.chunkFormat.pcmNumChannels;
@@ -9546,9 +9616,28 @@ begin
 	//
 	if (0 < f_dstChunk.chunkDataLen) then
 	  result := internalWrite(f_dstChunk.chunkData, f_dstChunk.chunkDataLen, f_dstFormatExt)	// apply volume/silence again
+      end
+      else begin
+	//
+	if (f_subBufSize - f_subBufPos < int(size)) then begin
+	  //
+	  f_subBufSize := f_subBufPos + int(size);
+	  mrealloc(f_subBuf, f_subBufSize);
+	end;
+	//
+	move(buf^, f_subBuf[f_subBufPos], size);
+	inc(f_subBufPos, size);
+	//
+	while (int(f_srcChunk.chunkBufSize) <= f_subBufPos) do begin
+	  //
+	  doWrite(f_subBuf, f_srcChunk.chunkBufSize);
+	  move(f_subBuf[f_srcChunk.chunkBufSize], f_subBuf[0], f_subBufPos - int(f_srcChunk.chunkBufSize));
+	  dec(f_subBufPos, f_srcChunk.chunkBufSize);
+	end;
+	//
       end;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
     //
   end;
@@ -9606,7 +9695,7 @@ var
 begin
   result := inherited onHeaderDone(header, wakeUpByHeaderDone);
   //
-  if (not shouldStop and result and enter(f_waitInterval shl 1)) then try
+  if (not shouldStop and result and enter(false, f_waitInterval shl 1)) then try
     //
     size := getDataAvailable(true);
     if (f_srcChunk.chunkBufSize <= size) then begin
@@ -9624,7 +9713,7 @@ begin
       result := false;
     //
   finally
-    leave();
+    leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 
@@ -9635,7 +9724,7 @@ var
   r1, r2: unsigned;
   i, d: unsigned;
 begin
-  if (enter(1000)) then
+  if (enter(false, 1000)) then
     try
       fillPCMFormat(format, samplesPerSec, bitsPerSample, numChannels);
       setFormat(isSrc, @format{, false});
@@ -9697,7 +9786,7 @@ begin
       else
 	result := false;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end
   else
     result := false;
@@ -10462,10 +10551,6 @@ initialization
 {$ENDIF UNA_PROFILE }
   //
 {$IFDEF DEBUG_LOG }
-  //debugLogThread := unaLogThread.create();
-  //debugLogThread.start();
-  //
-  //unaUtils.setInfoMessageMode('', debugLogProc, 0, 0, unaLtm_dateTimeDelta64, 0);
   logMessage('UNAMSACMCLASSES: START OF LOG');
 {$ENDIF DEBUG_LOG }
 
@@ -10474,10 +10559,6 @@ finalization
 
 {$IFDEF DEBUG_LOG }
   logMessage('UNAMSACMCLASSES: END OF LOG');
-  //
-  //unaUtils.setInfoMessageMode('', nil);
-  //
-  //freeAndNil(debugLogThread);
 {$ENDIF DEBUG_LOG }
 
 end.

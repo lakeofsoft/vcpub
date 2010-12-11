@@ -1705,8 +1705,8 @@ begin
 end;
 
 
-var
-  g_globalLock: unaInProcessGate;
+//var
+  //g_globalLock: unaInProcessGate;
 
 { unaMpgLibDecoder }
 
@@ -1856,7 +1856,7 @@ begin
 	    entered := false;
 	    repeat
 	      //
-	      if (g_globalLock.enter(100)) then begin
+	      if (acquire(false, 100)) then begin
 		//
 		try
 		  if (0 < size) then begin
@@ -1876,7 +1876,7 @@ begin
 		    done := 0;
 		  //
 		finally
-		  g_globalLock.leave();
+		  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
 		end;
 		//
 		entered := true;
@@ -1901,7 +1901,7 @@ begin
 	      entered := false;
 	      repeat
 		//
-		if (g_globalLock.enter(100)) then begin
+		if (acquire(false, 100)) then begin
 		  //
 		  try
 		    //
@@ -1916,7 +1916,7 @@ begin
 		    end;
 		    //
 		  finally
-		    g_globalLock.leave();
+		    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
 		  end;
 		  //
 		  entered := true;
@@ -2229,12 +2229,6 @@ begin
   f_proto.r_mpg123_decoder(f_mh, paChar(aString(value)));
 end;
 
-
-initialization
-  g_globalLock := unaInProcessGate.create();
-
-finalization
-  freeAndNil(g_globalLock);
 
 end.
 

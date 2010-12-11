@@ -104,7 +104,7 @@ type
   private
     f_data: tWSAData;
     f_status: int;
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
   public
     {*
 	Creates and initializes internal structures. If active = true (default) startups the Windows Sockets as well.
@@ -691,7 +691,7 @@ type
     f_connId: unsigned;
     f_destroying: bool;
     //
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     f_lpStamp: int64;
     //
     function getAddr(): pSockAddrIn;
@@ -873,7 +873,7 @@ type
     f_isRTP: bool;
     {$ENDIF VC25_IOCP }
     //
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     f_threads: unaSocksThreads;
     f_onEvent: unaSocksOnEventEvent;
     //
@@ -915,11 +915,11 @@ type
 
 	@param timeout Timeout (default is INFINITE).
     }
-    function enter(timeout: unsigned = INFINITE): bool;
+    function enter(ro: bool; timeout: unsigned = INFINITE): bool;
     {*
 	Unlocks socks object.
     }
-    procedure leave();
+    procedure leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
     {*
 	Sets new pool size.
 
@@ -1306,7 +1306,7 @@ uses
 var
   g_unaWSA: unaWSA = nil;
   g_unaWSACount: unsigned = 0;
-  g_unaWSAGate: unaInProcessGate = nil;
+  g_unaWSAGate: unaObject = nil;
   g_unaWSAGateReady: bool = false;
 
 // --  --
@@ -1316,7 +1316,7 @@ begin
   //
   if (g_unaWSAGateReady) then begin
     //
-    if (g_unaWSAGate.enter(1000)) then begin
+    if (g_unaWSAGate.acquire(false, 1000)) then begin
       //
       try
 	if (nil = g_unaWSA) then
@@ -1326,7 +1326,7 @@ begin
 	result := 0;
 	//
       finally
-	g_unaWSAGate.leave();
+	g_unaWSAGate.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
     end;
     //
@@ -1340,7 +1340,7 @@ begin
   //
   if (g_unaWSAGateReady) then begin
     //
-    if (g_unaWSAGate.enter(1000)) then begin
+    if (g_unaWSAGate.acquire(false, 1000)) then begin
       //
       try
 	if (0 < g_unaWSACount) then
@@ -1358,7 +1358,7 @@ begin
 	result := 0;
 	//
       finally
-	g_unaWSAGate.leave();
+	g_unaWSAGate.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
     end;
   end;
@@ -1487,7 +1487,6 @@ function lookupHost(const host: string; out ip: string; list: unaStringList): in
 var
   addr: unsigned;
   phost: pHostEnt;
-  ok: bool;
   ar: pUInt32;
   added: bool;
 begin
@@ -1497,12 +1496,7 @@ begin
     //
     result := 0;
     //
-    if (nil <> g_unaWSA) then
-      ok := g_unaWSA.f_gate.enter(5000{$IFDEF DEBUG}, g_unaWSA._classID{$ENDIF})
-    else
-      ok := true;
-    //
-    if (ok) then begin
+    if (g_unaWSA.acquire(false, 3000)) then begin
       try
 	//
 	added := false;
@@ -1541,9 +1535,7 @@ begin
 	end;
 	//
       finally
-	//
-	if (nil <> g_unaWSA) then
-	  g_unaWSA.f_gate.Leave();
+	g_unaWSA.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
       //
     end;
@@ -1717,7 +1709,7 @@ begin
   //
   f_status := WSASYSNOTREADY;
   //
-  f_gate := unaInProcessGate.create({$IFDEF DEBUG}_classID + '(f_gate)'{$ENDIF});
+  //f_gate := unaInProcessGate.create({$IFDEF DEBUG}_classID + '(f_gate)'{$ENDIF});
   //
   if (active) then
     startup(version);
@@ -1729,7 +1721,7 @@ begin
   if (isActive()) then
     shutdown();
   //
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
   //
   inherited;
 end;
@@ -2754,23 +2746,21 @@ end;
 // --  --
 function unaSocksConnection.acquire(timeout: unsigned): bool;
 begin
-  result := f_gate.enter(timeout);
-  if (result and f_destroying) then begin
-    //
-    release();
+  if (f_destroying) then
     result := false
-  end;
+  else
+    result := inherited acquire(true, timeout);
 end;
 
 // --  --
 procedure unaSocksConnection.beforeDestruction();
 begin
-  if (acquire(2000)) then begin
+  if (inherited acquire(false, 2000)) then begin
     try
       // make sure no one will acquire us any more
       f_destroying := true;
     finally
-      f_gate.leave();
+      inherited release({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
   //
@@ -2783,7 +2773,7 @@ begin
   //
   inherited;
   //
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
 end;
 
 // --  --
@@ -2801,7 +2791,7 @@ begin
   f_connId := connId;
   f_threadSocket := socket;
   //
-  f_gate := unaInProcessGate.create();
+  //f_gate := unaInProcessGate.create();
   //
   if (nil <> addr) then
     f_addr := addr^
@@ -2834,7 +2824,8 @@ end;
 // --  --
 procedure unaSocksConnection.release();
 begin
-  f_gate.leave();
+  //f_gate.leave();
+  inherited release({$IFDEF DEBUG }true{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -2892,7 +2883,7 @@ end;
 // --  --
 function unaSocketsConnections.get_connection(connId: unsigned; timeout: unsigned): unaSocksConnection;
 begin
-  result := itemById(connId, 0, timeout);
+  result := itemById(connId, 0);
 end;
 
 // --  --
@@ -2939,17 +2930,10 @@ type
     f_masterThread: unaSocksThread;
     f_masterEventType: unaSocketEvent;
     //
-    f_bufLock: unaInProcessGate;
     f_buffers: array[0..c_maxPSBufs - 1] of unaPacketStormBuffer;
     f_bufCount: unsigned;
     //
     f_seqNum: int64;
-    //
-    //f_packetBuf: pointer;
-    //f_packetBufSize: unsigned;
-    //
-    //f_streams: unaPacketStormStreams;
-    //f_dataEvent: unaEvent;
   protected
     function execute(globalIndex: unsigned): int; override;
   public
@@ -2971,16 +2955,6 @@ type
 // --  --
 procedure unaSocksPacketStormThread.afterConstruction();
 begin
-  //f_streams := unaPacketStormStreams.create(true {$IFDEF DEBUG}, _classID + '(f_streams)'{$ENDIF});
-  //
-  //f_dataEvent := unaEvent.create();
-  //f_removeStreamLock1 := unaInProcessGate.create();
-  //f_removeStreamLock2 := unaInProcessGate.create();
-  //
-  //f_packetBuf := nil;
-  //f_packetBufSize := 0;
-  //
-  f_bufLock := unaInProcessGate.create();
   f_bufCount := 0;
   //
   inherited;
@@ -2996,13 +2970,7 @@ begin
 {$ENDIF }
   inherited;
   //
-  //freeAndNil(f_streams);
-  //freeAndNil(f_dataEvent);
-  //
-  //freeAndNil(f_removeStreamLock1);
-  //freeAndNil(f_removeStreamLock2);
-  //
-  if ((0 < f_bufCount) and f_bufLock.enter()) then begin
+  if ((0 < f_bufCount) and acquire(false, 1000)) then begin
     //
     try
       for i := 0 to f_bufCount - 1 do begin
@@ -3014,15 +2982,13 @@ begin
 	end;
       end;
     finally
-      f_bufLock.leave();
+      release({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
   //
-  freeAndNil(f_bufLock);
-  //
 {$IFDEF LOG_SOCKS_THREADS }
   logMessage(_classID + '.beforeDestruction() - done.');
-{$ENDIF }
+{$ENDIF LOG_SOCKS_THREADS }
 end;
 
 // --  --
@@ -3033,7 +2999,7 @@ var
 begin
   result := nil;
   //
-  if ((0 < desiredSize) and f_bufLock.enter(100)) then try
+  if ((0 < desiredSize) and acquire(false, 100)) then try
     //
     index := -1;
     //
@@ -3070,18 +3036,18 @@ begin
     end;
     //
   finally
-    f_bufLock.leave();
+    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 
 // --  --
 procedure unaSocksPacketStormThread.bufferRelease(buf: punaPacketStormBuffer);
 begin
-  if (f_bufLock.enter(100)) then try
+  if (acquire(false, 100)) then try
     //
     buf.r_flags := 0;	// mark it as free
   finally
-    f_bufLock.leave();
+    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 
@@ -3097,7 +3063,8 @@ begin
   else
     f_masterEventType := unaseClientData;
   //
-  inherited create(false, THREAD_PRIORITY_TIME_CRITICAL);
+
+  inherited create(false{$IFNDEF DEBUG }, THREAD_PRIORITY_TIME_CRITICAL{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -3130,8 +3097,7 @@ begin
       //
       if (sleepThread(200) and not shouldStop and (0 < f_bufCount)) then begin
 	//
-	//
-	if (f_bufLock.enter(20)) then try
+	if (acquire(false, 20)) then try
 	  //
 	  nextMinSeq := $7FFFFFFFFFFFFFFF;
 	  bufIndexesCnt := 0;
@@ -3202,7 +3168,7 @@ begin
 	  end;
 	  //
 	finally
-	  f_bufLock.leave();
+	  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
 	end
 	else begin
 	  //
@@ -3232,7 +3198,7 @@ end;
 // --  --
 function unaSocksPacketStormThread.newPacket(connId: unsigned; buf: punaPacketStormBuffer): bool;
 begin
-  if (f_bufLock.enter(100)) then try
+  if (acquire(false, 100)) then try
     //
     result := ((2 = buf.r_flags) and (buf.r_dataSizeUsed <= buf.r_dataSize));
     if (result) then begin
@@ -3247,10 +3213,10 @@ begin
       //
       if (1 = buf.r_flags) then
 	wakeUp();
-      //	
+      //
     end;
   finally
-    f_bufLock.leave();
+    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end
   else
     result := false;
@@ -3265,7 +3231,7 @@ begin
   logMessage(_classID + '.removeStream(' + int2str(connId) + ') - ENTER');
 {$ENDIF }
   //
-  if (f_bufLock.enter(100)) then try
+  if (acquire(false, 100)) then try
     //
     if (0 < f_bufCount) then begin
       //
@@ -3276,7 +3242,7 @@ begin
       end;
     end;
   finally
-    f_bufLock.leave();
+    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
   //
 {$IFDEF LOG_SOCKS_THREADS }
@@ -3665,7 +3631,7 @@ begin
 		  waitForDataTimeout := cWaitTimeout;
 		  //
 		  // quick test for UDP timeouts (if needed)
-		  if ((0 < udpConnectionTimeout) and connections.lock(10)) then begin
+		  if ((0 < udpConnectionTimeout) and connections.lock(true, 10)) then begin
 		    //
 		    try
 		      inc(udpTimeoutTestIndex);
@@ -3683,7 +3649,7 @@ begin
 		      end;
 		      //
 		    finally
-		      connections.unlock();
+		      connections.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
 		    end;
 		  end;
 		  //
@@ -4034,7 +4000,7 @@ var
 begin
   result := nil;
   i := 0;
-  if (connections.lock(1090)) then begin
+  if (connections.lock(true, 1090)) then begin
     //
     try
       while (i < connections.count) do begin
@@ -4051,6 +4017,7 @@ begin
       if ((nil <> result) and needAcquire) then begin
 	//
 	if (not result.acquire(130)) then begin
+	  //
 {$IFDEF LOG_UNASOCKETS_ERRORS }
 	  logMessage(_classID + '.getConnectionByAddr() - cannot acquire the connection.');
 {$ENDIF LOG_UNASOCKETS_ERRORS }
@@ -4059,7 +4026,7 @@ begin
       end;
       //
     finally
-      connections.unlock();
+      connections.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end
   else begin
@@ -4173,7 +4140,7 @@ var
 begin
   result := false;
   //
-  if (enter(timeout)) then begin
+  if (enter(false, timeout)) then begin
     //
     try
       //
@@ -4190,7 +4157,7 @@ begin
       end;
       //
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4202,7 +4169,7 @@ begin
   //
   if (g_unaWSAGateReady) then begin
     //
-    if (g_unaWSAGate.enter(1000)) then begin
+    if (g_unaWSAGate.acquire(false, 1000)) then begin
       try
 	f_master := (nil = g_unaWSA);
 	//
@@ -4210,13 +4177,13 @@ begin
 	  unaSockets.startup();
 	//
       finally
-	g_unaWSAGate.leave();
+	g_unaWSAGate.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
     end;
     //
   end;
   //
-  f_gate := unaInProcessGate.create({$IFDEF DEBUG}_classID + '(f_gate)'{$ENDIF});
+  //f_gate := unaInProcessGate.create({$IFDEF DEBUG}_classID + '(f_gate)'{$ENDIF});
   f_threads := unaSocksThreads.create(uldt_obj);
   f_threads.timeOut := 1000;
   //
@@ -4237,7 +4204,8 @@ var
 begin
   result := 0;
   //
-  if (f_threads.lock(1000)) then begin
+  if (f_threads.acquire(false, 1000)) then begin
+    //
     try
       thread := getThreadFromPool();
       if (nil <> thread) then begin
@@ -4262,7 +4230,7 @@ begin
       end;
       //
     finally
-      f_threads.unlock();
+      f_threads.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4275,10 +4243,9 @@ var
 begin
   result := 0;
   //
-  if (lockNonEmptyList(f_threads, 1000)) then begin
+  if (lockNonEmptyList(f_threads, true, 1000)) then begin
     try
       thread := getThreadFromPool();
-      //
       if (nil <> thread) then begin
 	//
 	socket := createSocket(protocol {$IFDEF VC25_OVERLAPPED }, overlapped{$ENDIF });
@@ -4303,7 +4270,7 @@ begin
       end;
       //
     finally
-      f_threads.unlock();
+      f_threads.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4335,7 +4302,7 @@ begin
   //
   freeAndNil(f_threads);
   //
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
   //
   if (f_master) then
     unaSockets.shutdown();
@@ -4348,9 +4315,10 @@ begin
 end;
 
 // --  --
-function unaSocks.enter(timeout: unsigned): bool;
+function unaSocks.enter(ro: bool; timeout: unsigned): bool;
 begin
-  result := f_gate.enter(timeout{$IFDEF DEBUG}, _classID{$ENDIF});
+  //result := f_gate.enter(timeout{$IFDEF DEBUG}, _classID{$ENDIF});
+  result := acquire(ro, timeout);
 end;
 
 // --  --
@@ -4448,7 +4416,7 @@ function unaSocks.getSocketError(id: unsigned; needLock: bool): int;
 var
   thread: unaSocksThread;
 begin
-  if (not needLock or (needLock and f_threads.lock(500))) then begin
+  if (not needLock or (needLock and f_threads.lock(true, 500))) then begin
     try
       thread := getThreadById(id);
       //
@@ -4459,7 +4427,7 @@ begin
       //
     finally
       if (needLock) then
-	f_threads.unlock();
+	f_threads.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end
   else
@@ -4469,7 +4437,7 @@ end;
 // --  --
 function unaSocks.getThreadByID(id: unsigned; timeout: unsigned): unaSocksThread;
 begin
-  result := f_threads.itemById(id, 0, timeout);
+  result := f_threads.itemById(id, 0);
   //
   {$IFDEF LOG_UNASOCKETS_ERRORS }
   if (nil = result) then
@@ -4495,7 +4463,7 @@ var
 begin
   result := nil;
   //
-  if (f_threads.lock(4000)) then begin
+  if (f_threads.lock(true, 4000)) then begin
     try
       for i := 0 to f_threads.count - 1 do begin
 	//
@@ -4515,10 +4483,10 @@ begin
       else
 	if (nil = result) then
 	  c_maxThreadPoolSize := c_maxThreadPoolSize + 1;
-      {$ENDIF DEBUG }	  
+      {$ENDIF DEBUG }
       //
     finally
-      f_threads.unlock();
+      f_threads.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4549,9 +4517,10 @@ begin
 end;
 
 // --  --
-procedure unaSocks.leave();
+procedure unaSocks.leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
 begin
-  f_gate.leave();
+  //f_gate.leave();
+  release({$IFDEF DEBUG }ro{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -4613,12 +4582,12 @@ begin
       with (thread) do begin
 	//
 	i := -1;
-	if (connections.lock(10000)) then begin
+	if (connections.lock(true, 10000)) then begin
 	  //
 	  try
 	    i := connections.indexOfId(connId);
 	  finally
-	    connections.unlock();
+	    connections.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
 	  end;
 	end;
 	//
@@ -4741,7 +4710,7 @@ var
 begin
   threadsInPool := max(min(c_maxThreadPoolSize, threadsInPool), 1);
   //
-  if (f_threads.lock()) then begin
+  if (f_threads.lock(false)) then begin
     try
       if (threadsInPool < f_threadPoolSize) then begin
 	// remove unused threads
@@ -4778,7 +4747,7 @@ begin
       //
       f_threadPoolSize := threadsInPool;
     finally
-      f_threads.unlock();
+      f_threads.unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -5030,7 +4999,7 @@ begin
     if (not shouldStop) then begin
       //
       // check if we have some job to be done with one or more query
-      if (lockNonEmptyList(f_queries)) then try
+      if (lockNonEmptyList(f_queries, false)) then try
 	//
 	i := 0;
 	while (i < f_queries.count) do begin
@@ -5062,7 +5031,7 @@ begin
 	end;
 	//
       finally
-	unlockList(f_queries);
+	unlockList(f_queries{$IFDEF DEBUG }, false{$ENDIF DEBUG });
       end;
       //
     end;
@@ -5081,7 +5050,7 @@ begin
   query := nil;
   //
   // locate the query
-  if (lockNonEmptyList(f_queries)) then try
+  if (lockNonEmptyList(f_queries, false)) then try
     //
     for i := 0 to f_queries.count - 1 do begin
       //
@@ -5129,7 +5098,7 @@ begin
     end;	// if (nil <> query) ...
     //
   finally
-    unlockList(f_queries);
+    unlockList(f_queries{$IFDEF DEBUG }, false{$ENDIF DEBUG });
   end
 end;
 
@@ -5240,7 +5209,7 @@ end;
 // -- unit globals --
 
 initialization
-  g_unaWSAGate := unaInProcessGate.create();
+  g_unaWSAGate := unaObject.create(); //unaInProcessGate.create();
   g_unaWSAGateReady := true;
 
 {$IFDEF LOG_UNASOCKETS_INFOS }
@@ -5257,17 +5226,14 @@ finalization
 {$ENDIF LOG_UNASOCKETS_INFOS }
   //
   freeAndNil(g_ipQueryThread);
-
   //
   shutdown();
-
   //
   g_unaWSAGateReady := false;
   //
-  if (g_unaWSAGate.enter(3000)) then	// make sure no one is using the gate
-    g_unaWSAGate.leave();
-
-  // g_unaWSAGateReady will not allow gate to be used
+  if (g_unaWSAGate.acquire(false, 1000)) then
+    g_unaWSAGate.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+  //
   freeAndNil(g_unaWSAGate);
 end.
 

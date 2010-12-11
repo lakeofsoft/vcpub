@@ -1021,16 +1021,26 @@ end;
 procedure Tc_form_common_audioConfig.c_button_inVolControlClick(sender: tObject);
 var
   mxId: int;
+  a: wString;
 begin
   if (0 <= f_waveInId) then begin
     //
     f_mixer.enumDevices();
     mxId := f_mixer.getMixerId(f_waveInId, true{IN});
+  end
+  else
+    mxId := 0;
+  //
+  if (0 > mxId) then
+    guiMessageBox(handle, 'This device has no mixer.', 'Information', MB_OK or MB_ICONEXCLAMATION)
+  else begin
     //
-    if (0 > mxId) then
-      guiMessageBox(handle, 'This device has no mixer.', 'Information', MB_OK or MB_ICONEXCLAMATION)
+    if (g_OSVersion.dwMajorVersion >= 6) then
+      a := ''
     else
-      execApp('sndvol32.exe', '/r /d' + int2str(mxId), false, SW_SHOW, true);
+      a := '32';
+    //
+    execApp('sndvol' + a + '.exe', '/r /d' + int2str(mxId), false, SW_SHOW, true);
   end;
 end;
 
@@ -1038,16 +1048,26 @@ end;
 procedure Tc_form_common_audioConfig.c_button_outVolControlClick(sender: tObject);
 var
   mxId: int;
+  a: wString;
 begin
   if (0 <= f_waveOutId) then begin
     //
     f_mixer.enumDevices();
     mxId := f_mixer.getMixerId(f_waveOutId, false{OUT});
+  end
+  else
+    mxId := 0;
+  //
+  if (0 > mxId) then
+    guiMessageBox(handle, 'This device has no mixer.', 'Information', MB_OK or MB_ICONEXCLAMATION)
+  else begin
     //
-    if (0 > mxId) then
-      guiMessageBox(handle, 'This device has no mixer.', 'Information', MB_OK or MB_ICONEXCLAMATION)
+    if (g_OSVersion.dwMajorVersion >= 6) then
+      a := ''
     else
-      execApp('sndvol32.exe', '/p /d' + int2str(mxId), false, SW_SHOW, true);
+      a := '32';
+    //
+    execApp('sndvol' + a + '.exe', '/p /d' + int2str(mxId), false, SW_SHOW, true);
   end;
 end;
 

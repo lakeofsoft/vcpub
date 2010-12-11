@@ -58,7 +58,7 @@ type
   {*
 	This class encapsulates the Windows class object.
   }
-  unaWinClass = class
+  unaWinClass = class(unaObject)
   private
     f_classOwner: bool;
     f_wndClassW: TWNDCLASSEXW;
@@ -295,7 +295,7 @@ type
   {*
     This class encapsulates the Windows font object.
   }
-  unaWinFont = class
+  unaWinFont = class(unaObject)
   private
     f_font: hFont;
   public
@@ -320,6 +320,7 @@ type
     }
     property font: hFont read f_font;
   end;
+
 
   //
   // -- unaWinWindow --
@@ -358,7 +359,7 @@ type
   {*
     This class encapsulates Windows window object.
   }
-  unaWinWindow = class
+  unaWinWindow = class(unaObject)
   private
     f_createParams: unaWinCreateParams;
     f_notifyParent: unaWinWindow;
@@ -373,7 +374,7 @@ type
     f_minHeight: int;
     f_modalResult: int;
     //
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     f_children: unaList;
     f_wmCommand: tmessageEvent;
     //
@@ -1146,7 +1147,7 @@ type
   {*
     Windows bitmap.
   }
-  unaWinBitmap = class
+  unaWinBitmap = class(unaObject)
   private
     //f_bitmap: hBITMAP;
     //f_dc: hDC;
@@ -1309,7 +1310,7 @@ var
   g_winCreateClass: unaWinWindow;
   g_winClasses: unaList;
   g_winFonts: unaList;
-  g_winCreateGate: unaInProcessGate;
+  //g_winCreateGate: unaInProcessGate;
 
 // -- --
 function getClass(const className: string; isStdClass: bool; style: unsigned; icon, smallIcon: hIcon; cursor: hCursor; brBrush: hBrush; menuName: int; instance: hModule; force: bool): unaWinClass;
@@ -1390,7 +1391,7 @@ begin
   params := window.getCreateParams();
   parent := window.getParent();
   //
-  if (g_winCreateGate.enter(1000)) then begin
+  if (window.acquire(false, 1000)) then begin
     //
     try
       g_winCreateClass := window;
@@ -1415,7 +1416,8 @@ begin
       //
     finally
       g_winCreateClass := nil;
-      g_winCreateGate.leave();
+      //g_winCreateGate.leave();
+      window.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else
@@ -1805,7 +1807,7 @@ constructor unaWinWindow.create(const params: unaWinCreateParams);
 begin
   inherited create();
   //
-  f_gate := unaInProcessGate.create({$IFDEF DEBUG}className + '(f_gate)'{$ENDIF});
+  //f_gate := unaInProcessGate.create({$IFDEF DEBUG}className + '(f_gate)'{$ENDIF});
   f_children := unaList.create(uldt_ptr);
   //
   f_createParams := params;
@@ -1889,7 +1891,7 @@ begin
   //
   destroyWindow();
   //
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
 end;
 
 // --  --
@@ -1981,7 +1983,7 @@ end;
 // --  --
 function unaWinWindow.enter(timeout: unsigned): bool;
 begin
-  result := f_gate.enter(timeout{$IFDEF DEBUG}, className{$ENDIF});
+  result := acquire(false, timeout); //f_gate.enter(timeout{$IFDEF DEBUG}, className{$ENDIF});
 end;
 
 // --  --
@@ -2127,7 +2129,8 @@ end;
 // --  --
 procedure unaWinWindow.leave();
 begin
-  f_gate.leave();
+  //f_gate.leave();
+  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -2701,7 +2704,7 @@ begin
     WM_NCDESTROY: begin
       //
       dp := not notifyDestroy();
-      if (lockNonEmptyList(g_winList)) then begin
+      if (lockNonEmptyList(g_winList, false)) then begin
 	//
 	try
 	  // need to update indexes of other windows
@@ -2721,7 +2724,7 @@ begin
 	  //
 	finally
 	  //
-	  g_winList.unlock();
+	  g_winList.unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
 	end;
       end;
       //
@@ -3754,7 +3757,7 @@ end;
 // -- unit globals --
 
 initialization
-  g_winCreateGate := unaInProcessGate.create({$IFDEF DEBUG}'winCreateGate()'{$ENDIF DEBUG });
+  //g_winCreateGate := unaInProcessGate.create({$IFDEF DEBUG}'winCreateGate()'{$ENDIF DEBUG });
   g_winList := unaWinList.create();
   g_winClasses := unaList.create(uldt_ptr);
   g_winFonts := unaList.create(uldt_ptr);
@@ -3770,6 +3773,6 @@ finalization
   freeAndNil(g_winFonts);
   freeAndNil(g_winClasses);
   freeAndNil(g_winList);
-  freeAndNil(g_winCreateGate);
+  //freeAndNil(g_winCreateGate);
 end.
 

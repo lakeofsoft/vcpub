@@ -1,8 +1,12 @@
 
-{x $DEFINE VC_OLD_VORBIS_API }	// define to compile "old" samples, which rely on full Vorbis API
+// --  --
+{$IFDEF VC_LIC_PUBLIC }
+   {$DEFINE VC_OLD_VORBIS_API }	// define to compile "old" samples, which rely on full Vorbis API
+{$ENDIF VC_LIC_PUBLIC }
+
 
 // --  --
-{$IFNDEF VC_PUBLIC }
+{$IFNDEF VC_LIC_PUBLIC }
   //
   {$IFNDEF VC_OLD_VORBIS_API }
 
@@ -14,5 +18,5 @@
 
   {$ENDIF VC_OLD_VORBIS_API }
   //
-{$ENDIF VC_PUBLIC }
+{$ENDIF VC_LIC_PUBLIC }
 

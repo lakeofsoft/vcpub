@@ -22,7 +22,8 @@
 		Lake, Oct 2005
 		Lake, Mar 2007
 		Lake, Jul 2008
-                Lake, Jun 2009
+		Lake, Jun 2009
+		Lake, Dec 2010
 
 	----------------------------------------------
 *)
@@ -31,6 +32,12 @@
 {$DEFINE CONSOLE }
 
 {$I unaDef.inc}
+{$I unaVorbisDef.inc }
+
+{$IFDEF VC_LIBVORBIS_ONLY }
+  This code requires full Vorbis API.
+  Open the unaVorbisDef.inc file and make sure VC_OLD_VORBIS_API is defined.
+{$ENDIF VC_LIBVORBIS_ONLY }
 
 program
   wav2ogg;

@@ -1408,7 +1408,7 @@ type
   unaSpeexDSP = class(unaObject)
   private
     f_lib: tSpeexDSPLibrary_proc;
-    f_lock: unaInProcessGate;
+    //f_lock: unaInProcessGate;
     //
     f_error: int;
     f_frameSize: int;
@@ -1545,7 +1545,7 @@ type
   unaSpeexCoder = class(unaObject)
   private
     f_lib: unaSpeexLib;
-    f_lock: unaInProcessGate;
+    //f_lock: unaInProcessGate;
     //
     f_mode: int;
     f_state: pointer;
@@ -2090,7 +2090,7 @@ end;
 // --  --
 constructor unaSpeexCoder.create(lib: unaSpeexLib; mode: int);
 begin
-  f_lock := unaInProcessGate.create();
+  //f_lock := unaInProcessGate.create();
   //
   if (nil = lib) then
     abort();
@@ -2106,13 +2106,13 @@ destructor unaSpeexCoder.Destroy();
 begin
   inherited;
   //
-  freeAndNil(f_lock);
+  //freeAndNil(f_lock);
 end;
 
 // --  --
 function unaSpeexCoder.enter(timeout: unsigned): bool;
 begin
-  result := f_lock.enter(timeout);
+  result := acquire(false, timeout);
 end;
 
 // --  --
@@ -2172,7 +2172,8 @@ end;
 // --  --
 procedure unaSpeexCoder.leave();
 begin
-  f_lock.leave();
+  //f_lock.leave();
+  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -2776,7 +2777,7 @@ end;
 // --  --
 constructor unaSpeexDSP.create(const libName: wString);
 begin
-  f_lock := unaInProcessGate.create();
+  //f_lock := unaInProcessGate.create();
   //
   f_error := speex_loadDSPDLL(f_lib, libName);
   if (0 <> error) then
@@ -2790,7 +2791,7 @@ destructor unaSpeexDSP.Destroy();
 begin
   close();
   //
-  freeAndNil(f_lock);
+  //freeAndNil(f_lock);
   //
   inherited;
 end;
@@ -2903,7 +2904,7 @@ end;
 // --  --
 function unaSpeexDSP.lock(timeout: int): bool;
 begin
-  result := f_lock.enter(timeout);
+  result := acquire(false, timeout); //f_lock.enter(timeout);
 end;
 
 // --  --
@@ -3038,7 +3039,8 @@ end;
 // --  --
 procedure unaSpeexDSP.unlock();
 begin
-  f_lock.leave();
+  //f_lock.leave();
+  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
 end;
 
 

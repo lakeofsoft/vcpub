@@ -178,7 +178,7 @@ type
 			//  1 - searching max signal
 			//  2 - waiting for signal end
     //
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     //
     f_onCode: tDTMFCodeDetectedEvent;
     //
@@ -193,8 +193,8 @@ type
     //
     function write(data: pointer; size: int): HRESULT;
     //
-    function enter(timeout: int = 1000): bool;
-    procedure leave();
+    function enter(ro: bool; timeout: int = 1000): bool;
+    procedure leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
     //
     {*
       The lower signal you have, the lower threshold value should be.
@@ -488,13 +488,13 @@ procedure unaDspDTMFDecoder.BeforeDestruction();
 begin
   inherited;
   //
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
 end;
 
 // --  --
 constructor unaDspDTMFDecoder.create();
 begin
-  f_gate := unaInProcessGate.create();
+  //f_gate := unaInProcessGate.create();
   //
   f_dtmfd_LVS := c_def_dtmfd_LVS;	// default threshold
   //
@@ -511,19 +511,15 @@ begin
 end;
 
 // --  --
-function unaDspDTMFDecoder.enter(timeout: int): bool;
+function unaDspDTMFDecoder.enter(ro: bool; timeout: int): bool;
 begin
-  if (nil <> f_gate) then
-    result := f_gate.enter(timeout)
-  else
-    result := true;
+  result := acquire(ro, timeout);
 end;
 
 // --  --
-procedure unaDspDTMFDecoder.leave();
+procedure unaDspDTMFDecoder.leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
 begin
-  if (nil <> f_gate) then
-    f_gate.leave();
+  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -694,7 +690,7 @@ function unaDspDTMFDecoder.setFormat(samplingRate, bitsPerSample, numChannels: i
 var
   i: int;
 begin
-  if (enter(2000)) then begin
+  if (enter(false, 2000)) then begin
     try
       //
       if ((0 < samplingRate) and (8 <= bitsPerSample) and (1 <= numChannels)) then begin
@@ -725,7 +721,7 @@ begin
 	result := E_INVALIDARG;
       //
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else
@@ -743,7 +739,7 @@ var
 begin
   if ((0 < size) and (nil <> data)) then begin
     //
-    if (enter()) then begin
+    if (enter(true)) then begin
       //
       try
 	//
@@ -820,7 +816,7 @@ begin
 	  result := E_NOTIMPL;
 	//
       finally
-	leave();
+	leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
       end;
     end
     else

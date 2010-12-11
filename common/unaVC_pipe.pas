@@ -320,19 +320,14 @@ type
     {*
 	Enters the internal critical section.
 
+	@param ro True for read-only lock.
 	@return True if critical section was entered.
     }
-    function enter(timeout: unsigned = 100): bool; overload;
-    {*
-	Marks the internal critical section as entered.
-	Do not forget to call leave() when done with it.
-
-    }
-    procedure enter(); overload;
+    function enter(ro: bool; timeout: unsigned = 100): bool;
     {*
 	Leaves the internal critical section.
     }
-    procedure leave();
+    procedure leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
     {*
 	Writes data into the pipe.
 
@@ -848,7 +843,7 @@ begin
   //
   if (isFormatProvider) then begin
     //
-    if (lockNonEmptyList(f_consumers)) then begin
+    if (lockNonEmptyList(f_consumers, true)) then begin
       try
 	//
 	i := 0;
@@ -861,13 +856,13 @@ begin
 	end;
 	//
       finally
-	unlockList(f_consumers);
+	unlockList(f_consumers{$IFDEF DEBUG }, true{$ENDIF DEBUG });
       end;
       //
     end
     else
       result := false;
-  end;    
+  end;
 end;
 
 // --  --
@@ -892,7 +887,7 @@ function unavclInOutPipe.checkIfAutoActivate(value: bool; timeout: unsigned): bo
 var
   i: int;
 begin
-  if (autoActivate and lockNonEmptyList(f_consumers)) then begin
+  if (autoActivate and lockNonEmptyList(f_consumers, true)) then begin
     //
     try
       //
@@ -906,7 +901,7 @@ begin
       end;
       //
     finally
-      unlockList(f_consumers);
+      unlockList(f_consumers{$IFDEF DEBUG }, true{$ENDIF DEBUG });
     end;
   end;  
   //
@@ -958,7 +953,7 @@ function unavclInOutPipe.doAddConsumer(consumer: unavclInOutPipe; forceNewFormat
 var
   newProvider: bool;
 begin
-  if ((nil <> consumer) and lockList(f_consumers)) then begin
+  if ((nil <> consumer) and lockList(f_consumers, false)) then begin
     //
     try
       //
@@ -984,7 +979,7 @@ begin
       //
       result := true;
     finally
-      unlockList(f_consumers);
+      unlockList(f_consumers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
     end;
     //
   end
@@ -995,7 +990,7 @@ end;
 // --  --
 function unavclInOutPipe.doAddProvider(provider: unavclInOutPipe): bool;
 begin
-  if ((nil <> provider) and lockList(f_providers)) then begin
+  if ((nil <> provider) and lockList(f_providers, false)) then begin
     //
     try
       if (0 > getProviderIndex(provider)) then
@@ -1006,7 +1001,7 @@ begin
       //
       result := true;
     finally
-      unlockList(f_providers);
+      unlockList(f_providers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
     end;
   end
   else
@@ -1137,6 +1132,10 @@ begin
       if (nil = InterlockedCompareExchange(pointer(f_activateState), pointer(activeState), pointer(0))) then begin
 *}
       asm
+		push 	eax
+		push	edx
+		push	ecx
+		//
 		sub	eax, eax		// clear eax
 		mov	edx, activeState	// what we want it to be
 		mov	ecx, self
@@ -1166,53 +1165,80 @@ begin
 
 		mov	activeStateIsSame, bool(false)
 
+
 	@okToEnter:
+		pop	ecx
+		pop	edx
+		pop	eax
       end;
       //
       if (activeStateIsSame) then begin
 	//
-	if (enter(timeout)) then begin
+	if (enter(true, timeout)) then begin
 	  try
 	    //
 	    if (value) then
 	      checkIfFormatProvider(value);
 	    //
-	    // this line is moved here, before actually activating the component,
+	    // the line above is moved there, before actually activating the component,
 	    // which is especially important for IP components, as they can start
 	    // receiving packet _before_ consumers will be able to activate..
 	    // 14 Aug 2007 / Lake
 	    //
+	    if (value) then begin
+              //
 	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
-	    logMessage(self.className + '[' + name + ']' + '.doSetActive(' + wideString(bool2strStr(value)) + ') - about to call checkIfAutoActivate()..');
+              logMessage(self.className + '[' + name + ']' + '.doSetActive(true) - about to call checkIfAutoActivate()..');
 	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
-	    //
-	    if (value) then
 	      checkIfAutoActivate(value, timeout);
+	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
+              logMessage(self.className + '[' + name + ']' + '.doSetActive(true) - done.');
+	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
+            end;
 	    //
 	    if (getActive() <> value) then begin
 	      //
 	      try
 		//
-		if (value) then
-		  doOpen()
+		if (value) then begin
+	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
+                  logMessage(self.className + '[' + name + ']' + 'before doOpen()..');
+	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
+		  doOpen();
+                end
 		else begin
 		  //
+	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
+                  logMessage(self.className + '[' + name + ']' + 'before doClose()..');
+	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
 		  doClose();
 		  f_closing := false;
 		end;
+                //
+	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
+                logMessage(self.className + '[' + name + ']' + 'done with doOpen/doClose().');
+	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
 	      except
 	      end;
 	    end;
 	    //
-	    if (not value) then
+	    if (not value) then begin
+              //
+	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
+              logMessage(self.className + '[' + name + ']' + '.doSetActive(false) - about to call checkIfAutoActivate()..');
+	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
 	      checkIfAutoActivate(value, timeout);
+	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
+              logMessage(self.className + '[' + name + ']' + '.doSetActive(false) - done.');
+	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
+            end;
 	    //
 	    break; // exit repeat
 	    //
 	  finally
 	    f_activateState := 0;
 	    //
-	    leave();
+	    leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
 	  end;
 	end;
 	//
@@ -1241,15 +1267,9 @@ begin
 end;
 
 // --  --
-procedure unavclInOutPipe.enter();
+function unavclInOutPipe.enter(ro: bool; timeout: unsigned): bool;
 begin
-  f_lockObj.acquire();
-end;
-
-// --  --
-function unavclInOutPipe.enter(timeout: unsigned): bool;
-begin
-  result := f_lockObj.acquire(timeout);
+  result := f_lockObj.acquire(ro, timeout);
 end;
 
 // --  --
@@ -1345,9 +1365,9 @@ begin
 end;
 
 // --  --
-procedure unavclInOutPipe.leave();
+procedure unavclInOutPipe.leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
 begin
-  f_lockObj.release();
+  f_lockObj.release({$IFDEF DEBUG }ro{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -1368,24 +1388,24 @@ begin
   //
   if ((opRemove = operation) and (component is unavclInOutPipe)) then begin
     //
-    if (lockNonEmptyList(f_providers)) then
+    if (lockNonEmptyList(f_providers, false)) then
       try
 	//
 	i := getProviderIndex(component as unavclInOutPipe);
 	if (0 <= i) then
 	  f_providers.removeByIndex(i)
       finally
-	unlockList(f_providers);
+	unlockList(f_providers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
       end;
     //
-    if (lockNonEmptyList(f_consumers)) then
+    if (lockNonEmptyList(f_consumers, false)) then
       try
 	//
 	i := getConsumerIndex(component as unavclInOutPipe);
 	if (0 <= i) then
 	  f_consumers.removeByIndex(i)
       finally
-	unlockList(f_consumers);
+	unlockList(f_consumers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
       end;
   end;
 end;
@@ -1397,7 +1417,7 @@ var
   consumer: unavclInOutPipe;
   copy: unaList;
 begin
-  if (lockNonEmptyList(f_consumers)) then
+  if (lockNonEmptyList(f_consumers, false)) then
     try
       // need a copy here, because consumers will remove themselfs from f_consumers
       copy := unaList.create();
@@ -1417,7 +1437,7 @@ begin
 	freeAndNil(copy);
       end;
     finally
-      unlockList(f_consumers);
+      unlockList(f_consumers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
     end;
 end;
 
@@ -1428,7 +1448,7 @@ var
   provider: unavclInOutPipe;
   copy: unaList;
 begin
-  if (lockNonEmptyList(f_providers)) then
+  if (lockNonEmptyList(f_providers, false)) then
     try
       // need a local copy here, because providers may remove themselfs from f_providers
       copy := unaList.create();
@@ -1452,7 +1472,7 @@ begin
 	freeAndNil(copy);
       end;
     finally
-      unlockList(f_providers);
+      unlockList(f_providers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
     end;
 end;
 
@@ -1467,7 +1487,7 @@ begin
     //
     triggerDataDSPEvent(data, len);
     //
-    if (lockNonEmptyList(f_consumers)) then
+    if (lockNonEmptyList(f_consumers, true)) then
       try
 	i := 0;
 	while (i < f_consumers.count) do begin
@@ -1481,7 +1501,7 @@ begin
 	  inc(i);
 	end;
       finally
-	unlockList(f_consumers);
+	unlockList(f_consumers{$IFDEF DEBUG }, true{$ENDIF DEBUG });
       end;
     //
     if (f_dumpOutputOK) then begin
@@ -1550,7 +1570,7 @@ end;
 // --  --
 procedure unavclInOutPipe.setConsumerOneAndOnly(value: unavclInOutPipe);
 begin
-  if (lockList(f_consumers)) then
+  if (lockList(f_consumers, false)) then
     try
       if (consumer <> value) then begin
 	//
@@ -1562,7 +1582,7 @@ begin
       end;
       //
     finally
-      unlockList(f_consumers);
+      unlockList(f_consumers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
     end;
 end;
 

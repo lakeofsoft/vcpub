@@ -22,7 +22,7 @@
 		Lake, Jan-Dec 2007
 		Lake, Jan-Oct 2008
 		Lake, Jan-Dec 2009
-		Lake, Jan-Nov 2010
+		Lake, Jan-Dec 2010
 
 	----------------------------------------------
 *)
@@ -71,7 +71,6 @@ const
   c_VC_reg_DSP_section_name 	= 'VC2.5 DSP';
   c_VC_reg_RTP_section_name	= 'VC2.5 RTP';
 
-
 type
   //
   // -- basic class --
@@ -85,11 +84,22 @@ type
     f_inheritedCreateWasCalled: bool;
   {$ENDIF LOG_UNACLASSES_INFOS }
     //
-    f_acqObj: unaAcquireType;
-    f_acqThreadID: DWORD;
+    f_acqObj: array[0..1] of unaAcquireType;
+    //
+    f_pwnThreadID: pUint32Array;
+    f_pwnThreadOp: pArray;
+    f_pwnThreadCount: int;
+    f_pwnThreadMax: int;
+    f_woEnterThreadID: DWORD;
+    f_pwnThreadACQ: unaAcquireType;
     //
     function getThis(): unaObject;
     function getClassID(): string;
+    //
+    function _acq(ro: bool; ct: DWORD; timeout: int): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+    function _rls(ro: bool; ct: DWORD): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+    procedure _addPwnThread(ro: bool; ct: DWORD);{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+    function _getPwnThread(ct: DWORD; out op: bool; oneAndOnly, remove: bool): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
   protected
     f_destroyed: bool;
   public
@@ -113,12 +123,15 @@ type
     procedure BeforeDestruction(); override;
     {*
 	Exclusive acquire.
+
+	@param ro True for "read-only" access acquire. Succeeds when "write-only" lock is not acquired by any other threads.
+		  False for "write-only" access acquire. Succeeds when thread acquires "write-only" lock.
     }
-    function acquire(timeout: int; fsn: bool = false): bool; overload;
+    function acquire(ro: bool; timeout: int; fsn: bool = false): bool; overload;
     {
-	Non-exclusive acquire. Always succeed. Do not forget to call release.
+	Non-exclusive (unconditional) acquire. Always succeed. Do not forget to call release.
     }
-    procedure acquire(); overload;
+    procedure acquire(ro: bool); overload;
     {*
     }
     class function acquireStatic(timeout: int): bool; overload;
@@ -127,7 +140,10 @@ type
     class procedure acquireStatic(); overload;
     {*
     }
-    function release(): bool;
+    class function releseStatic(): bool;
+    {*
+    }
+    function release({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG}): bool;
   end;
 
   //
@@ -151,7 +167,7 @@ type
     }
     constructor create(manualReset: bool = false; initialState: bool = false; const name: wString = '');
     {*
-    	Destroys an event object by closing its handle.
+	Destroys an event object by closing its handle.
     }
     destructor Destroy(); override;
     //
@@ -260,10 +276,12 @@ type
   // -- unaInProcessGate --
   //
   {*
-    Only one thead at a time can enter this gate. This thread can enter the gate as many times as required.
+    Only one thead at a time can enter this gate. This thread can enter the gate as many times as needed.
     Gate will be released when thread will leave it exactly same number of times as was entered.
+
+    NOTE: Each class derived from unaObject now has improved inter-process locking methods.
   }
-  unaInProcessGate = class(unaAbstractGate)
+  unaInProcessGate2 = class(unaAbstractGate)
   private
     f_obj: unaAcquireType;
     f_threadID: DWORD;
@@ -341,7 +359,7 @@ type
     f_list: unaListStorage;
     f_dataItemSize: int;
     //
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     f_dataEvent: unaEvent;
     //
     f_sorted: bool;
@@ -394,21 +412,24 @@ type
     property listPtrAt[index: int]: pointer read getListPtrAt;
     property dataItemSize: int read f_dataItemSize;
     {*
-      Locks the list. Returns false if lock cannot be set in a timeout period.
-      If INFINITE is passed timeOut property will be used instead.
+      Locks the list.
+
+      @param ro True for read-only lock.
+      @param timeout Timeout, if INFINITE is passed, timeOut property will be used instead.
+      @return false if lock cannot be set in a timeout period.
     }
-    function lock(timeout: unsigned = INFINITE): bool; virtual;
+    function lock(ro: bool; timeout: unsigned = 10000): bool; virtual;
     {*
 	Unlocks the list.
 	Must be called after each successful lock()
     }
-    procedure unlock(); virtual;
+    procedure unlock({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG }); virtual;
   public
     constructor create(dataType: unaListDataType = uldt_int32; sorted: bool = false);
     procedure BeforeDestruction(); override;
     //
     {$IFDEF DEBUG }
-    function lockedByMe(): int;
+    //function lockedByMe(): int;
     {$ENDIF DEBUG }
     //
     {*
@@ -607,7 +628,7 @@ type
     {*
       Returns first item with given ID.
     }
-    function itemById(id: int64; startingIndex: int = 0; timeout: unsigned = INFINITE): pointer;
+    function itemById(id: int64; startingIndex: int = 0): pointer;
     {*
       Returns index of first item with given ID.
     }
@@ -887,7 +908,7 @@ type
     f_onExecute: unaThreadOnExecuteMethod;
     //
     f_manager: unaThreadManager;
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     //
     f_eventStop: unaEvent;
     f_eventHandleReady: unaEvent;
@@ -932,10 +953,6 @@ type
     {*
     }
     function onResume(): bool; virtual;
-    {*
-      Notifies the thread should be stopped.
-    }
-    procedure askStop();
     //
     procedure setDefaultStopTimeout(value: unsigned);
     //
@@ -965,6 +982,10 @@ type
     //
     class function g_shouldStop(threadIndex: unsigned): bool;
     {*
+      	Notifies the thread it should be stopped ASAP.
+    }
+    procedure askStop();
+    {*
       Suspends thread execution.
     }
     function pause(): bool;
@@ -993,11 +1014,11 @@ type
     {*
       Enters the gate associated with the thread.
     }
-    function enter(timeout: unsigned = 1000): bool;
+    function enter(ro: bool; timeout: unsigned = 1000): bool;
     {*
       Leaves the gate associated with the thread.
     }
-    procedure leave();
+    procedure leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
     //
     class function shouldStopThread(globalIndex: unsigned): bool;
     //
@@ -1029,7 +1050,7 @@ type
     f_master: bool;
     //
     f_threads: unaList;
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     //
     function enumExecute(action: unsigned; param: unsigned = 0): unsigned;
   public
@@ -1109,7 +1130,7 @@ type
   {$ENDIF DEBUG }
     //
     f_onTimerEvent: onTimerEvent;
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     //
     procedure doSetInterval(value: unsigned);
   protected
@@ -1302,7 +1323,7 @@ type
   private
     f_section: wString;
     //
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     f_lockTimeout: unsigned;
     //
     function getUnsigned(const key: string; defValue: unsigned = 0): unsigned; overload;
@@ -1531,7 +1552,7 @@ type
   {$ENDIF DEBUG }
     f_lockTimeout: unsigned;
     //
-    f_gate: unaInProcessGate;
+    //f_gate: unaInProcessGate;
     //
     function getIsEmpty: bool;
   protected
@@ -1580,10 +1601,10 @@ type
     function getSize(): int;
     function getAvailableSize(): int;
     //
-    function enter(timeout: unsigned = INFINITE{$IFDEF DEBUG }; const masterName: string = ''{$ENDIF DEBUG }): bool;
-    procedure leave();
+    function enter(ro: bool; timeout: unsigned = 10000): bool;
+    procedure leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
   {$IFDEF DEBUG }
-    property gate: unaInProcessGate read f_gate;
+    //property gate: unaInProcessGate read f_gate;
   {$ENDIF DEBUG }
     //
     property isValid: bool read f_isValid;
@@ -1881,15 +1902,15 @@ type
 
 	@return True if list contains at least one element and was locked, or False if list is nil, empty or timeout expired.
 }
-function lockNonEmptyList(list: unaList; timeout: unsigned = INFINITE): bool;
+function lockNonEmptyList(list: unaList; ro: bool; timeout: unsigned = 10000): bool;
 {*
 	Lock a list.
 }
-function lockList(list: unaList; timeout: unsigned = INFINITE): bool;
+function lockList(list: unaList; ro: bool; timeout: unsigned = 10000): bool;
 {*
 	Unlocks the list locked by lockNonEmptyList.
 }
-procedure unlockList(list: unaList);
+procedure unlockList(list: unaList{$IFDEF DEBUG }; ro: bool{$ENDIF DEBUG });
 
 {*
 	Returns true if files' content is the same. Uses mapped file class.
@@ -1926,44 +1947,147 @@ var
   g_acquireThreadID: DWORD;
 
 // --  --
-function unaObject.acquire(timeout: int; fsn: bool): bool;
+function unaObject.acquire(ro: bool; timeout: int; fsn: bool): bool;
 var
   ct: DWORD;
+  tm: int64;
+  {$IFDEF LOG_UNACLASSES_INFOS }
+  op, dlNotified: bool;
+  {$ENDIF LOG_UNACLASSES_INFOS }
 begin
   ct := GetCurrentThreadId();
   //
   if (fsn or (nil = self)) then begin
     //
-    result := acquire32Try(g_acquire, timeout);
+    result := acquire32(g_acquire, timeout);
     if (result and (0 = g_acquireThreadID)) then
       g_acquireThreadID := ct;
+    //
   end
   else begin
     //
-    if (f_acqThreadID = ct) then begin
-      //
-      acquire32(f_acqObj, false);	// just increase the count
-      result := true;
-    end
-    else
-      result := acquire32Try(f_acqObj, timeout);
+    tm := 0;
+    result := false;
     //
-    if (result) then
-      f_acqThreadID := ct;
+    if (ro) then begin
+      //
+      // -- RO --
+      //
+      repeat
+	// 0) any waiting WO requests from other threads?
+	if ((0 = f_woEnterThreadID) or (ct = f_woEnterThreadID)) then begin
+	  //
+	  // 1) // unconditional acquire RO
+	  acquire(true);
+	  //
+	  // 2) acquire(wo, 0)?
+	  if (acquire32(f_acqObj[0], 0) or _acq(false, ct, 1)) then begin
+	    //
+	    // 3) no one else is interested in wo access atm, release WO and succeed
+	    _addPwnThread(true, ct);
+	    //
+	    _rls(false, ct);
+	    //
+	    result := true;
+	    break;
+	  end
+	  else
+	    // 4) someone else needs WO too, release RO and loop while not timeout
+	    _rls(true, ct);
+	end;
+	//
+	// 5) loop until timeout
+	if (0 = tm) then
+	  tm := timeMark();
+	//
+	sleep(1);
+	//
+      until (int(timeElapsed32(tm)) > timeout);
+    end
+    else begin
+      //
+      // -- WO --
+      //
+      tm := timeMark();
+  {$IFDEF LOG_UNACLASSES_INFOS }
+      dlNotified := false;
+  {$ENDIF LOG_UNACLASSES_INFOS }
+      repeat
+	// 0) mark pwn thread as WO?
+	asm
+	  push	eax
+	  push	edx
+	  push	ecx
+
+	  sub	eax, eax
+	  mov	edx, ct
+	  mov	ecx, self
+	  //
+	  lock	cmpxchg  [ecx + f_woEnterThreadID], edx
+	  //
+	  pop	ecx
+	  pop	edx
+	  pop	eax
+	end;
+	if (ct = f_woEnterThreadID) then begin
+	  //
+	  {$IFDEF LOG_UNACLASSES_INFOS }
+	  if (not dlNotified and _getPwnThread(ct, op, false, false)) then begin
+	    //
+	    if (true = op) then begin
+	      //
+	      dlNotified := true;
+	      logMessage('WO after RO? Good chance it will lead to deadlock someday. Consider changing all lock chain to WO.');
+	    end;
+	  end;
+	  {$ENDIF LOG_UNACLASSES_INFOS }
+	  //
+	  // 1) acquire(wo, timeout / 2)?
+	  if (_acq(false, ct, timeout shr 1)) then begin
+	    //
+	    // 2) we got the wo, but check if there are any RO clients (from other threads)
+	    if (_acq(true, ct, 0)) then begin
+	      //
+	      _addPwnThread(false, ct);
+	      //
+	      // 3) we got WO and RO, release RO and succeed
+	      _rls(true, ct);
+	      f_woEnterThreadID := 0;
+	      //
+	      result := true;
+	      break;
+	    end;
+	    //
+	    // 4) no luck with RO, fail on WO and repeat until timeout
+	    _rls(false, ct);
+	  end;
+	  //
+	  // release pwn WO mark, so other threads may try WO/RO meanwhile
+	  f_woEnterThreadID := 0;
+	end;
+	//
+	// 4) loop until timeout
+	sleep(1);
+	//
+      until (int(timeElapsed32(tm)) > timeout);
+    end;
   end;
 end;
 
 // --  --
-procedure unaObject.acquire();
+procedure unaObject.acquire(ro: bool);
 begin
   if (nil = self) then begin
     //
-    acquire32(g_acquire, false);
+    acquire32(g_acquire);	// mark as acquired
     if (0 = g_acquireThreadID) then
       g_acquireThreadID := GetCurrentThreadId();
   end
   else
-    acquire32(f_acqObj, false);
+    if (ro) then
+      acquire32(f_acqObj[1])
+    else
+      acquire32(f_acqObj[0]);
 end;
 
 // --  --
@@ -1972,7 +2096,7 @@ var
   obj: unaObject;
 begin
   obj := nil;
-  obj.acquire();	// hm.. looks weird, I know
+  obj.acquire(false);	// hm.. looks weird, I know
 end;
 
 // --  --
@@ -1981,7 +2105,7 @@ var
   obj: unaObject;
 begin
   obj := nil;
-  result := obj.acquire(timeout);	// hm.. looks weird, I know
+  result := obj.acquire(false, timeout);	// hm.. looks weird, I know
 end;
 
 // --  --
@@ -2004,9 +2128,9 @@ begin
   //
   f_destroyed := true;
   //
-  if (0 < f_acqObj) then
+  if ( (0 < f_acqObj[0]) or (0 < f_acqObj[1]) ) then
     // looks like object is destroying inside own lock, so we acquire global obj here
-    acquire(0, true);
+    acquire(false, 0, true);
 end;
 
 // --  --
@@ -2036,26 +2160,165 @@ begin
 end;
 
 // --  --
-function unaObject.release(): bool;
+function unaObject.release({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG}): bool;
 var
-  sameID: bool;
   ct: DWORD;
+  op: bool;
 begin
   ct := GetCurrentThreadId();
-  //
-  sameID := ( (0 <> g_acquireThreadID) and (g_acquireThreadID = ct) );
-  if (sameID or (nil = self)) then begin
+  if (nil = self) then begin
     //
     result := release32(g_acquire);
-    if (result and sameID) then
+    if (result and ((0 <> g_acquireThreadID) and (g_acquireThreadID = ct))) then
       g_acquireThreadID := 0;
   end
   else begin
     //
-    result := release32(f_acqObj);
-    if (result and (f_acqThreadID = ct)) then
-      f_acqThreadID := 0;
+    if (_getPwnThread(ct, op, false, true)) then begin
+      //
+    {$IFDEF DEBUG} {$IFDEF LOG_UNACLASSES_INFOS }
+      if (op <> ro) then
+	logMessage('Last lock was of different type, are you sure there was no wrong acquire()/release() sequence?');
+    {$ENDIF LOG_UNACLASSES_INFOS } {$ENDIF DEBUG}
+    end
+    else begin
+    {$IFDEF LOG_UNACLASSES_ERRORS }
+      logMessage('Release lock from non-owning thread, make sure each succeessfull acquire() is paired with release().');
+    {$ENDIF LOG_UNACLASSES_ERRORS }
+    end;
+    //
+    result := _rls(op, ct);
   end;
+end;
+
+// --  --
+class function unaObject.releseStatic(): bool;
+var
+  obj: unaObject;
+begin
+  obj := nil;
+  result := obj.release({$IFDEF DEBUG }false{$ENDIF DEBUG });	// hm.. looks weird, I know
+end;
+
+// --  --
+function unaObject._acq(ro: bool; ct: DWORD; timeout: int): bool;
+var
+  level: int;
+  op: bool;
+begin
+  if (ro) then level := 1 else level := 0;
+  //
+  if (_getPwnThread(ct, op, true, false)) then begin
+    //
+    // we already pwn some lock here, just increase the counter
+    acquire32(f_acqObj[level]);	// unconditional acquire
+    result := true;
+  end
+  else
+    result := (1 > f_pwnThreadCount) and acquire32(f_acqObj[level], timeout); // conditional acquire with timeout
+end;
+
+// --  --
+procedure unaObject._addPwnThread(ro: bool; ct: DWORD);
+var
+  i, index: int;
+begin
+  if (acquire32(f_pwnThreadACQ, 20000)) then try
+    //
+    index := -1;
+    for i := f_pwnThreadCount - 1 downto 0 do begin
+      //
+      if (0 = f_pwnThreadID[i]) then begin
+	//
+	index := i;
+	break;
+      end;
+      //
+      if (ct = f_pwnThreadID[i]) then
+	break;
+    end;
+    //
+    if (0 > index) then begin
+      //
+      index := f_pwnThreadCount;
+      inc(f_pwnThreadCount);
+      if (f_pwnThreadMax < f_pwnThreadCount) then begin
+	//
+	f_pwnThreadMax := f_pwnThreadCount;
+	mrealloc(f_pwnThreadID, f_pwnThreadMax * sizeof(f_pwnThreadID[0]));
+	mrealloc(f_pwnThreadOp, f_pwnThreadMax * sizeof(f_pwnThreadOp[0]));
+      end;
+    end;
+    //
+    f_pwnThreadID[index] := ct;
+    if (ro) then f_pwnThreadOp[index] := 1 else f_pwnThreadOp[index] := 0;
+  finally
+    release32(f_pwnThreadACQ);
+  end;
+end;
+
+// --  --
+function unaObject._getPwnThread(ct: DWORD; out op: bool; oneAndOnly, remove: bool): bool;
+var
+  i, index: int;
+begin
+  result := false;
+  //
+  if (acquire32(f_pwnThreadACQ, 20000)) then try
+    //
+    // some cleanup
+    while ((0 < f_pwnThreadCount) and (0 = f_pwnThreadID[f_pwnThreadCount - 1])) do
+      dec(f_pwnThreadCount);
+    //
+    index := -1;
+    for i := f_pwnThreadCount - 1 downto 0 do begin
+      //
+      if (ct = f_pwnThreadID[i]) then begin
+	//
+	index := i;
+	break;
+      end;
+    end;
+    //
+    if (0 <= index) then begin
+      //
+      result := true;
+      if (oneAndOnly) then begin
+	//
+	for i := 0 to f_pwnThreadCount - 1 do begin
+	  //
+	  if ((0 <> f_pwnThreadID[i]) and (ct <> f_pwnThreadID[i])) then begin
+	    //
+	    result := false;
+	    break;
+	  end;
+	end;
+      end;
+      //
+      if (result) then begin
+	//
+	op := (0 <> f_pwnThreadOp[index]);
+	//
+	if (remove) then begin
+	  //
+	  f_pwnThreadID[index] := 0;
+	  if (index = f_pwnThreadCount - 1) then
+	    dec(f_pwnThreadCount);
+	end;
+      end;
+    end
+  finally
+    release32(f_pwnThreadACQ);
+  end;
+end;
+
+// --  --
+function unaObject._rls(ro: bool; ct: DWORD): bool;
+var
+  level: int;
+begin
+  if (ro) then level := 1 else level := 0;
+  result := release32(f_acqObj[level]);
 end;
 
 
@@ -2162,18 +2425,18 @@ begin
 {$ENDIF UNA_GATE_DEBUG_TIMEOUT }
   //
 {$IFDEF DEBUG }
-  if (self is unaInProcessGate) then begin
-    //
-    owner := (self as unaInProcessGate).owningThreadId;
-    TLC := -1;//(self as unaInProcessGate).tryLockCount;
-    RLC := (self as unaInProcessGate).recursionLockCount;
-  end
-  else begin
+//  if (self is unaInProcessGate) then begin
+//    //
+//    owner := (self as unaInProcessGate).owningThreadId;
+//    TLC := -1;//(self as unaInProcessGate).tryLockCount;
+//    RLC := (self as unaInProcessGate).recursionLockCount;
+//  end
+//  else begin
     //
     owner := unsigned(-1);
     TLC := -1;
     RLC := -1;
-  end;
+//  end;
 {$ENDIF DEBUG }
   //
   try
@@ -2297,7 +2560,7 @@ end;
 { unaInProcessGate }
 
 // --  --
-function unaInProcessGate.gateEnter(timeout: unsigned{$IFDEF DEBUG }; const masterName: string{$ENDIF DEBUG }): bool;
+function unaInProcessGate2.gateEnter(timeout: unsigned{$IFDEF DEBUG }; const masterName: string{$ENDIF DEBUG }): bool;
 var
   tm: int64;
   ct: DWORD;
@@ -2339,7 +2602,7 @@ begin
   end
   else begin
     //
-    result := acquire32Try(f_obj, int(timeout));
+    result := acquire32(f_obj, int(timeout));
     if (result) then begin
       //
       f_threadID := ct;
@@ -2364,7 +2627,7 @@ begin
 end;
 
 // --  --
-procedure unaInProcessGate.gateLeave();
+procedure unaInProcessGate2.gateLeave();
 begin
   if (0 < f_rlc) then begin
     //
@@ -2445,10 +2708,11 @@ begin
   //
   if (nil <> list) then begin
     //
-    if (list.lock()) then begin
+    if (list.lock(true)) then begin
+      //
       try
 	result := list.count;
-	if (lock()) then begin
+	if (lock(false)) then begin
 	  //
 	  try
 	    setCapacity(result);
@@ -2461,11 +2725,12 @@ begin
 	      f_dataEvent.setState();
 	    //
 	  finally
-	    unlock();
+	    unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
 	  end;
 	end;
+	//
       finally
-	list.unlock();
+	list.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
       end;
     end;
   end
@@ -2479,7 +2744,7 @@ var
 begin
   result := '';
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, true)) then begin
     //
     try
       for i := 0 to count - 1 do begin
@@ -2512,7 +2777,7 @@ begin
 	//
       end;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -2525,7 +2790,7 @@ begin
   inherited;
   //
   freeAndNil(f_dataEvent);
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
 end;
 
 // --  --
@@ -2538,7 +2803,7 @@ end;
 // --  --
 procedure unaList.clear(doFree: unsigned; force: bool);
 begin
-  if (lock()) then begin
+  if (lock(false)) then begin
     try
       while (0 < f_count) do begin
 	//
@@ -2551,7 +2816,7 @@ begin
       //
       f_dataEvent.setState(false);
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -2690,7 +2955,8 @@ var
   itemCount: int;
   firstIndex: int;
 begin
-  if (lock()) then begin
+  if (lock(true)) then begin
+    //
     try
       itemCount := self.count;
       firstIndex := 0;
@@ -2711,7 +2977,7 @@ begin
 	move(listPtr^, pArray(list)[firstIndex * dataItemSize], count * dataItemSize);
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end
   else
@@ -2723,7 +2989,7 @@ constructor unaList.create(dataType: unaListDataType; sorted: bool);
 begin
   inherited create();
   //
-  f_gate := unaInProcessGate.create({$IFDEF DEBUG }self._classID + '.f_gate'{$ENDIF DEBUG });
+  //f_gate := unaInProcessGate.create({$IFDEF DEBUG }self._classID + '.f_gate'{$ENDIF DEBUG });
   //
   f_timeout := 1000;
   //
@@ -2756,7 +3022,7 @@ begin
   profileMarkEnter(profId_unaClasses_unaList_doAdd);
 {$ENDIF UNA_PROFILE }
   //
-  if (singleThreaded or lock()) then begin
+  if (singleThreaded or lock(false)) then begin
     //
     try
       if (sorted) then begin
@@ -2794,7 +3060,7 @@ begin
       doInsert(result, item, false);
     finally
       if (not singleThreaded) then
-	unlock();
+	unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else
@@ -2874,7 +3140,7 @@ begin
     end;
 
     //
-    if (lock()) then begin
+    if (lock(false)) then begin
       try
 	//
 	// allocate necessary space for list items
@@ -2900,7 +3166,7 @@ begin
 	end;
 	//
       finally
-	unlock();
+	unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
     end;
     //
@@ -2918,7 +3184,7 @@ begin
   profileMarkEnter(profId_unaClasses_unaList_doInsert);
 {$ENDIF UNA_PROFILE }
   //
-  if (singleThreaded or lock()) then begin
+  if (singleThreaded or lock(false)) then begin
     try
       {$IFDEF LOG_UNACLASSES_ERRORS }
       if (index > count) then
@@ -2953,7 +3219,7 @@ begin
       //
     finally
       if (not singleThreaded) then
-	unlock();
+	unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else
@@ -2971,7 +3237,7 @@ var
   v64: int64;
   v: pointer;
 begin
-  if ((1 < count) and lock()) then try
+  if ((1 < count) and lock(false)) then try
     //
     if (uldt_int32 = dataType) then begin
       //
@@ -3040,7 +3306,7 @@ begin
     end;
     //
   finally
-    unlock();
+    unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end;
 end;
 
@@ -3087,7 +3353,7 @@ begin
   profileMarkEnter(profId_unaClasses_unaList_doSetItem);
 {$ENDIF UNA_PROFILE }
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, false)) then begin
     try
       {$IFDEF LOG_UNACLASSES_ERRORS }
       if (index >= f_count) then
@@ -3116,7 +3382,7 @@ begin
 	f_sorted := false;
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
   //
@@ -3210,7 +3476,7 @@ begin
   profileMarkEnter(profId_unaClasses_unaList_locate);
 {$ENDIF UNA_PROFILE }
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, true)) then begin
     try
       result := -1;
       //
@@ -3259,7 +3525,7 @@ begin
       end;
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end
   else
@@ -3313,7 +3579,7 @@ begin
 end;
 
 // -- --
-function unaList.lock(timeout: unsigned): bool;
+function unaList.lock(ro: bool; timeout: unsigned): bool;
 begin
   if (f_destroyed) then
     result := false
@@ -3322,9 +3588,11 @@ begin
     if (not singleThreaded) then begin
       //
       if (INFINITE = timeout) then
-	result := f_gate.enter(self.timeout {$IFDEF DEBUG }, self._classID{$ENDIF DEBUG })
+      //	result := f_gate.enter(self.timeout {$IFDEF DEBUG }, self._classID{$ENDIF DEBUG })
+	result := acquire(ro, self.timeout)
       else
-	result := f_gate.enter(timeout {$IFDEF DEBUG}, self._classID{$ENDIF})
+      //	result := f_gate.enter(timeout {$IFDEF DEBUG}, self._classID{$ENDIF})
+	result := acquire(ro, timeout);
     end
     else
       result := true;
@@ -3334,6 +3602,7 @@ end;
 {$IFDEF DEBUG }
 
 // --  --
+{
 function unaList.lockedByMe(): int;
 begin
   if (f_gate.f_threadID = GetCurrentThreadId()) then
@@ -3341,6 +3610,7 @@ begin
   else
     result := 0;
 end;
+}
 
 {$ENDIF DEBUG }
 
@@ -3480,7 +3750,7 @@ end;
 function unaList.removeByIndex(index: int; doFree: unsigned): bool;
 begin
   result := false;
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, false)) then begin
     try
       {$IFDEF LOG_UNACLASSES_ERRORS }
       if (index >= f_count) then
@@ -3510,7 +3780,7 @@ begin
 	//
       end;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -3520,7 +3790,7 @@ function unaList.removeFromEdge(removeFromBegining: bool): bool;
 begin
   result := false;
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, false)) then begin
     //
     try
       //
@@ -3531,7 +3801,7 @@ begin
       //
       result := true;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -3566,14 +3836,14 @@ var
 begin
   result := false;
   //
-  if (lockNonEmptyList(self)) then
+  if (lockNonEmptyList(self, false)) then
     try
       index := indexOf(item);
       if (0 <= index) then
 	result := removeByIndex(index, doFree);
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
 end;
 
@@ -3586,13 +3856,13 @@ end;
 // --  --
 procedure unaList.setCapacity(value: unsigned);
 begin
-  if (singleThreaded or lock()) then begin
+  if (singleThreaded or lock(false)) then begin
     try
       // should be called in lock() state
       doSetCapacity(value);
     finally
       if (not singleThreaded) then
-	unlock();
+	unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -3632,7 +3902,7 @@ function unaList.setItem(itemToReplace, newItem: pointer; doFree: unsigned): uns
 var
   index: int;
 begin
-  if (singleThreaded or lock()) then begin
+  if (singleThreaded or lock(false)) then begin
     try
       index := indexOf(itemToReplace);
       if (0 <= index) then begin
@@ -3645,7 +3915,7 @@ begin
       //
     finally
       if (not singleThreaded) then
-	unlock();
+	unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else
@@ -3655,13 +3925,13 @@ end;
 // --  --
 function unaList.sort(): bool;
 begin
-  if (lockNonEmptyList(self)) then try
+  if (lockNonEmptyList(self, false)) then try
     //
     quickSort(0, count - 1);
     //
     f_sorted := true;
   finally
-    unlock();
+    unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
   end
   else
     f_sorted := (1 > count);
@@ -3670,10 +3940,10 @@ begin
 end;
 
 // --  --
-procedure unaList.unlock();
+procedure unaList.unlock({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
 begin
   if (not singleThreaded) then
-    f_gate.leave();
+    release({$IFDEF DEBUG }ro{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -3728,7 +3998,7 @@ function unaIdList.doAdd(item: pointer): int;
 var
   ok: bool;
 begin
-  if (lock()) then begin
+  if (lock(false)) then begin
     try
       if (not allowDuplicateId) then
 	ok := (0 > indexOfId(getId(item)))
@@ -3741,7 +4011,7 @@ begin
 	result := -1;
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else
@@ -3776,7 +4046,7 @@ var
 begin
   inherited;
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, false)) then begin
     try
       if (0 < count) then begin
 	//
@@ -3789,7 +4059,7 @@ begin
 	//
       end;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -3805,7 +4075,7 @@ end;
 // --  --
 function unaIdList.doInsert(index: int; item: pointer; brokeSorted: bool): int;
 begin
-  if (lock()) then begin
+  if (lock(false)) then begin
     try
       {$IFDEF LOG_UNACLASSES_ERRORS }
       if (index > count) then
@@ -3827,7 +4097,7 @@ begin
 	result := -2;
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else
@@ -3837,13 +4107,13 @@ end;
 // --  --
 procedure unaIdList.doSetItem(index: int; item: pointer; brokeSorted: bool; doFree: unsigned);
 begin
-  if (lock()) then begin
+  if (lock(false)) then begin
     try
       f_idList64[index] := getId(item);
       //
       inherited;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -3862,7 +4132,7 @@ var
 begin
   result := -1;
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, true)) then begin
     try
       //
       if (sorted) then begin
@@ -3908,13 +4178,13 @@ begin
       end;
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
 
 // --  --
-function unaIdList.itemById(id: int64; startingIndex: int; timeout: unsigned): pointer;
+function unaIdList.itemById(id: int64; startingIndex: int): pointer;
 begin
   result := get(indexOfId(id, startingIndex))
 end;
@@ -3947,14 +4217,14 @@ var
 begin
   result := false;
   //
-  if (lockNonEmptyList(self)) then
+  if (lockNonEmptyList(self, false)) then
     try
       index := indexOfId(id);
       if (0 <= index) then
 	result := removeByIndex(index, doFree);
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
 end;
 
@@ -3988,7 +4258,7 @@ function unaIdList.updateIds(): unsigned;
 var
   i: unsigned;
 begin
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, false)) then begin
     try
       //
       for i := 0 to count - 1 do
@@ -3997,7 +4267,7 @@ begin
       result := count;
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else
@@ -4099,7 +4369,7 @@ var
 begin
   result := '';
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, true)) then begin
     try
       if (index < count) then begin
 	//
@@ -4119,7 +4389,7 @@ begin
       end;
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4132,7 +4402,7 @@ var
 begin
   result := '';
   //
-  if (lock()) then begin
+  if (lock(true)) then begin
     try
       if (0 <= index) then begin
 	//
@@ -4145,7 +4415,7 @@ begin
 	  result := v;
       end;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4157,12 +4427,12 @@ var
 begin
   result := '';
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, true)) then begin
     try
       for i := 0 to count - 1 do
 	result := result + get(i) + #13#10;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4176,7 +4446,7 @@ var
 begin
   result := '';
   //
-  if (lock()) then begin
+  if (lock(true)) then begin
     try
       i := indexOfValue(index);
       if (0 <= i) then begin
@@ -4189,7 +4459,7 @@ begin
 	//
       end;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4200,7 +4470,7 @@ var
   i: int;
 begin
   result := -1;
-  if ((0 < count) and lock()) then begin
+  if ((0 < count) and lock(true)) then begin
     //
     try
       for i := 0 to count - 1 do begin
@@ -4213,7 +4483,7 @@ begin
 	end;
       end;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4226,7 +4496,7 @@ var
 begin
   result := -1;
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, true)) then begin
     try
       lc := lowerCase(name) + '=';
       //
@@ -4239,7 +4509,7 @@ begin
 	end;
       end;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4285,7 +4555,7 @@ end;
 // --  --
 procedure unaStringList.setName(const index: int; const v: string);
 begin
-  if (lock()) then begin
+  if (lock(false)) then begin
     try
       if (0 <= index) then
 	setItem(index, v + '=' + value[v])
@@ -4293,7 +4563,7 @@ begin
 	add(v + '=');
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4305,13 +4575,13 @@ var
   p: paChar;
   pStart: paChar;
 begin
-  if (lock()) then begin
+  if (lock(false)) then begin
     try
       clear();
       //
       if ('' <> value) then begin
 	//
-        s := aString(value);
+	s := aString(value);
 	p := @s[1];
 	pStart := p;
 	//
@@ -4333,7 +4603,7 @@ begin
       end;
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4343,7 +4613,7 @@ procedure unaStringList.setValue(const index, value: string);
 var
   i: int;
 begin
-  if (lock()) then begin
+  if (lock(false)) then begin
     try
       i := indexOfValue(index);
       //
@@ -4353,7 +4623,7 @@ begin
 	add(index + '=' + value);
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4387,7 +4657,7 @@ var
 begin
   result := '';
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, true)) then begin
     try
       if (index < count) then begin
 	//
@@ -4408,7 +4678,7 @@ begin
       end;
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4420,12 +4690,12 @@ var
 begin
   result := '';
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, true)) then begin
     try
       for i := 0 to count - 1 do
 	result := result + get(i) + #13#10;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4439,7 +4709,7 @@ var
 begin
   result := '';
   //
-  if (lock()) then begin
+  if (lock(true)) then begin
     try
       i := indexOfValue(index);
       if (0 <= i) then begin
@@ -4452,7 +4722,7 @@ begin
 	//
       end;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4463,7 +4733,7 @@ var
   i: int;
 begin
   result := -1;
-  if ((0 < count) and lock()) then begin
+  if ((0 < count) and lock(true)) then begin
     //
     try
       for i := 0 to count - 1 do begin
@@ -4476,7 +4746,7 @@ begin
 	end;
       end;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4489,7 +4759,7 @@ var
 begin
   result := -1;
   //
-  if (lockNonEmptyList(self)) then begin
+  if (lockNonEmptyList(self, true)) then begin
     try
       lc := lowerCase(name) + '=';
       //
@@ -4502,7 +4772,7 @@ begin
 	end;
       end;
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4543,7 +4813,7 @@ var
   p: pwChar;
   pStart: pwChar;
 begin
-  if (lock()) then begin
+  if (lock(false)) then begin
     try
       clear();
       //
@@ -4570,7 +4840,7 @@ begin
       end;
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4580,7 +4850,7 @@ procedure unaWideStringList.setValue(const index, value: wString);
 var
   i: int;
 begin
-  if (lock()) then begin
+  if (lock(false)) then begin
     try
       i := indexOfValue(index);
       //
@@ -4590,7 +4860,7 @@ begin
 	add(index + '=' + value);
       //
     finally
-      unlock();
+      unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -4794,7 +5064,7 @@ begin
   if (INVALID_HANDLE_VALUE <> res) then begin
     //
     try
-      if (lock()) then begin
+      if (lock(false)) then begin
 	try
 	  if (clearUp) then begin
 	    //
@@ -4865,13 +5135,13 @@ begin
 	    else
 	      more := FindNextFileA(res, fda);
 {$ENDIF NO_ANSI_SUPPORT }
-            ;
+	    ;
 	    //
 	  end;
 	  //
 	  result := true;
 	finally
-	  unlock();
+	  unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
 	end;
       end;
       //
@@ -5157,7 +5427,7 @@ type
 var
   g_threads: array[0..c_max_threads - 1] of unaThreadRec;
   g_freeThreads: array[0..c_max_threads - 1] of byte;
-  g_threadsGate: unaInProcessGate;
+  g_threadsGate: unaObject;
 
 
 const
@@ -5167,17 +5437,11 @@ const
 // --  --
 function getThreadGlobalIndex(): unsigned;
 var
-  ok: bool;
   pos: pointer;
 begin
   result := $FFFFFFFF;
   //
-  if (nil <> g_threadsGate) then
-    ok := g_threadsGate.enter(300)
-  else
-    ok := true;
-  //
-  if (ok) then begin
+  if (g_threadsGate.acquire(true, 1000)) then begin
     //
     try
       // locate free thread spot
@@ -5195,26 +5459,17 @@ begin
       end;
       //
     finally
-      //
-      if (nil <> g_threadsGate) then
-	g_threadsGate.leave();
+      g_threadsGate.release({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
 
 // --  --
 function lockThreadInstance(index: unsigned; ensureNotNil: bool): bool;
-var
-  ok: bool;
 begin
   result := false;
   //
-  if (nil <> g_threadsGate) then
-    ok := g_threadsGate.enter(1000)
-  else
-    ok := true;
-  //
-  if (ok) then begin
+  if (g_threadsGate.acquire(true, 1000)) then begin
     //
     try
       //
@@ -5225,32 +5480,19 @@ begin
 	g_threads[index].r_classInstanceLocked := true;
       //
     finally
-      //
-      if (nil <> g_threadsGate) then
-	g_threadsGate.leave();
+      g_threadsGate.release({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
 
 // --  --
 procedure unlockThreadInstance(index: unsigned);
-var
-  ok: bool;
 begin
-  if (nil <> g_threadsGate) then
-    ok := g_threadsGate.enter(1000)
-  else
-    ok := true;
-  //
-  if (ok) then begin
-    //
+  if (g_threadsGate.acquire(true, 1000)) then begin
     try
-      //
       g_threads[index].r_classInstanceLocked := false;
-      //
     finally
-      if (nil <> g_threadsGate) then
-	g_threadsGate.leave();
+      g_threadsGate.release({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -5324,7 +5566,7 @@ begin
   freeAndNil(f_eventHandleReady);
   freeAndNil(f_eventRunning);
   freeAndNil(f_sleepEvent);
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
 end;
 
 // --  --
@@ -5348,7 +5590,7 @@ begin
   //
   f_defaultStopTimeout := 3000;	// wait 3 seconds for thread to stop
   //
-  f_gate := unaInProcessGate.create({$IFDEF DEBUG}self._classID + '(' + title + '.f_gate)'{$ENDIF});
+  //f_gate := unaInProcessGate.create({$IFDEF DEBUG}self._classID + '(' + title + '.f_gate)'{$ENDIF});
   //
   doSetStatus(unatsStopped);
   g_threads[f_globalThreadIndex].r_priority := priority;
@@ -5373,9 +5615,9 @@ begin
 end;
 
 // -- --
-function unaThread.enter(timeout: unsigned): bool;
+function unaThread.enter(ro: bool; timeout: unsigned): bool;
 begin
-  result := f_gate.enter(timeout{$IFDEF DEBUG}, self._classID{$ENDIF});
+  result := acquire(ro, timeout); //f_gate.enter(timeout{$IFDEF DEBUG}, self._classID{$ENDIF});
 end;
 
 // -- --
@@ -5436,9 +5678,10 @@ begin
 end;
 
 // -- --
-procedure unaThread.leave();
+procedure unaThread.leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
 begin
-  f_gate.leave();
+  //f_gate.leave();
+  release({$IFDEF DEBUG }ro{$ENDIF DEBUG });
 end;
 
 // -- --
@@ -5666,7 +5909,7 @@ begin
 
     unatsStopped: begin
       //
-      if (enter(timeout)) then begin
+      if (enter(true, timeout)) then begin
 	try
 	  //
 	  if (grantStart()) then begin
@@ -5696,7 +5939,7 @@ begin
 	  end;
 	  //
 	finally
-	  leave();
+	  leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
 	end;
 	//
       end;
@@ -5767,7 +6010,7 @@ begin
 	end
 	else begin
 	  //
-	  if (enter(timeout)) then begin
+	  if (enter(true, timeout)) then begin
 	    //
 	    try
 	      if (0 < timeout) then begin
@@ -5787,10 +6030,10 @@ begin
 		{$IFDEF LOG_UNACLASSES_ERRORS }
 		logMessage(self._classID + '.stop(' + int2str(timeout) + ') - invlaid timeout value.');
 		{$ENDIF LOG_UNACLASSES_ERRORS }
-                ;
+		;
 	      //
 	    finally
-	      leave();
+	      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
 	    end;
 	    //
 	  end
@@ -5884,7 +6127,7 @@ constructor unaThreadManager.create(master: bool);
 begin
   f_master := master;
   //
-  f_gate := unaInProcessGate.create({$IFDEF DEBUG}self._classID + '(f_gate)'{$ENDIF});
+  //f_gate := unaInProcessGate.create({$IFDEF DEBUG}self._classID + '(f_gate)'{$ENDIF});
   f_threads := unaList.create();
 end;
 
@@ -5895,7 +6138,7 @@ begin
   //
   clear();
   freeAndNil(f_threads);
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
 end;
 
 // --  --
@@ -5906,39 +6149,49 @@ var
 begin
   result := 0;
   //
-  if (f_gate.enter(1000{$IFDEF DEBUG}, self._classID{$ENDIF})) then
+//  if (f_gate.enter(1000{$IFDEF DEBUG}, self._classID{$ENDIF})) then
+  if (acquire(true, 1000)) then
     try
       //
       if (f_threads.count > 0) then
 	//
 	for i := 0 to f_threads.count -1 do begin
+	  //
 	  t := get(i);
-	  if (t <> nil) then
+	  if (t <> nil) then begin
+
 	    case action of
+
 	      1: begin
+		//
 		freeAndNil(t);
 		Inc(result);
 	      end;
-	      2:
-		if (t.pause()) then
+
+	      2:if (t.pause()) then
 		  Inc(result);
-	      3:
-		if (t.resume()) then
+
+	      3:if (t.resume()) then
 		  Inc(result);
-	      4:
-		if (t.start()) then
+
+	      4:if (t.start()) then
 		  Inc(result);
-	      5:
-		if (t.stop(param)) then
+
+	      5:if (t.stop(param)) then
 		  Inc(result);
+
 	      6: begin
+		//
 		t.stop(0);
 		Inc(result);
 	      end;
+
 	    end;
+	  end;
 	end;
     finally
-      f_gate.leave();
+      //f_gate.leave();
+      release({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
 end;
 
@@ -6105,7 +6358,7 @@ begin
   //
   stop();
   //
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
 end;
 
 // --  --
@@ -6123,7 +6376,7 @@ begin
   f_title := title;
 {$ENDIF}
   //
-  f_gate := unaInProcessGate.create({$IFDEF DEBUG}self._classID + '(' + title + '.f_gate)'{$ENDIF});
+  //f_gate := unaInProcessGate.create({$IFDEF DEBUG}self._classID + '(' + title + '.f_gate)'{$ENDIF});
   f_interval := interval;
 end;
 
@@ -6155,7 +6408,7 @@ begin
   if (enter(5000)) then
     try
       // just to make sure we are not inside timer() proc
-      f_gate := f_gate;
+      //f_gate := f_gate;
     finally
       leave();
     end;
@@ -6187,7 +6440,8 @@ end;
 // --  --
 function unaAbstractTimer.enter(timeout: unsigned): bool;
 begin
-  result := f_gate.enter(timeout{$IFDEF DEBUG}, self._classID{$ENDIF});
+  //result := f_gate.enter(timeout{$IFDEF DEBUG}, self._classID{$ENDIF});
+  result := acquire(true, timeout);
 end;
 
 // --  --
@@ -6199,7 +6453,8 @@ end;
 // --  --
 procedure unaAbstractTimer.leave();
 begin
-  f_gate.leave();
+  //f_gate.leave();
+  release({$IFDEF DEBUG }true{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -6544,7 +6799,7 @@ begin
   else
     timeout := maxTimeout;
   //
-  if (enter(timeout)) then begin
+  if (enter(false, timeout)) then begin
     //
     try
       //
@@ -6561,7 +6816,7 @@ begin
 	while ((unatsRunning = getStatus()) and (1 > f_values.count) and (timeout > int(timeElapsed32(mark)))) do
 	  f_values.waitForData(min(100, timeout));
 	//
-	if (lockNonEmptyList(f_values)) then begin
+	if (lockNonEmptyList(f_values, false)) then begin
 	  try
 	    //
 	    result := trunc(uint32(f_values[0]) / (high(unsigned) / upperLimit));
@@ -6569,7 +6824,7 @@ begin
 	    //
 	    wakeUp();	// produce some more values
 	  finally
-	    f_values.unlock();
+	    f_values.unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
 	  end;
 	end
 	else begin
@@ -6588,7 +6843,7 @@ begin
       end;
       //
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else begin
@@ -6632,7 +6887,7 @@ procedure unaIniAbstractStorage.AfterConstruction();
 begin
   inherited;
   //
-  f_gate := unaInProcessGate.create();
+  //f_gate := unaInProcessGate.create();
 end;
 
 // --  --
@@ -6640,7 +6895,7 @@ procedure unaIniAbstractStorage.BeforeDestruction();
 begin
   inherited;
   //
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
 end;
 
 // --  --
@@ -6658,7 +6913,8 @@ begin
   if (0 = timeout) then
     timeout := f_lockTimeout;
   //
-  result := f_gate.enter(timeout);
+  //result := f_gate.enter(timeout);
+  result := acquire(false, timeout);
   //
   if (result and ('' <> section)) then begin
     //
@@ -6938,7 +7194,8 @@ begin
   if ('' <> sectionSave) then
     self.section := sectionSave;
   //
-  f_gate.leave();
+  //f_gate.leave();
+  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -7957,7 +8214,7 @@ begin
   f_title := title;
 {$ENDIF}
   //
-  f_gate := unaInProcessGate.create({$IFDEF DEBUG}self._classID + '(' + title + '.f_gate)'{$ENDIF});
+  //f_gate := unaInProcessGate.create({$IFDEF DEBUG}self._classID + '(' + title + '.f_gate)'{$ENDIF});
   f_dataEvent := unaEvent.create();
 end;
 
@@ -8029,33 +8286,15 @@ destructor unaAbstractStream.Destroy();
 begin
   inherited;
   //
-  freeAndNil(f_gate);
+  //freeAndNil(f_gate);
   freeAndNil(f_dataEvent);
 end;
 
 // --  --
-function unaAbstractStream.enter(timeout: unsigned{$IFDEF DEBUG }; const masterName: string{$ENDIF DEBUG }): bool;
-{$IFDEF UNA_GATE_DEBUG }
-var
-  id: unsigned;
-  lc: unsigned;
-  rc: unsigned;
-{$ENDIF}
+function unaAbstractStream.enter(ro: bool; timeout: unsigned): bool;
 begin
-{$IFDEF UNA_GATE_DEBUG }
-  id := f_gate.getOwningThread();
-  lc := f_gate.getTryLockCount();
-  rc := f_gate.getRecursionLockCount();
-  //
-  infoMessage('about to ENTER: #' + int2str(id) + '|' + int2str(lc) + '|' + int2str(rc));
-{$ENDIF UNA_GATE_DEBUG }
-  result := f_gate.enter(choice(INFINITE = timeout, f_lockTimeout, timeout){$IFDEF DEBUG}, 'by ' + self._classID + ' of ' + masterName{$ENDIF});
-{$IFDEF UNA_GATE_DEBUG }
-  if (result) then
-    infoMessage('ENTER: OK #' + int2str(id) + '|' + int2str(lc) + '|' + int2str(rc) + '/' + int2str(f_gate.getOwningThread()) + '|' + int2str(f_gate.getTryLockCount()) + '|' + int2str(f_gate.getRecursionLockCount()))
-  else
-    infoMessage('ENTER: er #' + int2str(id) + '|' + int2str(lc) + '|' + int2str(rc) + '/' + int2str(f_gate.getOwningThread()) + '|' + int2str(f_gate.getTryLockCount()) + '|' + int2str(f_gate.getRecursionLockCount()));
-{$ENDIF UNA_GATE_DEBUG }
+  //result := f_gate.enter(choice(INFINITE = timeout, f_lockTimeout, timeout){$IFDEF DEBUG}, 'by ' + self._classID + ' of ' + masterName{$ENDIF});
+  result := acquire(ro, timeout);
 end;
 
 // --  --
@@ -8102,9 +8341,10 @@ begin
 end;
 
 // --  --
-procedure unaAbstractStream.leave();
+procedure unaAbstractStream.leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
 begin
-  f_gate.leave();
+  //f_gate.leave();
+  release({$IFDEF DEBUG }ro{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -8252,7 +8492,7 @@ end;
 // --  --
 function unaAbstractStream.seekD(delta: int): int;
 begin
-  if (enter()) then begin
+  if (enter(false)) then begin
     try
       if ((0 > delta) and (abs(delta) >= int(f_pos))) then
 	f_pos := 0
@@ -8264,7 +8504,7 @@ begin
 	//
       end;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
   //
@@ -8274,14 +8514,14 @@ end;
 // --  --
 function unaAbstractStream.seek(position: int; fromBeggining: bool): int;
 begin
-  if (enter()) then begin
+  if (enter(false)) then begin
     try
       if (fromBeggining) then
 	f_pos := min(f_summarySize, position)
       else
 	f_pos := max(0, f_summarySize - position);
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
   //
@@ -8514,7 +8754,7 @@ end;
 // --  --
 function unaMemoryStream.clear2(): unaAbstractStream;
 begin
-  if (enter()) then begin
+  if (enter(false)) then begin
     try
       f_chunks.autoFree := true;
       f_emptyChunks.autoFree := true;
@@ -8527,7 +8767,7 @@ begin
       //
       f_summarySize := 0;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
   //
@@ -8565,7 +8805,7 @@ var
   buf: pointer;
   size: unsigned;
 begin
-  if (enter()) then begin
+  if (enter(true)) then begin
     try
       size := getSize();
       buf := malloc(size);
@@ -8576,7 +8816,7 @@ begin
 	mrealloc(buf);
       end;
     finally
-      leave();
+      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end
   else begin
@@ -8587,7 +8827,7 @@ end;
 // --  --
 function unaMemoryStream.getFirstChunkSize(): int;
 begin
-  if (enter()) then begin
+  if (enter(true)) then begin
     try
       if (0 < f_chunks.count) then
 	result := unaStreamChunk(f_chunks[0]).getSize()
@@ -8595,13 +8835,11 @@ begin
 	result := 0;
       //
     finally
-      leave();
+      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end
-  else begin
-    //
+  else
     result := 0;
-  end;
 end;
 
 // --  --
@@ -8626,7 +8864,7 @@ begin
   //
   if (0 < size) then begin
     //
-    if (enter()) then begin
+    if (enter(not remove)) then begin
       try
 	offset := 0;
 	sub := min(size, getSize());
@@ -8681,7 +8919,7 @@ begin
 	  dec(f_summarySize, result);
 	//
       finally
-	leave();
+	leave({$IFDEF DEBUG }not remove{$ENDIF DEBUG });
       end;
     end;
   end;
@@ -8711,7 +8949,7 @@ begin
   //
   if ((nil <> buf) and (0 < size)) then begin
     //
-    if (enter()) then begin
+    if (enter(false)) then begin
       try
 	if (0 < f_emptyChunks.count) then begin
 	  //
@@ -8736,7 +8974,7 @@ begin
 	//
 	result := size;
       finally
-	leave();
+	leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
     end;
   end;
@@ -8780,7 +9018,7 @@ function unaMemoryData.remove2(size: int): int;
 var
   msize: int;
 begin
-  if (enter()) then begin
+  if (enter(false)) then begin
     try
       result := min(getAvailableSize(), size);
       if (0 < result) then begin
@@ -8793,7 +9031,7 @@ begin
 	mrealloc(f_data, f_summarySize);
       end;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else begin
@@ -8804,7 +9042,7 @@ end;
 // --  ---
 function unaMemoryData.read2(buf: pointer; size: int; remove: bool): int;
 begin
-  if (enter()) then begin
+  if (enter(not remove)) then begin
     try
       result := min(getAvailableSize(), size);
       if (0 < result) then
@@ -8813,7 +9051,7 @@ begin
       if (remove) then
 	self.remove(size);
     finally
-      leave();
+      leave({$IFDEF DEBUG }not remove{$ENDIF DEBUG });
     end;
   end
   else begin
@@ -8828,7 +9066,7 @@ var
 begin
   result := size;
   //
-  if (enter()) then begin
+  if (enter(false)) then begin
     try
       msize := getAvailableSize();
       if (size > msize) then begin
@@ -8839,7 +9077,7 @@ begin
       //
       move(buf^, f_data[f_pos], size);
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
   //
@@ -8862,12 +9100,12 @@ end;
 
 function unaFileStream.clear2(): unaAbstractStream;
 begin
-  if (enter()) then begin
+  if (enter(false)) then begin
     try
       unaUtils.fileTruncate(f_handle);
       f_summarySize := 0;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
   //
@@ -8928,7 +9166,7 @@ function unaFileStream.initStream(const fileName: wString; access: unsigned; sha
 var
   flags: unsigned;
 begin
-  if (enter()) then begin
+  if (enter(false)) then begin
     try
       //
       close();
@@ -8960,7 +9198,7 @@ begin
       //
       f_isValid := result;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end
   else begin
@@ -8977,7 +9215,8 @@ begin
   result := 0;
   //
   if (isValid) then begin
-    if (enter()) then begin
+    //
+    if (enter(not remove)) then begin
       try
 	sz := size;
 	res := readFromFile(f_handle, buf, sz);
@@ -9000,7 +9239,7 @@ begin
 	  else
 	    seekD(0 - int(result));
       finally
-	leave();
+	leave({$IFDEF DEBUG }not remove{$ENDIF DEBUG });
       end;
     end;
   end;
@@ -9039,7 +9278,8 @@ begin
   result := 0;
   //
   if (isValid) then begin
-    if (enter()) then begin
+    //
+    if (enter(false)) then begin
       try
 	res := writeToFile(f_handle, buf, size);
 	if (0 > res) then
@@ -9049,13 +9289,14 @@ begin
 	//
 	getSize();
       finally
-	leave();
+	leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
     end;
   end;
   //
   inherited write2(buf, size);
 end;
+
 
 { unaResourceStream }
 
@@ -9064,13 +9305,13 @@ procedure unaResourceStream.AfterConstruction();
 begin
   inherited;
   //
-  if (enter()) then begin
+  if (enter(true)) then begin
     try
       if (0 = find(f_name, f_resType, f_instance)) then
 	lock();
-      //	
+      //
     finally
-      leave();
+      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -9096,7 +9337,7 @@ end;
 // --  --
 function unaResourceStream.find(const name: wString; resType: pwChar; instance: hModule): int;
 begin
-  if (enter()) then begin
+  if (enter(true)) then begin
     try
       //
 {$IFNDEF NO_ANSI_SUPPORT }
@@ -9110,13 +9351,12 @@ begin
       ;
       //
       if (0 = f_resource) then
-        //
 	result := GetLastError()
       else
 	result := 0;
       //
     finally
-      leave();
+      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
     end;
   end
   else begin
@@ -9129,7 +9369,7 @@ function unaResourceStream.lock(): int;
 begin
   result := -1;
   //
-  if (enter()) then begin
+  if (enter(false)) then begin
     try
       if (0 <> f_resource) then begin
 	//
@@ -9147,7 +9387,7 @@ begin
 	f_pos := 0;
       end;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -9155,7 +9395,7 @@ end;
 // --  --
 function unaResourceStream.read2(buf: pointer; size: int; remove: bool): int;
 begin
-  if (enter()) then begin
+  if (enter(not remove)) then begin
     try
       if (isValid) then begin
 	//
@@ -9165,9 +9405,9 @@ begin
       end
       else
 	result := 0;
-      //	
+      //
     finally
-      leave();
+      leave({$IFDEF DEBUG }not remove{$ENDIF DEBUG });
     end;
   end
   else begin
@@ -9178,7 +9418,7 @@ end;
 // --  --
 procedure unaResourceStream.unlock();
 begin
-  if (enter()) then begin
+  if (enter(false)) then begin
     try
       //
       f_data := nil;
@@ -9186,14 +9426,14 @@ begin
       f_pos := 0;
       //
       if (0 <> f_global) then begin
-        //
+	//
 	UnlockResource(f_global);
 	FreeResource(f_global);
 	//
 	f_global := 0;
       end;
     finally
-      leave();
+      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
     end;
   end;
 end;
@@ -9284,13 +9524,13 @@ function unaMappedMemory.flush(): bool;
 var
   i: unsigned;
 begin
-  if (lockNonEmptyList(f_openViews)) then try
+  if (lockNonEmptyList(f_openViews, true)) then try
     //
     for i := 0 to f_openViews.count - 1 do
       FlushViewOfFile(f_openViews[i], 0);
     //
   finally
-    f_openViews.unlock();
+    f_openViews.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
   end;
   //
   result := true;
@@ -9687,29 +9927,29 @@ end;
 // -- utility functions --
 
 // --  --
-function lockNonEmptyList(list: unaList; timeout: unsigned): bool;
+function lockNonEmptyList(list: unaList; ro: bool; timeout: unsigned): bool;
 begin
-  if (lockList(list, timeout)) then begin
+  if (lockList(list, ro, timeout)) then begin
     //
     result := (0 < list.count);
     //
     if (not result) then
-      unlockList(list);	// make sure list is not locked if false is returned
+      unlockList(list{$IFDEF DEBUG }, ro{$ENDIF DEBUG });	// make sure list is not locked if false is returned
   end
   else
     result := false;
 end;
 
 // --  --
-function lockList(list: unaList; timeout: unsigned = INFINITE): bool;
+function lockList(list: unaList; ro: bool; timeout: unsigned = 10000): bool;
 begin
-  result := ((nil <> list) and list.lock(timeout));
+  result := ((nil <> list) and list.lock(ro, timeout));
 end;
 
 // --  --
-procedure unlockList(list: unaList);
+procedure unlockList(list: unaList{$IFDEF DEBUG }; ro: bool{$ENDIF DEBUG });
 begin
-  list.unlock();
+  list.unlock({$IFDEF DEBUG }ro{$ENDIF DEBUG });
 end;
 
 // --  --
@@ -9869,7 +10109,8 @@ initialization
   // avoid creating instances of unaThread class before this
   // initialization section to complete
   //
-  g_threadsGate := unaInProcessGate.create();
+  //g_threadsGate := unaInProcessGate.create();
+  g_threadsGate := unaObject.create();
 
   // mark all thread spots as free
   fillChar(g_freeThreads, sizeOf(g_freeThreads), c_threadSpotIsFree);

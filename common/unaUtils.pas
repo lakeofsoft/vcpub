@@ -1966,29 +1966,27 @@ type
 
 //        -- QUICK MT-SAFE ACQUISITION --
 {*
-	Acuires an object (interger counter) and returns true if counter was
+	Acquires an object (interger counter).
+
+	This acquire always success, simply marking an object as "busy".
+	Don't forget to call release32() when object is no longer needed to be locked.
+
+	@param a Object to acquire.
+}
+procedure acquire32(var a: unaAcquireType); overload;       (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
+
+{*
+	Acquires an object (interger counter) and returns true if counter was
 	equial to 0 exactly at this acquisition attempt.
 
-	If exclusive is true (default), and acquisition failed, releases the object,
-	so there is no need to call releaseObj() in this case.
+	If acquisition failed, releases the object, so there is no need to call release32() if this function returns false.
 
-	If exclusive is false, object is always "acquired", regardless of actual result
-	and no release is called, so releaseObj() must always be called later.
-
-	We can always return "True" is that case, but that would be not very informative,
-	so instead we return actual acquisition status, in hope the caller will be smart
-	enough to understand that non-exclusive acquisition always succeeds.
-
-	@param acquire Object to acquire.
-	@param exclusive If true (default), caller need to be sure that object was not acquire before call.
+	@param a Object to acquire.
+	@param timeout Time in ms to spend trying to acquire. 0 means give up without waiting.
 
 	@return True if object was acquired exactly at this acquisition attempt.
 }
-function acquire32(var a: unaAcquireType; exclusive: bool = true): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
-{*
-	Same as acquireObj() but with timeout parameter.
-}
-function acquire32Try(var a: unaAcquireType; timeout: int = 100): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function acquire32(var a: unaAcquireType; timeout: int): bool; overload; (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
 {*
 	Releases object, acquired with acquireObj().
 	If exclusive parameter was false, object must always be released.
@@ -2001,7 +1999,7 @@ function acquire32Try(var a: unaAcquireType; timeout: int = 100): bool;{$IFDEF U
 
 	@return True if object ref count has reached 0.
 }
-function release32(var a: unaAcquireType): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function release32(var a: unaAcquireType): bool;(* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
 
 
 //	  -- HRPC/WINDOWS TIMER --
@@ -9089,7 +9087,7 @@ begin
 end;
 
 // --  --
-function acquire32(var a: unaAcquireType; exclusive: bool): bool;
+function _acquire32(var a: unaAcquireType; ex: bool): bool;
 begin
   asm
   {$IFDEF CPU64 }
@@ -9104,7 +9102,6 @@ begin
 	setz 	al
 	neg	al
 	sbb	rax, rax
-
 	mov	result, rax
   {$ELSE }
 	mov	ecx, a
@@ -9117,17 +9114,22 @@ begin
 	setz 	al
 	neg	al
 	sbb	eax, eax
-
 	mov	result, eax
   {$ENDIF CPU64 }
   end;
   //
-  if (not result and exclusive) then
+  if (not result and ex) then
     release32(a);
 end;
 
 // --  --
-function acquire32Try(var a: unaAcquireType; timeout: int): bool;
+procedure acquire32(var a: unaAcquireType);
+begin
+  _acquire32(a, false);
+end;
+
+// --  --
+function acquire32(var a: unaAcquireType; timeout: int): bool;
 var
   tm: int64;
 begin
@@ -9136,19 +9138,19 @@ begin
     if (0 > timeout) then
       timeout := 10000;	// seems like INFINITE was passed
     //
-    result := acquire32(a, true);
-    if (not result and (1 < timeout)) then begin
+    result := _acquire32(a, true);
+    if (not result and (0 < timeout)) then begin
       //
       if (0 = tm) then
 	tm := timeMark();
       //
-      sleep(1);
+      sleep(1 + timeout shr 8);
       //
       if (timeout < timeElapsed64(tm)) then
 	break;
     end;
     //
-  until (result or (2 > timeout));
+  until (result or (0 >= timeout));
 end;
 
 // --  --
@@ -9502,7 +9504,7 @@ begin
       else begin
 	//
 	if (2 < length(s)) then
-	  c := copy(s, 1 + length(name), 1)[1]
+	  c := copy(s, 2 + length(name), 1)[1]
 	else
 	  c := ' ';
 	//
@@ -9553,30 +9555,18 @@ end;
 
 // --  --
 function gcd(a, b: unsigned): unsigned;
-var
-  p_max, p_min: unsigned;
-  x: unsigned;
 begin
-  if (a > b) then begin
-    p_max := a;
-    p_min := b;
-  end
-  else begin
-    p_max := b;
-    p_min := a;
+  while ((0 < a) and (0 < b)) do begin
+    //
+    if (a > b) then
+      a := a mod b
+    else
+      b := b mod a;
   end;
   //
-  if (0 < p_min) then
-    repeat
-      x := p_max mod p_min;
-      p_max := p_min;
-      p_min := x;
-    until (0 = x)
-  else
-    p_max := 1;
-  //
-  result := p_max;
+  result := max(a, b);
 end;
+
 
 {$IFDEF __SYSUTILS_H_ }
 
