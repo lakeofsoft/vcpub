@@ -571,7 +571,9 @@ type
     }
     function sendto(var addr: sockaddr_in; data: pointer; size: unsigned; noCheck: bool = true; flags: unsigned = 0): unsigned; overload;
     {*
-      Binds a socket to specified in bindToIP and bindToPort interface and port (or default, if not specified).
+	Binds a socket to specified in bindToIP and bindToPort interface and port (or default, if not specified).
+
+	@return 0 if successfull, or specific WSA error.
     }
     function doBind(addr: pSockAddrIn = nil): int;
   end;
@@ -1250,7 +1252,7 @@ function isBroadcastAddrN(ip: DWORD): bool;
 {*
 	Returns True if two addresses are same (has same IP and port).
 }
-function sameAddr(const addr1, addr2: sockaddr_in): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function sameAddr(const addr1, addr2: sockaddr_in; ipOnly: bool = false): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
 {*
 	Returns True if function succeeded.
@@ -1326,7 +1328,7 @@ begin
 	result := 0;
 	//
       finally
-	g_unaWSAGate.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+	g_unaWSAGate.releaseWO();
       end;
     end;
     //
@@ -1358,7 +1360,7 @@ begin
 	result := 0;
 	//
       finally
-	g_unaWSAGate.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+	g_unaWSAGate.releaseWO();
       end;
     end;
   end;
@@ -1487,7 +1489,7 @@ function lookupHost(const host: string; out ip: string; list: unaStringList): in
 var
   addr: unsigned;
   phost: pHostEnt;
-  ar: pUInt32;
+  ar, arr: pUInt32;
   added: bool;
 begin
   ip := '';
@@ -1516,7 +1518,8 @@ begin
 	      ar := pointer(phost.h_addr_list);
 	      while (0 <> ar^) do begin
 		//
-		list.add(string(inet_ntoa(in_addr(ar^))));
+		arr := pointer(ar^);
+		list.add(string(inet_ntoa(in_addr(arr^))));
 		//
 		inc(ar);
 	      end;
@@ -1680,10 +1683,10 @@ begin
 end;
 
 // --  --
-function sameAddr(const addr1, addr2: sockaddr_in): bool;
+function sameAddr(const addr1, addr2: sockaddr_in; ipOnly: bool): bool;
 begin
   result := (
-  	      ((0 = addr1.sin_port) or (0 = addr2.sin_port) or (addr1.sin_port = addr2.sin_port)) and
+	      (ipOnly or (0 = addr1.sin_port) or (0 = addr2.sin_port) or (addr1.sin_port = addr2.sin_port)) and
 	      (addr1.sin_addr.S_addr = addr2.sin_addr.s_addr)
 	    );
 end;
@@ -3631,26 +3634,24 @@ begin
 		  waitForDataTimeout := cWaitTimeout;
 		  //
 		  // quick test for UDP timeouts (if needed)
-		  if ((0 < udpConnectionTimeout) and connections.lock(true, 10)) then begin
+		  if ((0 < udpConnectionTimeout) and connections.lock(true, 10)) then try
 		    //
-		    try
-		      inc(udpTimeoutTestIndex);
+		    inc(udpTimeoutTestIndex);
+		    //
+		    if (udpTimeoutTestIndex >= connections.count) then
+		      udpTimeoutTestIndex := 0;
+		    //
+		    if (udpTimeoutTestIndex < connections.count) then begin
 		      //
-		      if (udpTimeoutTestIndex >= connections.count) then
-			udpTimeoutTestIndex := 0;
+		      connection := connections[udpTimeoutTestIndex];
+		      if (connection.getTimeout() > udpConnectionTimeout) then
+			// time to remove this connection due to no data trasnfer timeout
+			connections.removeByIndex(udpTimeoutTestIndex);
 		      //
-		      if (udpTimeoutTestIndex < connections.count) then begin
-			//
-			connection := connections[udpTimeoutTestIndex];
-			if (connection.getTimeout() > udpConnectionTimeout) then
-			  // time to remove this connection due to no data trasnfer timeout
-			  connections.removeByIndex(udpTimeoutTestIndex);
-			//
-		      end;
-		      //
-		    finally
-		      connections.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
 		    end;
+		    //
+		  finally
+		    connections.unlockRO();
 		  end;
 		  //
 		end;
@@ -4000,34 +4001,32 @@ var
 begin
   result := nil;
   i := 0;
-  if (connections.lock(true, 1090)) then begin
+  if (connections.lock(true, 1090)) then try
     //
-    try
-      while (i < connections.count) do begin
-	//
-	result := connections.get(i);
-	if (result.compareAddr(addr)) then
-	  break
-	else
-	  result := nil;
-	//
-	inc(i);
-      end;
+    while (i < connections.count) do begin
       //
-      if ((nil <> result) and needAcquire) then begin
-	//
-	if (not result.acquire(130)) then begin
-	  //
-{$IFDEF LOG_UNASOCKETS_ERRORS }
-	  logMessage(_classID + '.getConnectionByAddr() - cannot acquire the connection.');
-{$ENDIF LOG_UNASOCKETS_ERRORS }
-	  result := nil;
-	end;
-      end;
+      result := connections.get(i);
+      if (result.compareAddr(addr)) then
+	break
+      else
+	result := nil;
       //
-    finally
-      connections.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
+      inc(i);
     end;
+    //
+    if ((nil <> result) and needAcquire) then begin
+      //
+      if (not result.acquire(130)) then begin
+	//
+{$IFDEF LOG_UNASOCKETS_ERRORS }
+	logMessage(_classID + '.getConnectionByAddr() - cannot acquire the connection.');
+{$ENDIF LOG_UNASOCKETS_ERRORS }
+	result := nil;
+      end;
+    end;
+    //
+  finally
+    connections.unlockRO();
   end
   else begin
     //
@@ -4177,7 +4176,7 @@ begin
 	  unaSockets.startup();
 	//
       finally
-	g_unaWSAGate.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+	g_unaWSAGate.releaseWO();
       end;
     end;
     //
@@ -4243,35 +4242,34 @@ var
 begin
   result := 0;
   //
-  if (lockNonEmptyList(f_threads, true, 1000)) then begin
-    try
-      thread := getThreadFromPool();
-      if (nil <> thread) then begin
-	//
-	socket := createSocket(protocol {$IFDEF VC25_OVERLAPPED }, overlapped{$ENDIF });
-	if (nil <> socket) then begin
-	  //
-	  socket.setPort(port);
-	  socket.bindToIP := bindToIP;
-	  //socket.bindToPort := bindToPort;
-	  //
-	  thread.f_socket := socket;
-	  thread.f_isServer := true;
-	  thread.f_backlog := backlog;
-	  thread.f_udpConnectionTimeout := udpConnectionTimeout;
-	  //
-	  thread.priority := THREAD_PRIORITY_TIME_CRITICAL;	// boost server even more
-	  //
-	  if (activate) then
-	    thread.start();
-	  //
-	  result := thread.id;
-	end;
-      end;
+  if (lockNonEmptyList(f_threads, true, 1000)) then try
+    //
+    thread := getThreadFromPool();
+    if (nil <> thread) then begin
       //
-    finally
-      f_threads.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
+      socket := createSocket(protocol {$IFDEF VC25_OVERLAPPED }, overlapped{$ENDIF });
+      if (nil <> socket) then begin
+	//
+	socket.setPort(port);
+	socket.bindToIP := bindToIP;
+	//socket.bindToPort := bindToPort;
+	//
+	thread.f_socket := socket;
+	thread.f_isServer := true;
+	thread.f_backlog := backlog;
+	thread.f_udpConnectionTimeout := udpConnectionTimeout;
+	//
+	thread.priority := THREAD_PRIORITY_TIME_CRITICAL;	// boost server even more
+	//
+	if (activate) then
+	  thread.start();
+	//
+	result := thread.id;
+      end;
     end;
+    //
+  finally
+    f_threads.unlockRO();
   end;
 end;
 
@@ -4416,19 +4414,17 @@ function unaSocks.getSocketError(id: unsigned; needLock: bool): int;
 var
   thread: unaSocksThread;
 begin
-  if (not needLock or (needLock and f_threads.lock(true, 500))) then begin
-    try
-      thread := getThreadById(id);
-      //
-      if (nil <> thread) then
-	result := thread.socketError
-      else
-	result := 0;
-      //
-    finally
-      if (needLock) then
-	f_threads.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
-    end;
+  if (not needLock or (needLock and f_threads.lock(true, 500))) then try
+    //
+    thread := getThreadById(id);
+    if (nil <> thread) then
+      result := thread.socketError
+    else
+      result := 0;
+    //
+  finally
+    if (needLock) then
+      f_threads.unlockRO();
   end
   else
     result := -1;
@@ -4463,31 +4459,30 @@ var
 begin
   result := nil;
   //
-  if (f_threads.lock(true, 4000)) then begin
-    try
-      for i := 0 to f_threads.count - 1 do begin
-	//
-	result := getThreadByIndex(i);
-	if (nil = result.threadSocket) then
-	  break
-	else
-	  result := nil;
-      end;
+  if (f_threads.lock(true, 4000)) then try
+    //
+    for i := 0 to f_threads.count - 1 do begin
       //
-      if ((nil = result) and allowGrowUp and (f_threads.count < int(c_maxThreadPoolSize))) then begin
-	//
-	setPoolSize(f_threads.count + f_threads.count shr 1 + 1);
-	result := getThreadFromPool(allowGrowUp);
-      end
-      {$IFDEF DEBUG }
+      result := getThreadByIndex(i);
+      if (nil = result.threadSocket) then
+	break
       else
-	if (nil = result) then
-	  c_maxThreadPoolSize := c_maxThreadPoolSize + 1;
-      {$ENDIF DEBUG }
-      //
-    finally
-      f_threads.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
+	result := nil;
     end;
+    //
+    if ((nil = result) and allowGrowUp and (f_threads.count < int(c_maxThreadPoolSize))) then begin
+      //
+      setPoolSize(f_threads.count + f_threads.count shr 1 + 1);
+      result := getThreadFromPool(allowGrowUp);
+    end
+    {$IFDEF DEBUG }
+    else
+      if (nil = result) then
+	c_maxThreadPoolSize := c_maxThreadPoolSize + 1;
+    {$ENDIF DEBUG }
+    //
+  finally
+    f_threads.unlockRO();
   end;
 end;
 
@@ -4582,13 +4577,11 @@ begin
       with (thread) do begin
 	//
 	i := -1;
-	if (connections.lock(true, 10000)) then begin
+	if (connections.lock(true, 10000)) then try
 	  //
-	  try
-	    i := connections.indexOfId(connId);
-	  finally
-	    connections.unlock({$IFDEF DEBUG }true{$ENDIF DEBUG });
-	  end;
+	  i := connections.indexOfId(connId);
+	finally
+	  connections.unlockRO();
 	end;
 	//
 	if (0 > i) then begin
@@ -4710,45 +4703,44 @@ var
 begin
   threadsInPool := max(min(c_maxThreadPoolSize, threadsInPool), 1);
   //
-  if (f_threads.lock(false)) then begin
-    try
-      if (threadsInPool < f_threadPoolSize) then begin
-	// remove unused threads
-	i := 0;
-	while ((i < int(f_threadPoolSize)) and (i < f_threads.count)) do begin
+  if (f_threads.lock(false)) then try
+    //
+    if (threadsInPool < f_threadPoolSize) then begin
+      // remove unused threads
+      i := 0;
+      while ((i < int(f_threadPoolSize)) and (i < f_threads.count)) do begin
+	//
+	if (nil = getThreadByIndex(i).threadSocket) then begin
 	  //
-	  if (nil = getThreadByIndex(i).threadSocket) then begin
-	    //
-	    f_threads.removeByIndex(i);
-	    dec(i);
-	  end;
-	  //
-	  inc(i);
+	  f_threads.removeByIndex(i);
+	  dec(i);
 	end;
 	//
-      end
-      else begin
-	// add some threads
-	for i := f_threadPoolSize to threadsInPool - 1 do begin
-	  //
-	  id := InterlockedExchangeAdd(@f_lastThreadID, 1);
-	  //
-	  {$IFDEF VC25_IOCP }
-	  if (isIOCP) then
-	    f_threads.add(unaIOCPSocksThread.create(self, id))
-	  else
-	    f_threads.add(unaSocksThread.create(self, id));
-	  {$ELSE }
-	  f_threads.add(unaSocksThread.create(self, id));
-	  {$ENDIF VC25_IOCP }
-	end;
-	//
+	inc(i);
       end;
       //
-      f_threadPoolSize := threadsInPool;
-    finally
-      f_threads.unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    end
+    else begin
+      // add some threads
+      for i := f_threadPoolSize to threadsInPool - 1 do begin
+	//
+	id := InterlockedExchangeAdd(@f_lastThreadID, 1);
+	//
+	{$IFDEF VC25_IOCP }
+	if (isIOCP) then
+	  f_threads.add(unaIOCPSocksThread.create(self, id))
+	else
+	  f_threads.add(unaSocksThread.create(self, id));
+	{$ELSE }
+	f_threads.add(unaSocksThread.create(self, id));
+	{$ENDIF VC25_IOCP }
+      end;
+      //
     end;
+    //
+    f_threadPoolSize := threadsInPool;
+  finally
+    f_threads.unlockWO();
   end;
 end;
 
@@ -5031,7 +5023,7 @@ begin
 	end;
 	//
       finally
-	unlockList(f_queries{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+	unlockListWO(f_queries);
       end;
       //
     end;
@@ -5098,7 +5090,7 @@ begin
     end;	// if (nil <> query) ...
     //
   finally
-    unlockList(f_queries{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+    unlockListWO(f_queries);
   end
 end;
 
@@ -5232,7 +5224,7 @@ finalization
   g_unaWSAGateReady := false;
   //
   if (g_unaWSAGate.acquire(false, 1000)) then
-    g_unaWSAGate.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    g_unaWSAGate.releaseWO();
   //
   freeAndNil(g_unaWSAGate);
 end.

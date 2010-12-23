@@ -678,7 +678,7 @@ type
   {*
 	Voice Activity Detection (VAD) methods
   }
-  unaWaveInSDMethods = (unasdm_none, unasdm_VC, unasdm_DSP{$IFDEF VC25_ENTERPRISE }, unasdm_3GPPVAD1{$ENDIF VC25_ENTERPRISE });
+  unaWaveInSDMethods = (unasdm_none, unasdm_VC, unasdm_DSP, unasdm_3GPPVAD1);
 
 
   {$IFDEF UNA_VC_ACMCLASSES_USE_DSP }
@@ -3631,6 +3631,12 @@ begin
       //
       result := not f_isSilence;
     end; // unasdm_3GPPVAD1
+
+{$ELSE }
+    unasdm_3GPPVAD1: begin
+      // fallback to DSP
+      silenceDetectionMode := unasdm_DSP;
+    end;
 
 {$ENDIF VC25_ENTERPRISE }
 

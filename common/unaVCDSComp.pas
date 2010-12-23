@@ -522,12 +522,12 @@ begin
     f_appHandle := GetForegroundWindow();
   //
   {$IFDEF CONSOLE }
-    {$IFDEF VC25_WIN9X_COMPATIBLE }
+    {$IFNDEF NO_ANSI_SUPPORT }
     //
     {$ELSE }
       if (0 = f_appHandle) then
 	f_appHandle := GetConsoleWindow();
-    {$ENDIF VC25_WIN9X_COMPATIBLE }
+    {$ENDIF NO_ANSI_SUPPORT }
   {$ENDIF CONSOLE }
   //
   if (0 = f_appHandle) then

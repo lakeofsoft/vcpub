@@ -2669,7 +2669,7 @@ begin
 	inc(i);
       end;
     finally
-      unlockList(f_consumers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+      unlockListWO(f_consumers);
     end;
   //
   if (f_isValid) then

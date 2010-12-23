@@ -1832,7 +1832,7 @@ begin
   else
     client := nil;
   //
-  if (not f_destroyed and (nil <> client) and not (csDestroying in client.ComponentState)) then
+  if (not destroying and (nil <> client) and not (csDestroying in client.ComponentState)) then
     try
       client.doOnSocketEvent(self, event, id, connId, data, size)
     except
@@ -2174,7 +2174,7 @@ begin
 	end;
       end;
     finally
-      f_swapSubBuf[swapBufIndex].r_swapSubLock.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      f_swapSubBuf[swapBufIndex].r_swapSubLock.releaseWO();
     end;
   end;
 end;
@@ -2242,7 +2242,7 @@ begin
       try
 	mrealloc(f_swapSubBuf[i].r_swapSubBuf);
       finally
-	f_swapSubBuf[i].r_swapSubLock.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+	f_swapSubBuf[i].r_swapSubLock.releaseWO();
       end;
     end;
     //
@@ -2854,7 +2854,7 @@ begin
       inc(r_swapSubBufUsedSize, len);
     end;
   finally
-    f_swapSubBuf[bufIndex].r_swapSubLock.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    f_swapSubBuf[bufIndex].r_swapSubLock.releaseWO();
   end;
 end;
 
@@ -3667,7 +3667,7 @@ begin
 {$IFDEF VCX_DEMO_LIMIT_CLIENTS }
   f_clientsLock.leave();
 {$ELSE }
-  unlockList(f_clients{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+  unlockListWO(f_clients);
 {$ENDIF VCX_DEMO_LIMIT_CLIENTS }
 end;
 

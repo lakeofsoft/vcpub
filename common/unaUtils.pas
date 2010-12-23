@@ -464,7 +464,7 @@ function writeToFile(handle: tHandle; buf: pointer; size: unsigned; pos: unsigne
 function writeToFile(handle: tHandle; const buf: aString; pos: unsigned = 0; posMode: unsigned = FILE_CURRENT): int; overload;
 {$IFDEF VC25_OVERLAPPED }
 /// overlapped write
-function write2file(handle: tHandle; var offset: int; buf: pointer; len: unsigned): bool;
+function write2file(handle: tHandle; var offset: int32; buf: pointer; len: unsigned): bool;
 {$ENDIF VC25_OVERLAPPED }
 
 {*
@@ -1960,11 +1960,19 @@ procedure mleaks_stop(produceReport: bool = true);
 function waitForObject(handle: tHandle; timeout: unsigned = 1): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
 
-type
-  unaAcquireType = int32;	///
-
-
 //        -- QUICK MT-SAFE ACQUISITION --
+
+{*
+	Acquires an object (interger counter).
+
+	This acquire always success, simply marking an object as "busy".
+	Don't forget to call release32() when object is no longer needed to be locked.
+
+	@param a Object to acquire.
+	@return True if a was 0 at them moment of acquition.
+}
+function acquire32NE(var a: unaAcquireType): bool;       (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
+
 {*
 	Acquires an object (interger counter).
 
@@ -2194,15 +2202,6 @@ var
   //
   g_infoLogTimeMark: int64;
   g_infoLogLastDate: SYSTEMTIME;
-
-  {$IFDEF VC25_OVERLAPPED }
-  g_logOL: array[byte] of OVERLAPPED;
-  g_logOLOffs: int;
-  g_logOLEvents: array[byte] of tHandle;
-  g_logOLBufs: array[byte] of pointer;
-  g_logOLBufsSz: array[byte] of int;
-  g_logOLCount: unsigned;
-  {$ENDIF VC25_OVERLAPPED }
 
   g_unaUtilsFinalized: bool = false;
 
@@ -6980,16 +6979,18 @@ begin
     //
     case (value[i]) of
 
+      ' ': result := result + '+';
+
       'a'..'z',
       'A'..'Z',
       '0'..'9',
-      '$', '-', '_', '@', '.', '&', ':', ',', '\', '/': result := result + value[i];
+      '-', '_' : result := result + value[i];
 
       else
 	result := result + '%' + aString(int2str(ord(value[i]), 16));
 
     end;
-  end;  
+  end;
 end;
 
 // --  --
@@ -7005,7 +7006,7 @@ begin
     case (value[i]) of
 
       '%': begin
-        //
+	//
 	result := result + aChar(str2intInt(copy(string(value), i + 1, 2), 32, 16));
 	inc(i, 2);
       end;
@@ -7456,7 +7457,9 @@ begin
 end;
 
 {$IFDEF VC25_OVERLAPPED }
+
   {$I unaUtilsOL.inc }
+
 {$ENDIF VC25_OVERLAPPED }
 
 
@@ -9123,6 +9126,12 @@ begin
 end;
 
 // --  --
+function acquire32NE(var a: unaAcquireType): bool;
+begin
+  result := _acquire32(a, false);
+end;
+
+// --  --
 procedure acquire32(var a: unaAcquireType);
 begin
   _acquire32(a, false);
@@ -9503,7 +9512,7 @@ begin
 	result := (copy(s, 2, length(s)) = name)
       else begin
 	//
-	if (2 < length(s)) then
+	if (2 + length(name) <= length(s)) then
 	  c := copy(s, 2 + length(name), 1)[1]
 	else
 	  c := ' ';
@@ -10136,12 +10145,6 @@ begin
 end;
 
 
-// --  --
-{$IFDEF VC25_OVERLAPPED }
-var
-  i: unsigned;
-{$ENDIF VC25_OVERLAPPED }
-
 initialization
 
 {$IFDEF UNAUTILS_MEM_USE_HEAP_CALLS }
@@ -10259,21 +10262,7 @@ finalization
   end;
   //
   {$IFDEF VC25_OVERLAPPED }
-  if (0 < g_logOLCount) then begin
-    //
-    WaitForMultipleObjects(g_logOLCount, PWOHandleArray(@g_logOLEvents), true, 3000);
-    //
-    i := 0;
-    while (i < g_logOLCount) do begin
-      //
-      CloseHandle(g_logOLEvents[i]);
-      //mrealloc(g_logOLBufs[i]);
-      //
-      inc(i);
-    end;
-    g_logOLCount := 0;
-    //
-  end;
+  releaseOLs();
   {$ENDIF VC25_OVERLAPPED }
 
 {$IFDEF CONSOLE_IO }

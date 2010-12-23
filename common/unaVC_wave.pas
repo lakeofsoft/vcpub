@@ -2489,7 +2489,7 @@ begin
 	inc(i);
       end;
     finally
-      unlockList(_providers{$IFDEF DEBUG }, true{$ENDIF DEBUG });
+      unlockListRO(_providers);
     end;
   end;
 end;

@@ -345,6 +345,7 @@ begin
       result := f_localFormatSize;
       //
       if (0 < result) then begin
+        //
 	data := malloc(result);
 	move(f_localFormat^, data^, result);
       end
@@ -356,6 +357,7 @@ begin
     end;
   end
   else begin
+    //
     data := nil;
     result := 0;
   end;

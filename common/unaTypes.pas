@@ -142,6 +142,8 @@ type
 {$ENDIF __AFTER_DB__ }
 
 
+  unaAcquireType = int32;	/// used as a pointer to lock object
+
 const
   c_max_memBlock	= $7FFFFFFF;
   c_max_index_08	= c_max_memBlock;

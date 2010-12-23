@@ -606,6 +606,7 @@ type
   //
   unaDataProxyThread = class(unaThread)
   private
+    //
     //  /------- order of fields is important ---------\
     f_dataArray: array[0..c_proxyDataArraySize - 1] of tunaDataProxyChunk;
     f_head: unsigned;
@@ -856,7 +857,7 @@ begin
 	end;
 	//
       finally
-	unlockList(f_consumers{$IFDEF DEBUG }, true{$ENDIF DEBUG });
+	unlockListRO(f_consumers);
       end;
       //
     end
@@ -901,7 +902,7 @@ begin
       end;
       //
     finally
-      unlockList(f_consumers{$IFDEF DEBUG }, true{$ENDIF DEBUG });
+      unlockListRO(f_consumers);
     end;
   end;  
   //
@@ -979,7 +980,7 @@ begin
       //
       result := true;
     finally
-      unlockList(f_consumers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+      unlockListWO(f_consumers);
     end;
     //
   end
@@ -1001,7 +1002,7 @@ begin
       //
       result := true;
     finally
-      unlockList(f_providers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+      unlockListWO(f_providers);
     end;
   end
   else
@@ -1048,28 +1049,31 @@ end;
 // --  --
 function unavclInOutPipe.doOpen(): bool;
 begin
-  doClose();
-  //
-  // clear statistics
-  f_inBytes := 0;
-  f_outBytes := 0;
-  //
-  f_closing := false;
-  //
-  f_dumpOutputOK := (0 < length(trimS(dumpOutput)));
-  f_dumpInputOK := (0 < length(trimS(dumpInput)));
-  //
-  {$IFDEF LOG_DUMP_TEXTHEADER }
-  if (f_dumpOutputOK) then
-    writeToFile(f_dumpOutput, #13#10'--- Log Started: ' + sysDate2str() + ' ' + sysTime2str() + ' ---'#13#10);
-  if (f_dumpInputOK) then
-    writeToFile(f_dumpInput, #13#10'--- Log Started: ' + sysDate2str() + ' ' + sysTime2str() + ' ---'#13#10);
-  {$ENDIF LOG_DUMP_TEXTHEADER }
-  //
-  f_dumpOutputOK := f_dumpOutputOK and (unaUtils.fileExists(dumpOutput) or (INVALID_HANDLE_VALUE <> unaUtils.fileCreate(dumpOutput, false, false)));
-  f_dumpInputOK :=  f_dumpInputOK  and (unaUtils.fileExists(dumpInput)  or (INVALID_HANDLE_VALUE <> unaUtils.fileCreate(dumpOutput, false, false)));
-  //
-  result := true;
+  if (not active) then begin
+    //
+    // clear statistics
+    f_inBytes := 0;
+    f_outBytes := 0;
+    //
+    f_closing := false;
+    //
+    f_dumpOutputOK := (0 < length(trimS(dumpOutput)));
+    f_dumpInputOK := (0 < length(trimS(dumpInput)));
+    //
+    {$IFDEF LOG_DUMP_TEXTHEADER }
+    if (f_dumpOutputOK) then
+      writeToFile(f_dumpOutput, #13#10'--- Log Started: ' + sysDate2str() + ' ' + sysTime2str() + ' ---'#13#10);
+    if (f_dumpInputOK) then
+      writeToFile(f_dumpInput, #13#10'--- Log Started: ' + sysDate2str() + ' ' + sysTime2str() + ' ---'#13#10);
+    {$ENDIF LOG_DUMP_TEXTHEADER }
+    //
+    f_dumpOutputOK := f_dumpOutputOK and (unaUtils.fileExists(dumpOutput) or (INVALID_HANDLE_VALUE <> unaUtils.fileCreate(dumpOutput, false, false)));
+    f_dumpInputOK :=  f_dumpInputOK  and (unaUtils.fileExists(dumpInput)  or (INVALID_HANDLE_VALUE <> unaUtils.fileCreate(dumpOutput, false, false)));
+    //
+    result := true;
+  end
+  else
+    result := true;
 end;
 
 // --  --
@@ -1202,21 +1206,21 @@ begin
 		//
 		if (value) then begin
 	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
-                  logMessage(self.className + '[' + name + ']' + 'before doOpen()..');
+		  logMessage(self.className + '[' + name + ']' + ': before doOpen()..');
 	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
 		  doOpen();
-                end
+		end
 		else begin
 		  //
 	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
-                  logMessage(self.className + '[' + name + ']' + 'before doClose()..');
+		  logMessage(self.className + '[' + name + ']' + ': before doClose()..');
 	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
 		  doClose();
 		  f_closing := false;
 		end;
-                //
+		//
 	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
-                logMessage(self.className + '[' + name + ']' + 'done with doOpen/doClose().');
+		logMessage(self.className + '[' + name + ']' + ': done with doOpen()/doClose().');
 	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
 	      except
 	      end;
@@ -1367,7 +1371,7 @@ end;
 // --  --
 procedure unavclInOutPipe.leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
 begin
-  f_lockObj.release({$IFDEF DEBUG }ro{$ENDIF DEBUG });
+  f_lockObj.releaseRO();
 end;
 
 // --  --
@@ -1395,7 +1399,7 @@ begin
 	if (0 <= i) then
 	  f_providers.removeByIndex(i)
       finally
-	unlockList(f_providers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+	unlockListWO(f_providers);
       end;
     //
     if (lockNonEmptyList(f_consumers, false)) then
@@ -1405,7 +1409,7 @@ begin
 	if (0 <= i) then
 	  f_consumers.removeByIndex(i)
       finally
-	unlockList(f_consumers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+	unlockListWO(f_consumers);
       end;
   end;
 end;
@@ -1437,7 +1441,7 @@ begin
 	freeAndNil(copy);
       end;
     finally
-      unlockList(f_consumers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+      unlockListWO(f_consumers);
     end;
 end;
 
@@ -1472,7 +1476,7 @@ begin
 	freeAndNil(copy);
       end;
     finally
-      unlockList(f_providers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+      unlockListWO(f_providers);
     end;
 end;
 
@@ -1501,7 +1505,7 @@ begin
 	  inc(i);
 	end;
       finally
-	unlockList(f_consumers{$IFDEF DEBUG }, true{$ENDIF DEBUG });
+	unlockListRO(f_consumers);
       end;
     //
     if (f_dumpOutputOK) then begin
@@ -1582,7 +1586,7 @@ begin
       end;
       //
     finally
-      unlockList(f_consumers{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+      unlockListWO(f_consumers);
     end;
 end;
 
