@@ -44,7 +44,7 @@ unit
 interface
 
 uses
-  unaTypes, unaClasses;
+  Windows, unaTypes, unaClasses;
 
 (********************************************************************
  *                                                                  *
@@ -1143,7 +1143,7 @@ implementation
 
 
 uses
-  Windows, unaUtils
+  unaUtils
 {$IFDEF __SYSUTILS_H_ }
   , SysUtils
 {$ENDIF __SYSUTILS_H_ }
@@ -2140,10 +2140,10 @@ begin
 {$IFNDEF NO_ANSI_SUPPORT }
           if (g_wideApiSupported) then
 {$ENDIF NO_ANSI_SUPPORT }
-            g_dllLoad_ogg := Windows.LoadLibraryW(pWideChar(libraryName))
+            g_dllLoad_ogg := LoadLibraryW(pWideChar(libraryName))
 {$IFNDEF NO_ANSI_SUPPORT }
 	  else
-            g_dllLoad_ogg := Windows.LoadLibraryA(pAnsiChar(AnsiString(libraryName)))
+            g_dllLoad_ogg := LoadLibraryA(pAnsiChar(AnsiString(libraryName)))
 {$ENDIF NO_ANSI_SUPPORT }
           ;
         end
@@ -2152,10 +2152,10 @@ begin
 {$IFNDEF NO_ANSI_SUPPORT }
           if (g_wideApiSupported) then
 {$ENDIF NO_ANSI_SUPPORT }
-   	    g_dllLoad_ogg := Windows.LoadLibraryW(pWideChar(wideString(c_dllName_ogg)))
+   	    g_dllLoad_ogg := LoadLibraryW(pWideChar(wideString(c_dllName_ogg)))
 {$IFNDEF NO_ANSI_SUPPORT }
           else
-   	    g_dllLoad_ogg := Windows.LoadLibraryA(pAnsiChar(AnsiString(c_dllName_ogg)));
+   	    g_dllLoad_ogg := LoadLibraryA(pAnsiChar(AnsiString(c_dllName_ogg)));
 {$ENDIF NO_ANSI_SUPPORT }
           ;
         end;

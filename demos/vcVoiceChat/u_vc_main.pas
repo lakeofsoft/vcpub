@@ -463,7 +463,7 @@ begin
   f_needEnableClientMemo := true;
   //
   if ('' <> f_authPass) then
-    ipClient.sendText(connectionId, pw_prefix + f_authPass);
+    ipClient.sendText(connectionId, aString(pw_prefix + f_authPass));
   //
   msg1 := choice(unapt_TCP = ipClient.proto, 'TCP', 'UDP') + ' client connected to ' + string(ipClient.host);
   PostMessage(handle, WM_ADDOUTTEXT, 0, lparam(pChar(msg1)));
@@ -488,13 +488,13 @@ begin
       //
       if (ipServer.active) then begin
 	//
-	ipServer.sendText(ipServer.getClientConnId(0), c_memo_client.text);
+	ipServer.sendText(ipServer.getClientConnId(0), aString(c_memo_client.text));
 	c_memo_remote.lines.add(#13#10'server > ' + c_memo_client.text);
       end
       else
 	if (ipClient.active) then begin
 	  //
-	  ipClient.sendText(ipClient.clientConnId, c_memo_client.text);
+	  ipClient.sendText(ipClient.clientConnId, aString(c_memo_client.text));
 	  c_memo_remote.lines.add(#13#10'client > ' + c_memo_client.text);
 	end;
       //

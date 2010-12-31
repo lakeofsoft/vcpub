@@ -336,7 +336,7 @@ type
     {*
       Sends a text into the IP stream.
     }
-    function sendText(connId: unsigned; const data: string): tunaSendResult;
+    function sendText(connId: unsigned; const data: aString): tunaSendResult;
     {*
       Sends user data into the IP stream.
     }
@@ -1219,8 +1219,8 @@ end;
 procedure unavclIpPacketsStack.beforeDestruction();
 begin
   // try to make sure no one else is locking us
-  if (enter(false, 1000)) then
-    leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+  if (acquire(false, 1000)) then
+    releaseWO();
   //
   inherited;
   //
@@ -1344,7 +1344,7 @@ begin
       if (f_packets.waitForData()) then
 	processPackets(globalIndex);
       //
-      if (not unaThread.g_shouldStop(globalIndex)) then begin
+      if (not unaThread.shouldStopThread(globalIndex)) then begin
 	//
 	if (0 < f_packets.count) then
 	  f_packets.checkDataEvent();
@@ -2815,10 +2815,10 @@ begin
 end;
 
 // --  --
-function unavclInOutIpPipe.sendText(connId: unsigned; const data: string): tunaSendResult;
+function unavclInOutIpPipe.sendText(connId: unsigned; const data: aString): tunaSendResult;
 begin
   if ('' <> data) then
-    result := sendPacket(connId, cmd_inOutIPPacket_text, @aString(data)[1], length(data))
+    result := sendPacket(connId, cmd_inOutIPPacket_text, @data[1], length(data))
   else
     result := unasr_OK;	// not an error
 end;
@@ -3292,12 +3292,12 @@ begin
 	  //
     {$ENDIF VCX_DEMO_LIMIT_CLIENTS }
 	  //
-	  if ((nil <> packetStack) and (packetStack.enter(true, timeout + 66))) then begin
+	  if ((nil <> packetStack) and (packetStack.acquire(true, timeout + 66))) then begin
 	    //
 	    try
 	      result := packetStack.doSendPacket(cmd, asynch, data, len, timeout);
 	    finally
-	      packetStack.leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+	      packetStack.releaseRO();
 	    end;
 	  end;
 	  //

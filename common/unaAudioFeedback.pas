@@ -243,15 +243,13 @@ begin
     onWaveDataAvailable(sender, f_silence, waveIn.chunkSize);
   end;
   //
-  if (enter(true, 20)) then begin
+  if (acquire(true, 20)) then try
     //
-    try
-      if (nil <> f_waveFile) then
-	f_waveFile.write(data, len);
-      //
-    finally
-      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
-    end;
+    if (nil <> f_waveFile) then
+      f_waveFile.write(data, len);
+    //
+  finally
+    releaseRO();
   end;
   //
   if assigned(f_onDA) then
@@ -265,51 +263,48 @@ var
 begin
   result := HRESULT(-2);
   //
-  if (enter(true, 100)) then begin
+  if (acquire(true, 100)) then try
     //
-    try
-      //
-      case (cmd) of
+    case (cmd) of
 
-	c_recordWaveCmd_start: begin
-	  //
-	  if ((nil <> f_waveFile) and sameString(f_waveFile.fileName, fileName)) then begin
-	    //
-	    result := S_OK;	// already recording into this file
-	  end
-	  else begin
-	    //
-	    freeAndNil(f_waveFile);
-	    wave := nil;
-	    try
-	      if (waveExt2wave(waveIn.dstFormatExt, wave)) then
-  	        f_waveFile := unaRiffStream.createNew(fileName, wave^);
-	    finally
-	      mrealloc(wave);
-	    end;
-	    //
-	    f_waveFile.open();
-	    //
-	    result := S_OK;
-	  end;
-	end;
-
-
-	c_recordWaveCmd_stop: begin
-	  //
-	  freeAndNil(f_waveFile);
-	  //
-	  result := S_OK;
-	end;
-
-	else
-	  result := HRESULT(-1);
-
+      c_recordWaveCmd_start: begin
+        //
+        if ((nil <> f_waveFile) and sameString(f_waveFile.fileName, fileName)) then begin
+          //
+          result := S_OK;	// already recording into this file
+        end
+        else begin
+          //
+          freeAndNil(f_waveFile);
+          wave := nil;
+          try
+            if (waveExt2wave(waveIn.dstFormatExt, wave)) then
+              f_waveFile := unaRiffStream.createNew(fileName, wave^);
+          finally
+            mrealloc(wave);
+          end;
+          //
+          f_waveFile.open();
+          //
+          result := S_OK;
+        end;
       end;
-      //
-    finally
-      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+
+
+      c_recordWaveCmd_stop: begin
+        //
+        freeAndNil(f_waveFile);
+        //
+        result := S_OK;
+      end;
+
+      else
+        result := HRESULT(-1);
+
     end;
+    //
+  finally
+    releaseRO();
   end;
 end;
 

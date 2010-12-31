@@ -242,7 +242,7 @@ begin
       while (0 < pulses.count) do
 	tObject(pulses[0]).free;
     finally
-      unlockList(pulses{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+      unlockListWO(pulses);
     end;
   //
   mixer.close();
@@ -304,7 +304,7 @@ begin
 	Tc_form_pulse(pulses[i]).feedSine(self);
       //
     finally
-      unlockList(pulses{$IFDEF DEBUG }, true{$ENDIF DEBUG });
+      unlockListRO(pulses);
     end;
 end;
 

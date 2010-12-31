@@ -141,6 +141,18 @@ type
   pwChar        = pWideChar;            /// pointer to wide char
 {$ENDIF __AFTER_DB__ }
 
+{$IFDEF __AFTER_D5__ }
+
+{$IFDEF __BEFORE_DC__ }
+  waChar = wChar;
+  waString = wString;
+{$ELSE }
+  waChar = aChar;
+  waString = aString;
+{$ENDIF __BEFORE_DC__ }
+
+{$ENDIF __AFTER_D5__ }
+
 
   unaAcquireType = int32;	/// used as a pointer to lock object
 

@@ -1117,44 +1117,43 @@ begin
     //
     if (f_waitEvent.waitFor(100)) then begin
       //
-      if (enter(false, 100)) then begin
-	try
-	  avail := f_lazyStream.getAvailableSize();
-	  if ((size <= avail) or f_needToFlush) then begin
-	    //
-	    if (f_needToFlush) then
-	      size := min(size, avail);
-	    //
-	    if (0 < size) then begin
-	      //
-	      avail := f_lazyStream.read(f_lazyBuf, int(size));
-	      if (0 < avail) then begin
-		//
-		result := f_encoder.doEncode(f_lazyBuf, avail, used);
-		//
-		if (BE_ERR_SUCCESSFUL = result) then
-		  f_encoder._write();
-		//
-		if (used < avail) then begin
-		  //
-		  // some bytes were left unused, need to re-use them later
-		  // TODO:
-		  used := avail;
-		end;
-	      end;
-	      //
-	      avail := f_lazyStream.getAvailableSize();
-	      if (0 < avail) then
-		f_waitEvent.setState();	// go read rest of the buffer
-	    end;
-	    //
-	    if (f_needToFlush) then
-	      // restore size value
-	      size := f_encoder.f_inputChunkSize;
-	  end;
-	finally
-	  leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
-	end
+      if (acquire(false, 100)) then try
+        //
+        avail := f_lazyStream.getAvailableSize();
+        if ((size <= avail) or f_needToFlush) then begin
+          //
+          if (f_needToFlush) then
+            size := min(size, avail);
+          //
+          if (0 < size) then begin
+            //
+            avail := f_lazyStream.read(f_lazyBuf, int(size));
+            if (0 < avail) then begin
+              //
+              result := f_encoder.doEncode(f_lazyBuf, avail, used);
+              //
+              if (BE_ERR_SUCCESSFUL = result) then
+                f_encoder._write();
+              //
+              if (used < avail) then begin
+                //
+                // some bytes were left unused, need to re-use them later
+                // TODO:
+                used := avail;
+              end;
+            end;
+            //
+            avail := f_lazyStream.getAvailableSize();
+            if (0 < avail) then
+              f_waitEvent.setState();	// go read rest of the buffer
+          end;
+          //
+          if (f_needToFlush) then
+            // restore size value
+            size := f_encoder.f_inputChunkSize;
+        end;
+      finally
+        releaseWO();
       end
       else
 	f_waitEvent.setState();	// try one more time
@@ -1168,12 +1167,11 @@ end;
 // --  --
 procedure unaLazyWriteThread.flush();
 begin
-  if (enter(false, 3000)) then
-    try
-      //f_needToFlush := true;
-    finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
-    end;
+  if (acquire(false, 3000)) then try
+    //f_needToFlush := true;
+  finally
+    releaseWO();
+  end;
   //
   f_needToFlush := true;	// must be set anyway
   //

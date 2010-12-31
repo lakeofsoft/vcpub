@@ -193,9 +193,6 @@ type
     //
     function write(data: pointer; size: int): HRESULT;
     //
-    function enter(ro: bool; timeout: int = 1000): bool;
-    procedure leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
-    //
     {*
       The lower signal you have, the lower threshold value should be.
     }
@@ -511,18 +508,6 @@ begin
 end;
 
 // --  --
-function unaDspDTMFDecoder.enter(ro: bool; timeout: int): bool;
-begin
-  result := acquire(ro, timeout);
-end;
-
-// --  --
-procedure unaDspDTMFDecoder.leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
-begin
-  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
-end;
-
-// --  --
 procedure unaDspDTMFDecoder.processDTMFBuf();
 var
   MGL: tDtmfd_MD4;     //
@@ -690,39 +675,37 @@ function unaDspDTMFDecoder.setFormat(samplingRate, bitsPerSample, numChannels: i
 var
   i: int;
 begin
-  if (enter(false, 2000)) then begin
-    try
+  if (acquire(false, 2000)) then try
+    //
+    if ((0 < samplingRate) and (8 <= bitsPerSample) and (1 <= numChannels)) then begin
       //
-      if ((0 < samplingRate) and (8 <= bitsPerSample) and (1 <= numChannels)) then begin
-	//
-	f_samplingRate := samplingRate;	// source sampling rate
-	f_bitNum := bitsPerSample;	// source num of bits per sample
-	f_numChannels := numChannels;	// source number of channels
-	//
-	for i := 1 to 4 do begin
-	  //
-	  f_KGL[i] := 2.0 * cos(2.0 * Pi * c_dtmfd_FDL[i] / c_dtmfd_samplingRate);
-	  f_KGH[i] := 2.0 * cos(2.0 * Pi * c_dtmfd_FDH[i] / c_dtmfd_samplingRate);
-	end;
-	//
-	f_NG := round(c_dtmfd_TG * c_dtmfd_samplingRate / 1000);                  // ms
-	// gen
-	//f_NP := round(0.5 * c_dtmfd_TP * f_FDSC / 1000);
-	//f_NS := round(c_dtmfd_TS * f_FDSC / 1000);  		//
-	//
-	f_NMX := 0;		// num of samples in buffer
-	f_BMX := 0;		// first sample index
-	//
-	f_state := 0;
-	//
-	result := S_OK;
-      end
-      else
-	result := E_INVALIDARG;
+      f_samplingRate := samplingRate;	// source sampling rate
+      f_bitNum := bitsPerSample;	// source num of bits per sample
+      f_numChannels := numChannels;	// source number of channels
       //
-    finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
-    end;
+      for i := 1 to 4 do begin
+	//
+	f_KGL[i] := 2.0 * cos(2.0 * Pi * c_dtmfd_FDL[i] / c_dtmfd_samplingRate);
+	f_KGH[i] := 2.0 * cos(2.0 * Pi * c_dtmfd_FDH[i] / c_dtmfd_samplingRate);
+      end;
+      //
+      f_NG := round(c_dtmfd_TG * c_dtmfd_samplingRate / 1000);                  // ms
+      // gen
+      //f_NP := round(0.5 * c_dtmfd_TP * f_FDSC / 1000);
+      //f_NS := round(c_dtmfd_TS * f_FDSC / 1000);  		//
+      //
+      f_NMX := 0;		// num of samples in buffer
+      f_BMX := 0;		// first sample index
+      //
+      f_state := 0;
+      //
+      result := S_OK;
+    end
+    else
+      result := E_INVALIDARG;
+    //
+  finally
+    releaseWO();
   end
   else
     result := E_FAIL;
@@ -739,89 +722,85 @@ var
 begin
   if ((0 < size) and (nil <> data)) then begin
     //
-    if (enter(true)) then begin
+    if (acquire(true, 100)) then try
       //
-      try
+      num := 0;
+      d := nil;
+      //
+      if ((1 = f_numChannels) and (c_dtmfd_samplingRate = f_samplingRate)) then begin
 	//
-	num := 0;
-	d := nil;
-	//
-	if ((1 = f_numChannels) and (c_dtmfd_samplingRate = f_samplingRate)) then begin
-	  //
-	  doConvert := false;
-	  case (f_bitNum) of
+	doConvert := false;
+	case (f_bitNum) of
 
-	    16: begin
-	      //
-	      d := data;
-	      num := size shr 1;	// num of samples is twice less
-	    end;
-
-	    8: begin
-	      //
-	      d := malloc(size shl 1);	// two bytes per each sample from original buf
-	      num := size;
-	      //
-	      for i := 0 to size - 1 do
-		d[i] := (int(pArray(data)[i]) - $80) * $100;
-	    end;
-
-	    else
-	      doConvert := true;
-
+	  16: begin
+	    //
+	    d := data;
+	    num := size shr 1;	// num of samples is twice less
 	  end;
-	end
-	else
-	  doConvert := true;
-	//
-	if (doConvert) then begin
-	  //
-	  num := (size div f_numChannels);
-	  if (16 = f_bitNum) then
-	    num := num shr 1;
-	  //
-	  d := malloc(num shl 1);	// two bytes per sample
-	  waveResample(data, d, num, f_numChannels, 1, f_bitNum, 16, f_samplingRate, c_dtmfd_samplingRate);
+
+	  8: begin
+	    //
+	    d := malloc(size shl 1);	// two bytes per each sample from original buf
+	    num := size;
+	    //
+	    for i := 0 to size - 1 do
+	      d[i] := (int(pArray(data)[i]) - $80) * $100;
+	  end;
+
+	  else
+	    doConvert := true;
+
 	end;
+      end
+      else
+	doConvert := true;
+      //
+      if (doConvert) then begin
 	//
-	if (nil <> d) then begin
-	  //
-	  try
-	    // fill input buffer
-	    while (0 < num) do begin
-	      //
-	      nc := min(c_dtmfd_maxBufSize - f_NMX, num);
-	      if (0 < nc) then begin
-		//
-		move(d^, f_MX[f_NMX], nc shl 1);
-		inc(f_NMX, nc);
-		//
-		processDTMFBuf();
-		//
-		dec(num, nc);
-	      end
-	      else
-		break;	// no more input data
-	      //
-	    end;
-	    //
-	    result := S_OK;
-	    //
-	  finally
-	    if (d <> data) then
-	      mrealloc(d);
-	  end;
-	end
-	else
-	  result := E_NOTIMPL;
+	num := (size div f_numChannels);
+	if (16 = f_bitNum) then
+	  num := num shr 1;
 	//
-      finally
-	leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+	d := malloc(num shl 1);	// two bytes per sample
+	waveResample(data, d, num, f_numChannels, 1, f_bitNum, 16, f_samplingRate, c_dtmfd_samplingRate);
       end;
+      //
+      if (nil <> d) then begin
+	//
+	try
+	  // fill input buffer
+	  while (0 < num) do begin
+	    //
+	    nc := min(c_dtmfd_maxBufSize - f_NMX, num);
+	    if (0 < nc) then begin
+	      //
+	      move(d^, f_MX[f_NMX], nc shl 1);
+	      inc(f_NMX, nc);
+	      //
+	      processDTMFBuf();
+	      //
+	      dec(num, nc);
+	    end
+	    else
+	      break;	// no more input data
+	    //
+	  end;
+	  //
+	  result := S_OK;
+	  //
+	finally
+	  if (d <> data) then
+	    mrealloc(d);
+	end;
+      end
+      else
+	result := E_NOTIMPL;
+      //
+    finally
+      releaseRO();
     end
     else
       result := E_FAIL;
-    //
   end
   else
     result := E_INVALIDARG;

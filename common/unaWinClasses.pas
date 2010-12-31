@@ -2704,28 +2704,24 @@ begin
     WM_NCDESTROY: begin
       //
       dp := not notifyDestroy();
-      if (lockNonEmptyList(g_winList, false)) then begin
-	//
-	try
-	  // need to update indexes of other windows
-	  i := f_winListIndex + 1;
-	  while (i < int(g_winList.count)) do begin
+      if (lockNonEmptyList(g_winList, false)) then try
+	// need to update indexes of other windows
+	i := f_winListIndex + 1;
+	while (i < int(g_winList.count)) do begin
+	  //
+	  with (unaWinWindow(g_winList[i])) do begin
 	    //
-	    with (unaWinWindow(g_winList[i])) do begin
-	      //
-	      // NOTE: wnd here is NOT our wnd
-	      setWinListIndex(i - 1);
-	    end;
-	    //
-	    inc(i);
+	    // NOTE: wnd here is NOT our wnd
+	    setWinListIndex(i - 1);
 	  end;
 	  //
-	  g_winList.removeById(f_handle);
-	  //
-	finally
-	  //
-	  g_winList.unlock({$IFDEF DEBUG }false{$ENDIF DEBUG });
+	  inc(i);
 	end;
+	//
+	g_winList.removeById(f_handle);
+	//
+      finally
+	g_winList.unlockWO();
       end;
       //
       f_handle := 0;	// regardless of return value - remove the handle

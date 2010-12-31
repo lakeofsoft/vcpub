@@ -1803,7 +1803,6 @@ type
     function readData(buf: pointer; maxSize: unsigned): unsigned;
     //
     {*
-    <PRE>
 5       - output riff: no filename was specified
 4	- output riff: cannot locate required codec format
 3	- output riff: cannot locate required codec
@@ -1817,7 +1816,6 @@ type
 -4	- input riff: unknown driver (cannot locate MS ACM codec)
 -5	- input riff: unknown format (for selected MS ACM codec)
 $0FFFFFFF - no init
-    </PRE>
     }
     property status: int read f_status;
     {*
@@ -3080,22 +3078,20 @@ end;
 // --  --
 function unaMsAcmStreamDevice.addConsumer(device: unaMsAcmStreamDevice; removeOutStream: bool): unsigned;
 begin
-  if (enter(false, 1000)) then begin
+  if (acquire(false, 1000)) then try
     //
-    try
-      if ((nil <> device) and (0 > f_consumers.indexOf(device))) then begin
-	//
-	device.addNotification(self);
-	result := f_consumers.add(device);
-      end
-      else
-	result := high(unsigned);
+    if ((nil <> device) and (0 > f_consumers.indexOf(device))) then begin
       //
-      if (removeOutStream) then
-	assignStream(false, nil, false{, true});
-    finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
-    end;
+      device.addNotification(self);
+      result := f_consumers.add(device);
+    end
+    else
+      result := high(unsigned);
+    //
+    if (removeOutStream) then
+      assignStream(false, nil, false{, true});
+  finally
+    releaseWO();
   end
   else
     result := unsigned(-1);
@@ -3246,36 +3242,34 @@ end;
 // --  --
 function unaMsAcmStreamDevice.assignStream(isInStream: bool; stream: unaAbstractStream; careDestroy: bool): unaAbstractStream;
 begin
-  if (enter(false, 1000)) then begin
+  if (acquire(false, 1000)) then try
     //
-    try
-      destroyStream(isInStream);
+    destroyStream(isInStream);
+    //
+    if (isInStream) then begin
       //
-      if (isInStream) then begin
-	//
-	f_inStream := stream;
-	if (nil <> stream) then
-	  f_inStreamIsunaMemoryStream := (stream is unaMemoryStream)
-	else
-	  f_inStreamIsunaMemoryStream := false;
-	//
-	f_careInStreamDestroy := careDestroy;
-      end
-      else begin
-	//
-	f_outStream := stream;
-	if (nil <> stream) then
-	  f_outStreamIsunaMemoryStream := (stream is unaMemoryStream)
-	else
-	  f_outStreamIsunaMemoryStream := false;
-	//
-	f_careOutStreamDestroy := careDestroy;
-      end;
+      f_inStream := stream;
+      if (nil <> stream) then
+        f_inStreamIsunaMemoryStream := (stream is unaMemoryStream)
+      else
+        f_inStreamIsunaMemoryStream := false;
       //
-      result := stream;
-    finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      f_careInStreamDestroy := careDestroy;
     end
+    else begin
+      //
+      f_outStream := stream;
+      if (nil <> stream) then
+        f_outStreamIsunaMemoryStream := (stream is unaMemoryStream)
+      else
+        f_outStreamIsunaMemoryStream := false;
+      //
+      f_careOutStreamDestroy := careDestroy;
+    end;
+    //
+    result := stream;
+  finally
+    releaseWO();
   end
   else
     result := nil;
@@ -3543,17 +3537,16 @@ begin
 	f_isSilence := false;
 	result := true;
       end;
-      {$ELSE }
+    {$ELSE }
       // no silence
       f_isSilence := false;
       result := true;
-      {$ENDIF UNA_VC_ACMCLASSES_USE_DSP }
+    {$ENDIF UNA_VC_ACMCLASSES_USE_DSP }
     end; // unasdm_DSP
-
-{$IFDEF VC25_ENTERPRISE }
 
     unasdm_3GPPVAD1: begin
       //
+{$IFDEF VC25_ENTERPRISE }
       if (nil <> formatExt) then
 	nCh := formatExt.format.nChannels
       else
@@ -3630,15 +3623,13 @@ begin
       end;
       //
       result := not f_isSilence;
-    end; // unasdm_3GPPVAD1
 
 {$ELSE }
-    unasdm_3GPPVAD1: begin
       // fallback to DSP
+      result := true;
       silenceDetectionMode := unasdm_DSP;
-    end;
-
 {$ENDIF VC25_ENTERPRISE }
+    end; // unasdm_3GPPVAD1
 
     else begin
       // assume no silence
@@ -3712,66 +3703,63 @@ end;
 // --  --
 function unaMsAcmStreamDevice.close2(timeout: unsigned): MMRESULT;
 begin
-  if (enter(false, 1100)) then begin
+  if (acquire(false, 1100)) then try
     //
-    try
+    if (isOpen()) then begin
       //
-      if (isOpen()) then begin
-	//
-	// 0. clear buffered data if needed
-	flush(flushBeforeClose);
-	//
-	f_closing := true;
-	f_openDone := false;
-	//
-	// 1. -- stop thread cycle
-	stop(timeout);
-	//
-	try
-	  clearHeaders();
-	except
-	end;
-	//
-	// 2. -- close device
-	f_openCloseEvent.setState(false);
-	//
-	result := doClose(timeout);
-	if (mmNoError(result)) then begin
-	  //
-	  // 3. -- wait for close to complete
-	  if (f_openCloseEvent.waitFor(timeout)) then begin
-	    //
-	    // 4. -- close complete
-	    result := MMSYSERR_NOERROR
-	  end
-	  else begin
-	    //
-	    {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
-	    logMessage(self._classID + '.close2(' + int2str(timeout) + ') - timeout expired');
-	    {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
-	    //
-	    result := MMSYSERR_HANDLEBUSY;	// ?
-	  end;
-	  //
-	  f_handle := 0;
-	end
-	else begin
-	  //
-	  {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
-	  logMessage(self._classID + '.close2(' + int2str(timeout) + ') fails, code=' + getErrorText(result));
-	  {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
-	end;
-	//
-	afterClose(result);
-	//
-	f_closing := false;
+      // 0. clear buffered data if needed
+      flush(flushBeforeClose);
+      //
+      f_closing := true;
+      f_openDone := false;
+      //
+      // 1. -- stop thread cycle
+      stop(timeout);
+      //
+      try
+        clearHeaders();
+      except
+      end;
+      //
+      // 2. -- close device
+      f_openCloseEvent.setState(false);
+      //
+      result := doClose(timeout);
+      if (mmNoError(result)) then begin
+        //
+        // 3. -- wait for close to complete
+        if (f_openCloseEvent.waitFor(timeout)) then begin
+          //
+          // 4. -- close complete
+          result := MMSYSERR_NOERROR
+        end
+        else begin
+          //
+          {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
+          logMessage(self._classID + '.close2(' + int2str(timeout) + ') - timeout expired');
+          {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
+          //
+          result := MMSYSERR_HANDLEBUSY;	// ?
+        end;
+        //
+        f_handle := 0;
       end
-      else
-	result := MMSYSERR_NOERROR;
+      else begin
+        //
+        {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
+        logMessage(self._classID + '.close2(' + int2str(timeout) + ') fails, code=' + getErrorText(result));
+        {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
+      end;
       //
-    finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      afterClose(result);
+      //
+      f_closing := false;
     end
+    else
+      result := MMSYSERR_NOERROR;
+    //
+  finally
+    releaseWO();
   end
   else
     result := MMSYSERR_HANDLEBUSY;	// ?
@@ -4265,77 +4253,76 @@ end;
 // --  --
 function unaMsAcmStreamDevice.open2(query: bool; timeout, flags: unsigned; startDevice: bool): MMRESULT;
 begin
-  if (enter(false, 1100)) then
-    try
-      //
-      if (not isOpen()) then begin
+  if (acquire(false, 1100)) then try
+    //
+    if (not isOpen()) then begin
 
-	// 1. -- open device
-	f_openCloseEvent.setState(false);
-	result := doOpen(flags);
-	//
-	if (mmNoError(result)) then begin
-	  //
-	  if (not query) then begin
-	    //
-	    // 2. -- wait for open to complete
-	    if (f_openCloseEvent.waitFor(timeout)) then begin
-	      //
-	      // 3. -- do after open initialization
-	      {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-	      {$ELSE }
-	      f_headers.clear();
-	      {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-	      //
-	      result := afterOpen();
-	      if (mmNoError(result)) then begin
-		//
-		f_openDone := true;
-		//
-		// 4. -- start thread cycle
-		if (startDevice) then
-		  start();
-		//
-	      end
-	      else begin
-		//
-		{$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
-		logMessage(self._classID + '.open2() fails, code=' + getErrorText(result));
-		{$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
-	      end;
-	      //
-	    end
-	    else begin
-	      //
-	      close();
-	      result := MMSYSERR_HANDLEBUSY;	//
-	      //
-	      {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
-	      logMessage(self._classID + '.open2(' + int2str(timeout) + ') timeout expired');
-	      {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
-	    end;
-	    //
-	  end
-	  else
-	    // just a query - do nothing
-	    ;
-	end
-	else begin
-	  //
-	  f_handle := 0;
-	  //
-	  {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
-	  logMessage(self._classID + '.open2() fails, code=' + getErrorText(result));
-	  {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
-	end;
-	//
-      end
-      else
-	result := MMSYSERR_NOERROR;
+      // 1. -- open device
+      f_openCloseEvent.setState(false);
+      result := doOpen(flags);
       //
-    finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      if (mmNoError(result)) then begin
+        //
+        if (not query) then begin
+          //
+          // 2. -- wait for open to complete
+          if (f_openCloseEvent.waitFor(timeout)) then begin
+            //
+            // 3. -- do after open initialization
+            {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+            {$ELSE }
+            f_headers.clear();
+            {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+            //
+            result := afterOpen();
+            if (mmNoError(result)) then begin
+              //
+              f_openDone := true;
+              //
+              // 4. -- start thread cycle
+              if (startDevice) then
+                start();
+              //
+            end
+            else begin
+              //
+              {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
+              logMessage(self._classID + '.open2() fails, code=' + getErrorText(result));
+              {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+            end;
+            //
+          end
+          else begin
+            //
+            close();
+            result := MMSYSERR_HANDLEBUSY;	//
+            //
+            {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
+            logMessage(self._classID + '.open2(' + int2str(timeout) + ') timeout expired');
+            {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
+          end;
+          //
+        end
+        else
+          // just a query - do nothing
+          ;
+      end
+      else begin
+        //
+        f_handle := 0;
+        //
+        {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
+        logMessage(self._classID + '.open2() fails, code=' + getErrorText(result));
+        {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+      end;
+      //
     end
+    else
+      result := MMSYSERR_NOERROR;
+    //
+  finally
+    releaseWO();
+  end
   else
     result := MMSYSERR_HANDLEBUSY;	//
 end;
@@ -4360,15 +4347,15 @@ end;
 // --  --
 function unaMsAcmStreamDevice.removeConsumer(device: unaMsAcmStreamDevice): bool;
 begin
-  if (enter(false, 1000)) then
-    try
-      if (nil <> device) then
-	device.removeNotification(self);
-      //
-      result := f_consumers.removeItem(device);
-    finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
-    end
+  if (acquire(false, 1000)) then try
+    //
+    if (nil <> device) then
+      device.removeNotification(self);
+    //
+    result := f_consumers.removeItem(device);
+  finally
+    releaseWO();
+  end
   else
     result := false;
 end;
@@ -4434,85 +4421,84 @@ var
   wFormatExt: PWAVEFORMATEXTENSIBLE;
   isPCM: bool;
 begin
-  if (enter(false, 1000)) then
-    try
+  if (acquire(false, 1000)) then try
+    //
+    if (isSrc) then begin
       //
-      if (isSrc) then begin
-	//
-	//mrealloc(f_srcFormatEx);
-	fillFormatExt(f_srcFormatExt, format);
-	wFormatExt := f_srcFormatExt;
-	f_srcFormatInfo := format2str(format^);
-      end
-      else begin
-	//
-	//mrealloc(f_dstFormat);
-	fillFormatExt(f_dstFormatExt, format);
-	wFormatExt := f_dstFormatExt;
-	f_dstFormatInfo := format2str(format^);
-      end;
-      //
-      isPCM := formatIsPCM(format);
-      //
-      if (isPCM or (0 = wFormatExt.format.nAvgBytesPerSec)) then
-	perSec := (max(1000, wFormatExt.format.nSamplesPerSec) * max(unsigned(1), wFormatExt.format.nChannels) * max(unsigned(8), wFormatExt.format.wBitsPerSample)) shr 3
-      else
-	perSec := wFormatExt.format.nAvgBytesPerSec;
-      //
-      if ((11025 = perSec) and (50 = c_defChunksPerSecond)) then
-	cps := 49
-      else
-	cps := c_defChunksPerSecond;
-      //
-      if (isPCM) then begin
-	//
-	if (isSrc = getMasterIsSrc()) then begin
-	  //
-	  f_chunkPerSecond := cps;
-	  //
-	  if (gcd(perSec, f_chunkPerSecond) <> f_chunkPerSecond) then begin
-	    //
-	    f_chunkPerSecond := c_defChunksPerSecond;
-	    // make sure perSec will divide at least on 5
-	    if (1 = gcd(perSec, 5)) then
-	      perSec := ((perSec + 4) div 5) * 5;
-	    //
-	    while ((f_chunkPerSecond > 5) and
-		   ((gcd(perSec, f_chunkPerSecond) <> f_chunkPerSecond) or
-		    (gcd(1000, f_chunkPerSecond) <> f_chunkPerSecond))
-		  ) do begin
-	      //
-	      dec(f_chunkPerSecond);
-	    end;
-	  end;
-	  //
-	  cps := f_chunkPerSecond;
-	end;
-      end
-      else
-	if (isSrc = getMasterIsSrc()) then
-	  f_chunkPerSecond := cps;
-      //
-      blockAlign := wFormatExt.format.nBlockAlign;
-      if (0 = blockAlign) then
-	blockAlign := 128;
-      //
-      value := ((perSec div cps + blockAlign - 1) div blockAlign) * blockAlign;
-      //
-      if (isSrc = getMasterIsSrc()) then
-	f_chunkSize := value
-      else
-	f_dstChunkSize := value;
-      //
-      if (isSrc) then
-	f_inOverSize := overNumIn * value
-      else
-	f_outOverSize := overNumOut * value;
-      //
-      result := true;
-    finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      //mrealloc(f_srcFormatEx);
+      fillFormatExt(f_srcFormatExt, format);
+      wFormatExt := f_srcFormatExt;
+      f_srcFormatInfo := format2str(format^);
     end
+    else begin
+      //
+      //mrealloc(f_dstFormat);
+      fillFormatExt(f_dstFormatExt, format);
+      wFormatExt := f_dstFormatExt;
+      f_dstFormatInfo := format2str(format^);
+    end;
+    //
+    isPCM := formatIsPCM(format);
+    //
+    if (isPCM or (0 = wFormatExt.format.nAvgBytesPerSec)) then
+      perSec := (max(1000, wFormatExt.format.nSamplesPerSec) * max(unsigned(1), wFormatExt.format.nChannels) * max(unsigned(8), wFormatExt.format.wBitsPerSample)) shr 3
+    else
+      perSec := wFormatExt.format.nAvgBytesPerSec;
+    //
+    if ((11025 = perSec) and (50 = c_defChunksPerSecond)) then
+      cps := 49
+    else
+      cps := c_defChunksPerSecond;
+    //
+    if (isPCM) then begin
+      //
+      if (isSrc = getMasterIsSrc()) then begin
+        //
+        f_chunkPerSecond := cps;
+        //
+        if (gcd(perSec, f_chunkPerSecond) <> f_chunkPerSecond) then begin
+          //
+          f_chunkPerSecond := c_defChunksPerSecond;
+          // make sure perSec will divide at least on 5
+          if (1 = gcd(perSec, 5)) then
+            perSec := ((perSec + 4) div 5) * 5;
+          //
+          while ((f_chunkPerSecond > 5) and
+                 ((gcd(perSec, f_chunkPerSecond) <> f_chunkPerSecond) or
+                  (gcd(1000, f_chunkPerSecond) <> f_chunkPerSecond))
+                ) do begin
+            //
+            dec(f_chunkPerSecond);
+          end;
+        end;
+        //
+        cps := f_chunkPerSecond;
+      end;
+    end
+    else
+      if (isSrc = getMasterIsSrc()) then
+        f_chunkPerSecond := cps;
+    //
+    blockAlign := wFormatExt.format.nBlockAlign;
+    if (0 = blockAlign) then
+      blockAlign := 128;
+    //
+    value := ((perSec div cps + blockAlign - 1) div blockAlign) * blockAlign;
+    //
+    if (isSrc = getMasterIsSrc()) then
+      f_chunkSize := value
+    else
+      f_dstChunkSize := value;
+    //
+    if (isSrc) then
+      f_inOverSize := overNumIn * value
+    else
+      f_outOverSize := overNumOut * value;
+    //
+    result := true;
+  finally
+    releaseWO();
+  end
   else
     result := false;
 end;
@@ -5289,190 +5275,191 @@ begin
   {$ENDIF DEBUG_LOG_MARKBUFF }
   if ((nil <> buf) and (0 < size) and beforeNewChunk(buf, size, srcFormatExt)) then begin
     //
-    if (enter(false, 100)) then begin
+    if (acquire(false, 100)) then try
+      //
       try
-	try
-	  srcSize := size;
-	  bufOffs := 0;
-	  //
-	  // check if we have something to convert
-	  while (not shouldStop and (chunkSize <= f_subSize + size) or (unacdm_openH323plugin = driverMode)) do begin
-	    //
-	    if (nil = f_header) then begin
-	      //
-	      if (unacdm_openH323plugin = driverMode) then
-		f_header := unaMsAcmCodecHeader.create(self, min(size, chunkSize), dstChunkSize)
-	      else
-		f_header := unaMsAcmCodecHeader.create(self, chunkSize, dstChunkSize);
-	      //
-	      f_header.prepare();
-	      f_headers[f_nextHdr] := f_header;
-	      inc(f_nextHdr);
-	    end;
-	    //
-	    // mark header ready for next conversion
-	    f_header.rePrepare();
-	    //
-	    if (nil = f_acmHeader) then begin
-	      //
-	      case (driverMode) of
+        srcSize := size;
+        bufOffs := 0;
+        //
+        // check if we have something to convert
+        while (not shouldStop and (chunkSize <= f_subSize + size) or (unacdm_openH323plugin = driverMode)) do begin
+          //
+          if (nil = f_header) then begin
+            //
+            if (unacdm_openH323plugin = driverMode) then
+              f_header := unaMsAcmCodecHeader.create(self, min(size, chunkSize), dstChunkSize)
+            else
+              f_header := unaMsAcmCodecHeader.create(self, chunkSize, dstChunkSize);
+            //
+            f_header.prepare();
+            f_headers[f_nextHdr] := f_header;
+            inc(f_nextHdr);
+          end;
+          //
+          // mark header ready for next conversion
+          f_header.rePrepare();
+          //
+          if (nil = f_acmHeader) then begin
+            //
+            case (driverMode) of
 
-		unacdm_acm,
-		unacdm_openH323plugin:
-		  f_acmHeader := @f_header.f_header;
+              unacdm_acm,
+              unacdm_openH323plugin:
+                f_acmHeader := @f_header.f_header;
 
-		unacdm_installable:
-		  f_acmHeader := pACMSTREAMHEADER(@f_header.f_drvHeader);
+              unacdm_installable:
+                f_acmHeader := pACMSTREAMHEADER(@f_header.f_drvHeader);
 
-		unacdm_internal:
-		  f_acmHeader := nil;
+              unacdm_internal:
+                f_acmHeader := nil;
 
-		else
-		  f_acmHeader := nil;
+              else
+                f_acmHeader := nil;
 
-	      end;
-	    end;
-	    //
-	    {
-	    case (driverMode) of
+            end;
+          end;
+          //
+          {
+          case (driverMode) of
 
-	      unacdm_acm:
-		isPCMOutput := isPCMFormatExt(f_dstFormatExt);
+            unacdm_acm:
+              isPCMOutput := isPCMFormatExt(f_dstFormatExt);
 
-	      unacdm_openH323plugin:
-		isPCMOutput := not f_oH323codec.isEncoder();
+            unacdm_openH323plugin:
+              isPCMOutput := not f_oH323codec.isEncoder();
 
-	      else
-		isPCMOutput := false;             // ne yveren -- ne obgonyai
+            else
+              isPCMOutput := false;             // ne yveren -- ne obgonyai
 
-	    end;
-	    }
-	    //
-	    // care about data left from previuos chunk
-	    if ((0 < f_subSize) and (nil <> f_subBuf)) then
-	      f_header.write(f_subBuf, f_subSize);
-	    //
-	    // calculate how much data should we take from buffer
-	    deltaSize := min(size, chunkSize - f_subSize);
-	    if (0 < deltaSize) then begin
-	      //
-	      //deltaSize := internalRead(f_chunk, deltaSize, isPCMFormatExt(f_srcFormatExt), f_srcFormatExt);
-	      f_header.write(@pArray(buf)[bufOffs], deltaSize, f_subSize);
-	      inc(bufOffs, deltaSize);
-	    end
-	    else begin
-	      //
-	      // that means no data was encoded/decoded in last operation, which is strange
-	      //
-	      {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
-	      logMessage(self._classID + '.doWrite(), no data has been handled in last convertion..');
-	      {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
-	      //
-	      if ((chunkSize = f_subSize) and (0 < int(size) - int(f_subSize))) then begin
-		//
-		// no data were processed at all, should we increase source buffer?
-		//
-		// -------------------------------------------------
-		// NOTE: experimental, probably will do nothing good
-		// -------------------------------------------------
-		f_header.grow(size + f_subSize);
-		deltaSize := size;
-		//
-		f_header.write(@pArray(buf)[bufOffs], size, f_subSize);
-		inc(bufOffs, deltaSize);
-	      end;
-	    end;
-	    //
-	    dec(size, deltaSize);
-	    f_subSize := 0;
-	    //
-	    // send header to convertion routine
-	    inc(f_inBytes, f_header.f_header.cbSrcLength);
-	    //
-	    res := streamConvert(f_header, f_flags);
-	    if (mmNoError(res)) then begin
-	      //
-	      if (nil <> f_acmHeader) then begin
-		//
-		// write new chunk (if any)
-		if (0 < f_acmHeader.cbDstLengthUsed) then
-		  internalWrite(f_acmHeader.pbDst, f_acmHeader.cbDstLengthUsed, f_dstFormatExt);
-		//
-		// something left unprocessed?
-		//
-		// -- fix: 06/JUL/2010 --
-		// -- Even if cbDstLengthUsed/cbSrcLengthUsed is 0, that does not actually means drives has not consumed our bytes
-		// -- so we always assume that driver consumer somethign, when res is OK
-		// -- and no additional saving is needed
-		// --
-		// -- f_subSize := f_acmHeader.cbSrcLength - f_acmHeader.cbSrcLengthUsed;
-		// -- if (0 < f_subSize) then begin
-		// --   //
-		// --   // should not be here, since dst and src chunks have been set to correct values,
-		// --   // so we pass block-aligned buffers only, but let be smart enough to handle this case anyways.
-		// --   //
-		// --   if (f_subBufSize < f_subSize) then begin
-		// --     //
-		// --     mrealloc(f_subBuf, f_subSize);
-		// --     f_subBufSize := f_subSize;
-		// --   end;
-		// --   //
-		// --   move(pArray(f_acmHeader.pbSrc)[f_acmHeader.cbSrcLengthUsed], f_subBuf^, f_subSize);
-		// -- end;
-		// --
-		// -- end of fix: 06/JUL/2010 --
-		// -----------------------------------------------------------------
-		// -- Thanks to Glen Fraser for contibuting support for this fix --
-		// -----------------------------------------------------------------
-	      end;
-	      //
-	      f_flags := f_flags and not ACM_STREAMCONVERTF_START;	// clear START flag
-	      f_header.isDone := true;
-	      //
-	      {$IFDEF VCX_DEMO }
-	        inc(f_headersServed);
-	      {$ENDIF VCX_DEMO }
-	    end
-	    else begin
-	      // convertion request was not accepted
-	      {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
-	      logMessage(self._classID + '.doWrite() - error during convertion:  ' + srcFormatInfo + ' -> ' + dstFormatInfo + '; error(' + int2str(res) + ')=' + getErrorText(res));
-	      {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
-	    end;
-	    //
-	    if ((unacdm_openH323plugin = driverMode) and (chunkSize > f_subSize + size)) then
-	      break;
-	    //
-	  end; // while (we have some data ready) do ...
-	  //
-	  // something left not converted?
-	  if (0 < size) then begin
-	    //
-	    if (f_subBufSize < size + f_subSize) then begin
-	      //
-	      mrealloc(f_subBuf, size + f_subSize);
-	      f_subBufSize := size + f_subSize;
-	    end;
-	    //
-	    move(pArray(buf)[srcSize - size], pArray(f_subBuf)[f_subSize], size);
-	    inc(f_subSize, size);
-	  end;
-	  //
-	  result := srcSize;	// assume we have consumed the whole buffer supplied
-	  //
-	{$IFDEF VCX_DEMO }
-	  if (308 * c_defChunksPerSecond < f_headersServed) then begin
-	    //
-	    guiMessageBox(string(baseXdecode('eWImdm4qYmYsfjNgOSZwJSdscHQiPj9zIiZ3LiciamhtOTV+Jidne3cwY3sqNmh9cTxqMz13JSx6ZmQnOzdnPztxbWQgaGRhMjF4PX57AAhZRU4eTk9KAAhfEBReDEEFTQBNBRxJTw0HV1sVTE4NQkADSwhOHR0XC0g=', '<m%', 100)), '', MB_OK);
-	    close();
-	  end;
-    	{$ENDIF VCX_DEMO }
-	except
-	  // ignore exceptions
-	end;
-      finally
-        leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+          end;
+          }
+          //
+          // care about data left from previuos chunk
+          if ((0 < f_subSize) and (nil <> f_subBuf)) then
+            f_header.write(f_subBuf, f_subSize);
+          //
+          // calculate how much data should we take from buffer
+          deltaSize := min(size, chunkSize - f_subSize);
+          if (0 < deltaSize) then begin
+            //
+            //deltaSize := internalRead(f_chunk, deltaSize, isPCMFormatExt(f_srcFormatExt), f_srcFormatExt);
+            f_header.write(@pArray(buf)[bufOffs], deltaSize, f_subSize);
+            inc(bufOffs, deltaSize);
+          end
+          else begin
+            //
+            // that means no data was encoded/decoded in last operation, which is strange
+            //
+            {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
+            logMessage(self._classID + '.doWrite(), no data has been handled in last convertion..');
+            {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
+            //
+            if ((chunkSize = f_subSize) and (0 < int(size) - int(f_subSize))) then begin
+              //
+              // no data were processed at all, should we increase source buffer?
+              //
+              // -------------------------------------------------
+              // NOTE: experimental, probably will do nothing good
+              // -------------------------------------------------
+              f_header.grow(size + f_subSize);
+              deltaSize := size;
+              //
+              f_header.write(@pArray(buf)[bufOffs], size, f_subSize);
+              inc(bufOffs, deltaSize);
+            end;
+          end;
+          //
+          dec(size, deltaSize);
+          f_subSize := 0;
+          //
+          // send header to convertion routine
+          inc(f_inBytes, f_header.f_header.cbSrcLength);
+          //
+          logMessage('ST before');
+          res := streamConvert(f_header, f_flags);
+          logMessage('ST after, res=' + int2str(res));
+          if (mmNoError(res)) then begin
+            //
+            if (nil <> f_acmHeader) then begin
+              //
+              // write new chunk (if any)
+              if (0 < f_acmHeader.cbDstLengthUsed) then
+                internalWrite(f_acmHeader.pbDst, f_acmHeader.cbDstLengthUsed, f_dstFormatExt);
+              //
+              // something left unprocessed?
+              //
+              // -- fix: 06/JUL/2010 --
+              // -- Even if cbDstLengthUsed/cbSrcLengthUsed is 0, that does not actually means drives has not consumed our bytes
+              // -- so we always assume that driver consumer somethign, when res is OK
+              // -- and no additional saving is needed
+              // --
+              // -- f_subSize := f_acmHeader.cbSrcLength - f_acmHeader.cbSrcLengthUsed;
+              // -- if (0 < f_subSize) then begin
+              // --   //
+              // --   // should not be here, since dst and src chunks have been set to correct values,
+              // --   // so we pass block-aligned buffers only, but let be smart enough to handle this case anyways.
+              // --   //
+              // --   if (f_subBufSize < f_subSize) then begin
+              // --     //
+              // --     mrealloc(f_subBuf, f_subSize);
+              // --     f_subBufSize := f_subSize;
+              // --   end;
+              // --   //
+              // --   move(pArray(f_acmHeader.pbSrc)[f_acmHeader.cbSrcLengthUsed], f_subBuf^, f_subSize);
+              // -- end;
+              // --
+              // -- end of fix: 06/JUL/2010 --
+              // -----------------------------------------------------------------
+              // -- Thanks to Glen Fraser for contibuting support for this fix --
+              // -----------------------------------------------------------------
+            end;
+            //
+            f_flags := f_flags and not ACM_STREAMCONVERTF_START;	// clear START flag
+            f_header.isDone := true;
+            //
+            {$IFDEF VCX_DEMO }
+              inc(f_headersServed);
+            {$ENDIF VCX_DEMO }
+          end
+          else begin
+            // convertion request was not accepted
+            {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
+            logMessage(self._classID + '.doWrite() - error during convertion:  ' + srcFormatInfo + ' -> ' + dstFormatInfo + '; error(' + int2str(res) + ')=' + getErrorText(res));
+            {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+          end;
+          //
+          if ((unacdm_openH323plugin = driverMode) and (chunkSize > f_subSize + size)) then
+            break;
+          //
+        end; // while (we have some data ready) do ...
+        //
+        // something left not converted?
+        if (0 < size) then begin
+          //
+          if (f_subBufSize < size + f_subSize) then begin
+            //
+            mrealloc(f_subBuf, size + f_subSize);
+            f_subBufSize := size + f_subSize;
+          end;
+          //
+          move(pArray(buf)[srcSize - size], pArray(f_subBuf)[f_subSize], size);
+          inc(f_subSize, size);
+        end;
+        //
+        result := srcSize;	// assume we have consumed the whole buffer supplied
+        //
+      {$IFDEF VCX_DEMO }
+        if (308 * c_defChunksPerSecond < f_headersServed) then begin
+          //
+          guiMessageBox(string(baseXdecode('eWImdm4qYmYsfjNgOSZwJSdscHQiPj9zIiZ3LiciamhtOTV+Jidne3cwY3sqNmh9cTxqMz13JSx6ZmQnOzdnPztxbWQgaGRhMjF4PX57AAhZRU4eTk9KAAhfEBReDEEFTQBNBRxJTw0HV1sVTE4NQkADSwhOHR0XC0g=', '<m%', 100)), '', MB_OK);
+          close();
+        end;
+      {$ENDIF VCX_DEMO }
+      except
+        // ignore exceptions
       end;
+    finally
+      releaseWO();
     end;
   end;
 {$ELSE }
@@ -9094,20 +9081,20 @@ end;
 // --  --
 function unaWaveMultiStreamDevice.addStream(stream: unaAbstractStream): unaAbstractStream;
 begin
-  if (enter(false, 1000)) then
-    try
-      if (nil = stream) then begin
-	//
-	result := unaMemoryStream.create(100 {$IFDEF DEBUG }, _classID + '(addStream())'{$ENDIF DEBUG });
-	result.maxSize := overNumIn * chunkSize;
-      end
-      else
-	result := stream;
+  if (acquire(false, 1000)) then try
+    //
+    if (nil = stream) then begin
       //
-      f_streams.add(result);
-    finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      result := unaMemoryStream.create(100 {$IFDEF DEBUG }, _classID + '(addStream())'{$ENDIF DEBUG });
+      result.maxSize := overNumIn * chunkSize;
     end
+    else
+      result := stream;
+    //
+    f_streams.add(result);
+  finally
+    releaseWO();
+  end
   else
     result := nil;
 end;
@@ -9165,19 +9152,19 @@ function unaWaveMultiStreamDevice.removeStream(stream: unaAbstractStream): bool;
 var
   i: int;
 begin
-  if (enter(false, 1000)) then
-    try
-      i := f_streams.indexOf(stream);
-      if (0 <= i) then begin
-	//
-	f_streams.removeByIndex(i);
-	result := true;
-      end
-      else
-	result := false;
-    finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+  if (acquire(false, 1000)) then try
+    //
+    i := f_streams.indexOf(stream);
+    if (0 <= i) then begin
+      //
+      f_streams.removeByIndex(i);
+      result := true;
     end
+    else
+      result := false;
+  finally
+    releaseWO();
+  end
   else
     result := false;
 end;
@@ -9426,82 +9413,78 @@ begin
       f_lastBuffSMXSize := samples shl 2
     end;
     //
-    if (enter(false, 1000)) then begin
+    if (acquire(false, 1000)) then try
       //
-      try
-	//
-	// 1. produce SMX
-	//
-	fillChar(f_bufSMX^, samples shl 2, #0);
-	for i := 0 to getStreamCount() - 1 do begin
-	  //
-	  // read data from the stream (if any), but do not remove the data
-	  // we will need it later when we will be producing output data for that stream
-	  realSize := getStream(i).read(f_buf, mixSize, false);
-	  //
-	  // if there were not enought data (but it was at least one sample)
-	  // fill the rest of buffer with silence
-	  if ((sampleSize <= realSize) and (realSize < mixSize)) then begin
-	    //
-	    inc(f_subSilence, mixSize - realSize);
-	    fillChar(f_buf[realSize], mixSize - realSize, filling);
-	  end;
-	  //
-	  // only add this stream to SMX if it contain at least 1 sample
-	  if (sampleSize <= realSize) then
-	    waveMix(f_buf, f_bufSMX, f_bufSMX, samples, bits, 32, 32, true, f_srcFormatExt.format.nChannels);
-	end;
-	//
-	// 2. produce outStreams
-	//
-	silentBufReady := false;
-	//
-	for i := 0 to getStreamCount() - 1 do begin
-	  //
-	  stream := getStream(i);
-	  //
-	  // read data from the stream (if any), but do not remove the data
-	  // we will simply clear the stream after reading, it will be faster
-	  //
-	  realSize := stream.read(f_buf, mixSize, false);
-	  stream.clear();
-	  //
-	  // if there were not enought data (but it was at least one sample)
-	  // fill the rest of buffer with silence
-	  if ((sampleSize <= realSize) and (realSize < mixSize)) then
-	    fillChar(f_buf[realSize], mixSize - realSize, filling);
-	  //
-	  // only subtract this stream from SMX if it contain at least one sample
-	  if (sampleSize <= realSize) then begin
-	    //
-	    // do substract (removing source voice) this stream from SMX
-	    waveMix(f_bufSMX, f_buf, f_buf, samples, 32, bits, bits, false, f_srcFormatExt.format.nChannels);
-	    //
-	    // feed the stream with result
-	    stream.write(f_buf, mixSize);
-	  end
-	  else begin
-	    //
-	    // otherwise, check if we alread dealt with silent streams in this pump()
-	    if (not silentBufReady) then begin
-	      //
-	      // prepare buffer for "silent" stream
-	      // it will be same for all "silent" streams, so we can easily reuse it
-	      fillChar(f_buf[0], mixSize, filling);
-	      waveMix(f_bufSMX, f_buf, f_bufSilent, samples, 32, bits, bits, false, f_srcFormatExt.format.nChannels);
-	      //
-	      silentBufReady := true;
-	    end;
-	    //
-	    stream.write(f_bufSilent, mixSize);
-	  end;
-	  //
-	end;
-	//
-      finally
-	leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      // 1. produce SMX
+      //
+      fillChar(f_bufSMX^, samples shl 2, #0);
+      for i := 0 to getStreamCount() - 1 do begin
+        //
+        // read data from the stream (if any), but do not remove the data
+        // we will need it later when we will be producing output data for that stream
+        realSize := getStream(i).read(f_buf, mixSize, false);
+        //
+        // if there were not enought data (but it was at least one sample)
+        // fill the rest of buffer with silence
+        if ((sampleSize <= realSize) and (realSize < mixSize)) then begin
+          //
+          inc(f_subSilence, mixSize - realSize);
+          fillChar(f_buf[realSize], mixSize - realSize, filling);
+        end;
+        //
+        // only add this stream to SMX if it contain at least 1 sample
+        if (sampleSize <= realSize) then
+          waveMix(f_buf, f_bufSMX, f_bufSMX, samples, bits, 32, 32, true, f_srcFormatExt.format.nChannels);
       end;
       //
+      // 2. produce outStreams
+      //
+      silentBufReady := false;
+      //
+      for i := 0 to getStreamCount() - 1 do begin
+        //
+        stream := getStream(i);
+        //
+        // read data from the stream (if any), but do not remove the data
+        // we will simply clear the stream after reading, it will be faster
+        //
+        realSize := stream.read(f_buf, mixSize, false);
+        stream.clear();
+        //
+        // if there were not enought data (but it was at least one sample)
+        // fill the rest of buffer with silence
+        if ((sampleSize <= realSize) and (realSize < mixSize)) then
+          fillChar(f_buf[realSize], mixSize - realSize, filling);
+        //
+        // only subtract this stream from SMX if it contain at least one sample
+        if (sampleSize <= realSize) then begin
+          //
+          // do substract (removing source voice) this stream from SMX
+          waveMix(f_bufSMX, f_buf, f_buf, samples, 32, bits, bits, false, f_srcFormatExt.format.nChannels);
+          //
+          // feed the stream with result
+          stream.write(f_buf, mixSize);
+        end
+        else begin
+          //
+          // otherwise, check if we alread dealt with silent streams in this pump()
+          if (not silentBufReady) then begin
+            //
+            // prepare buffer for "silent" stream
+            // it will be same for all "silent" streams, so we can easily reuse it
+            fillChar(f_buf[0], mixSize, filling);
+            waveMix(f_bufSMX, f_buf, f_bufSilent, samples, 32, bits, bits, false, f_srcFormatExt.format.nChannels);
+            //
+            silentBufReady := true;
+          end;
+          //
+          stream.write(f_bufSilent, mixSize);
+        end;
+        //
+      end;
+      //
+    finally
+      releaseWO();
     end;
   end;
 {$IFDEF UNA_PROFILE }
@@ -9570,7 +9553,7 @@ begin
   else begin
     //
     result := 0;
-    if ((0 < size) and not shouldStop and enter(false, f_waitInterval shl 1)) then try
+    if ((0 < size) and not shouldStop and acquire(false, f_waitInterval shl 1)) then try
       //
       if (f_srcChunk.chunkBufSize <= size) then begin
 	//
@@ -9643,7 +9626,7 @@ begin
 	//
       end;
     finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      releaseWO();
     end;
     //
   end;
@@ -9700,8 +9683,7 @@ var
   size: unsigned;
 begin
   result := inherited onHeaderDone(header, wakeUpByHeaderDone);
-  //
-  if (not shouldStop and result and enter(false, f_waitInterval shl 1)) then try
+  if (not shouldStop and result and acquire(false, f_waitInterval shl 1)) then try
     //
     size := getDataAvailable(true);
     if (f_srcChunk.chunkBufSize <= size) then begin
@@ -9719,7 +9701,7 @@ begin
       result := false;
     //
   finally
-    leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    releaseWO();
   end;
 end;
 
@@ -9730,70 +9712,70 @@ var
   r1, r2: unsigned;
   i, d: unsigned;
 begin
-  if (enter(false, 1000)) then
-    try
-      fillPCMFormat(format, samplesPerSec, bitsPerSample, numChannels);
-      setFormat(isSrc, @format{, false});
+  if (acquire(false, 1000)) then try
+    //
+    fillPCMFormat(format, samplesPerSec, bitsPerSample, numChannels);
+    setFormat(isSrc, @format{, false});
+    //
+    if ((nil <> f_srcFormatExt) and (nil <> f_dstFormatExt)) then begin
       //
-      if ((nil <> f_srcFormatExt) and (nil <> f_dstFormatExt)) then begin
-	//
-	r1 := gcd(f_srcFormatExt.format.nSamplesPerSec, c_defChunksPerSecond);
-	if (1 = r1) then
-	  r1 := f_srcFormatExt.format.nSamplesPerSec div 5;
-	//
-	r2 := gcd(f_dstFormatExt.format.nSamplesPerSec, c_defChunksPerSecond);
-	if (1 = r2) then
-	  r2 := f_dstFormatExt.format.nSamplesPerSec div 5;
-	//
-	d := gcd(r1, r2);
-	//
-	f_srcChunk.chunkFormat.pcmSamplesPerSecond := f_srcFormatExt.format.nSamplesPerSec;
-	f_srcChunk.chunkFormat.pcmBitsPerSample := f_srcFormatExt.format.wBitsPerSample;
-	f_srcChunk.chunkFormat.pcmNumChannels := f_srcFormatExt.format.nChannels;
-	//
-	f_dstChunk.chunkFormat.pcmSamplesPerSecond := f_dstFormatExt.format.nSamplesPerSec;
-	f_dstChunk.chunkFormat.pcmBitsPerSample := f_dstFormatExt.format.wBitsPerSample;
-	f_dstChunk.chunkFormat.pcmNumChannels := f_dstFormatExt.format.nChannels;
-	//
-	waveReallocateChunk(f_srcChunk, f_srcFormatExt.format.nSamplesPerSec div d);
-	waveReallocateChunk(f_dstChunk, f_dstFormatExt.format.nSamplesPerSec div d);
-	//
-	f_chunkSize := f_srcChunk.chunkBufSize;
-	f_dstChunkSize := f_dstChunk.chunkBufSize;
-	//
-	mrealloc(f_channelBufOut, f_dstChunkSize);
-	//
-	if ((nil = f_speexdsp[0]) and f_speexavail) then begin
-	  //
-	  try
-	    f_speexdsp[0] := unaSpeexDSP.create();
-	  except
-          end;
-	  f_speexavail := (nil <> f_speexdsp[0]);
-	  //
-	  if (f_speexavail) then begin
-	    //
-	    for i := 1 to 31 do
-	      f_speexdsp[i] := unaSpeexDSP.create();
-	  end;
-	end;
-	//
-	if (nil <> f_speexdsp[0]) then begin
-	  //
-	  for i := 0 to 31 do begin
-	    //
-	    f_speexdsp[i].close();
-	    f_speexdsp[i].open(f_dstFormatExt.format.nSamplesPerSec div c_defChunksPerSecond, f_dstFormatExt.Format.nSamplesPerSec);
-	  end;
-	end;
-	//
-	result := true;
-      end
-      else
-	result := false;
-    finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      r1 := gcd(f_srcFormatExt.format.nSamplesPerSec, c_defChunksPerSecond);
+      if (1 = r1) then
+        r1 := f_srcFormatExt.format.nSamplesPerSec div 5;
+      //
+      r2 := gcd(f_dstFormatExt.format.nSamplesPerSec, c_defChunksPerSecond);
+      if (1 = r2) then
+        r2 := f_dstFormatExt.format.nSamplesPerSec div 5;
+      //
+      d := gcd(r1, r2);
+      //
+      f_srcChunk.chunkFormat.pcmSamplesPerSecond := f_srcFormatExt.format.nSamplesPerSec;
+      f_srcChunk.chunkFormat.pcmBitsPerSample := f_srcFormatExt.format.wBitsPerSample;
+      f_srcChunk.chunkFormat.pcmNumChannels := f_srcFormatExt.format.nChannels;
+      //
+      f_dstChunk.chunkFormat.pcmSamplesPerSecond := f_dstFormatExt.format.nSamplesPerSec;
+      f_dstChunk.chunkFormat.pcmBitsPerSample := f_dstFormatExt.format.wBitsPerSample;
+      f_dstChunk.chunkFormat.pcmNumChannels := f_dstFormatExt.format.nChannels;
+      //
+      waveReallocateChunk(f_srcChunk, f_srcFormatExt.format.nSamplesPerSec div d);
+      waveReallocateChunk(f_dstChunk, f_dstFormatExt.format.nSamplesPerSec div d);
+      //
+      f_chunkSize := f_srcChunk.chunkBufSize;
+      f_dstChunkSize := f_dstChunk.chunkBufSize;
+      //
+      mrealloc(f_channelBufOut, f_dstChunkSize);
+      //
+      if ((nil = f_speexdsp[0]) and f_speexavail) then begin
+        //
+        try
+          f_speexdsp[0] := unaSpeexDSP.create();
+        except
+        end;
+        f_speexavail := (nil <> f_speexdsp[0]);
+        //
+        if (f_speexavail) then begin
+          //
+          for i := 1 to 31 do
+            f_speexdsp[i] := unaSpeexDSP.create();
+        end;
+      end;
+      //
+      if (nil <> f_speexdsp[0]) then begin
+        //
+        for i := 0 to 31 do begin
+          //
+          f_speexdsp[i].close();
+          f_speexdsp[i].open(f_dstFormatExt.format.nSamplesPerSec div c_defChunksPerSecond, f_dstFormatExt.Format.nSamplesPerSec);
+        end;
+      end;
+      //
+      result := true;
     end
+    else
+      result := false;
+  finally
+    releaseWO();
+  end
   else
     result := false;
   //

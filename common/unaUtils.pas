@@ -22,7 +22,7 @@
 		Lake, Jan-Dec 2007
 		Lake, Jan-Oct 2008
 		Lake, Jun-Dec 2009
-		Lake, Jan-Nov 2010
+		Lake, Jan-Dec 2010
 
 	----------------------------------------------
 *)
@@ -51,7 +51,10 @@
     //
   {$ENDIF __AFTER_D9__ }
   //
-  {xx $DEFINE CHECK_MEMORY_LEAKS }	// enable memory leaks checking routines
+  {x $DEFINE CHECK_MEMORY_LEAKS }			// enable memory leaks checking routines
+{$IFDEF CHECK_MEMORY_LEAKS }
+  {$DEFINE CHECK_MEMORY_LEAKS_UNA_ONLY }	// enable memory leaks checking routines (do not override memory manager)
+{$ENDIF CHECK_MEMORY_LEAKS }
   //
 {$ENDIF DEBUG }
 
@@ -835,14 +838,12 @@ function guiSelectDirectory(const caption, root: wString; var directory: wString
 
 {*
   Ensures you can safely add a file name to the given path. Adds '\' character to the end of path as necessary.
-  <pre>
   Exaples:
-    C:\temp\ =&gt; C:\temp\
-    C:\temp =&gt; C:\temp\
-    C:\ =&gt; C:\
-    C: =&gt; C:
-    C:\temp/ =&gt; C:\temp/
-  </pre>
+    C:\temp\ => C:\temp\
+    C:\temp  => C:\temp\
+    C:\      => C:\
+    C:       => C:
+    C:\temp/ => C:\temp/
 }
 function addBackSlash(const path: wString): wString;
 
@@ -1266,48 +1267,26 @@ function percent(value, total: int64): int64; overload;
 {*
   Trims the specified value by removing all control or space characters from left (beginning) and right (ending) of the string.
 }
-{$IFDEF __BEFORE_D6__ }
-  // Delphi 4 and 5 gone ambiguous with wide/ansi strings
-  // So we lost some functionality but avoid ambiguousness
-{$ELSE }
 function trimS(const value: string; left: bool = true; right: bool = true): string; overload;
-{$ENDIF __BEFORE_D6__ }
-
-{$IFDEF __BEFORE_DC__ }
-function trimS(const value: wString; left: bool = true; right: bool = true): wString; overload;
-{$ELSE }
-function trimS(const value: aString; left: bool = true; right: bool = true): aString; overload;
-{$ENDIF __BEFORE_DC__ }
+{$IFDEF __AFTER_D5__ }
+function trimS(const value: waString; left: bool = true; right: bool = true): waString; overload;
+{$ENDIF __AFTER_D5__ }
 
 {*
-  Returns lower case of given char.
-  <BR /><STRONG>NOTE</STRONG>: only Latin characters from ASCII table are converted.
-  <BR />Example:
-  <BR />A =&gt; a
-  <BR />b =&gt; b
-  <BR />3 =&gt; 3
+	Plain simple lowercase for ASCII chars $00..$7F.
 }
 function loCase(value: char): char; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
-{$IFDEF __BEFORE_DC__ }
-function loCase(value: wChar): wChar; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
-{$ELSE }
-function loCase(value: aChar): aChar; overload;
-{$ENDIF __BEFORE_DC__ }
+{$IFDEF __AFTER_D5__ }
+function loCase(value: waChar): waChar; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{$ENDIF __AFTER_D5__ }
 
 {*
-  Returns upper case of given character.
-  <BR /><STRONG>NOTE</STRONG>: only Latin characters from ASCII table are converted.
-  <BR />Example:
-  <BR />A =&gt; A
-  <BR />b =&gt; B
-  <BR />3 =&gt; 3
+	Plain simple uppercase for ASCII chars $00..$7F.
 }
 function upCase(value: char): char; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
-{$IFDEF __BEFORE_DC__ }
-function upCase(value: wChar): wChar; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
-{$ELSE }
-function upCase(value: aChar): aChar; overload;
-{$ENDIF __BEFORE_DC__ }
+{$IFDEF __AFTER_D5__ }
+function upCase(value: waChar): waChar; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{$ENDIF __AFTER_D5__ }
 
 
 {$IFDEF FPC }
@@ -1334,42 +1313,21 @@ const
 
 {$IFDEF __SYSUTILS_H_ }
 {$ELSE }
-
 {*
-  Converts all character in given string into upper case.
-  Same as SysUtils.upperCase() routine.
+	Converts all character in given string into upper case.
 }
 function upperCase(const value: string): string; overload;
 {*
-  Converts all character in given string into lower case.
-  <BR /><STRONG>NOTE</STRONG>: only Latin characters from ASCII table are converted.
-  <BR />Example:
-  <BR />Alek =&gt; alek
-  <BR />bool =&gt; bool
-  <BR />345 =&gt; 345
+	Converts all character in given string into lower case.
 }
 function lowerCase(const value: string): string; overload;
 
 {$ENDIF __SYSUTILS_H_ }
 
-
-{$IFDEF __BEFORE_DC__ }
-  {$IFDEF __BEFORE_D6__ }
-  {$ELSE }
-    function lowerCase(const value: wString): wString; overload;
-  {$ENDIF __BEFORE_D6__ }
-{$ELSE }
-  function lowerCase(const value: aString): aString; overload;
-{$ENDIF __BEFORE_DC__ }
-
-{$IFDEF __BEFORE_DC__ }
-  {$IFDEF __BEFORE_D6__ }
-  {$ELSE }
-    function upperCase(const value: wString): wString; overload;
-  {$ENDIF __BEFORE_D6__ }
-{$ELSE }
-  function upperCase(const value: aString): aString; overload;
-{$ENDIF __BEFORE_DC__ }
+{$IFDEF __AFTER_D5__ }
+function lowerCase(const value: waString): waString; overload;
+function upperCase(const value: waString): waString; overload;
+{$ENDIF __AFTER_D5__ }
 
 {*
   Compares two strings with regard (ignoreCase = false) or not (ignoreCase = true) to the case of characters in the string. Returns:
@@ -1381,37 +1339,25 @@ function lowerCase(const value: string): string; overload;
   <BR /><STRONG>NOTE</STRONG>: only Latin characters from ASCII table are converted when ignoreCase = true.
 }
 function compareStr(const str1, str2: string; ignoreCase: bool = false): int; overload;
-{$IFDEF __BEFORE_DC__ }
-  {$IFDEF __BEFORE_D6__ }
-  {$ELSE }
-  function compareStr(const str1, str2: wString; ignoreCase: bool = false): int; overload;
-  {$ENDIF __BEFORE_D6__ }
-{$ELSE }
-  function compareStr(const str1, str2: aString; ignoreCase: bool = false): int; overload;
-{$ENDIF __BEFORE_DC__ }
+{$IFDEF __AFTER_D5__ }
+function compareStr(const str1, str2: waString; ignoreCase: bool = false): int; overload;
+{$ENDIF __AFTER_D5__ }
 
-{$IFDEF __BEFORE_D6__ }
-  // Delphi 4 and 5 gone ambiguous with wide/ansi strings
-  // So we lost some functionality but avoid ambiguousness
-{$ELSE }
 function sameString(const str1, str2: string; doTrim: bool = true): bool; overload;
-{$ENDIF __BEFORE_D6__ }
-
-{$IFDEF __BEFORE_DC__ }
-  function sameString(const str1, str2: wString; doTrim: bool = true; locale: LCID = LOCALE_SYSTEM_DEFAULT): bool; overload;
-{$ELSE }
-  function sameString(const str1, str2: aString; doTrim: bool = true): bool; overload;
-{$ENDIF __BEFORE_DC__ }
+{$IFDEF __AFTER_D5__ }
+function sameString(const str1, str2: waString; doTrim: bool = true; locale: LCID = LOCALE_SYSTEM_DEFAULT): bool; overload;
+{$ENDIF __AFTER_D5__ }
 
 {*
   Adjusts a string length to the len value, by adding additional character at the beginning (left = true) or at the end (left = false) of the string.
 }
 function adjust(const value: string; len: int; fill: char = ' '; left: bool = true; truncate: bool = false): string; overload;
-{$IFDEF __BEFORE_DC__ }
-  function adjust(const value: wString; len: int; fill: wChar = ' '; left: bool = true; truncate: bool = false): wString; overload;
-{$ELSE }
-  function adjust(const value: aString; len: int; fill: aChar = ' '; left: bool = true; truncate: bool = false): aString; overload;
-{$ENDIF __BEFORE_DC__ }
+{$IFDEF __AFTER_D5__ }
+{*
+  Adjusts a string length to the len value, by adding additional character at the beginning (left = true) or at the end (left = false) of the string.
+}
+function adjust(const value: waString; len: int; fill: waChar = ' '; left: bool = true; truncate: bool = false): waString; overload;
+{$ENDIF __AFTER_D5__ }
 
 
 {*
@@ -1542,12 +1488,11 @@ function strEscape(const value: aString; const specialCare: aString = ''): aStri
 
 {*
   Converts "escaped" value back to "plain" string. Examples:
-  <UL>
-	<LI>"Lake/tUna" -- "Lake"#9"Una"</LI>
-	<LI>"Line1/r/nLine2" -- "Line1"#13#10"Line2"</LI>
-	<LI>"C:\TEMP//" -- "C:\TEMP/"</LI>
-	<LI>"PAGE/012FEED" -- "PAGE"#12"FEED"</LI>
-  </UL>
+
+    "Lake/tUna"      --> "Lake"#9"Una"
+    "Line1/r/nLine2" --> "Line1"#13#10"Line2"
+    "C:\TEMP//"      --> "C:\TEMP/"
+    "PAGE/012FEED"   --> "PAGE"#12"FEED"
 }
 function strUnescape(const value: aString): aString;
 
@@ -1592,9 +1537,12 @@ function getIntValueFromStr(const str, paramName: string; defValue: int): int;
 
 
 {*
-  Wrapper for MessageBox() function
+  A wrapper for MessageBox() function.
 }
 function guiMessageBox(owner: hWnd; const message, title: wString; flags: int = MB_OK): int; overload;
+{*
+  A wrapper for MessageBox() function.
+}
 function guiMessageBox(const message, title: wString; flags: int = MB_OK; owner: hWnd = 0): int; overload;
 
 {$EXTERNALSYM ShellAboutA}
@@ -1662,7 +1610,7 @@ function setInfoMessageMode(const logName: wString = ''; proc: infoMessageProc =
   Used to display the memory size currently allocated by application.
 }
 function debug_memAllocated(): unsigned;
-{$ENDIF}
+{$ENDIF DEBUG }
 
 // colors
 type
@@ -1948,7 +1896,8 @@ procedure mleaks_start(maxStackSize: unsigned = 250{fits for most cases});
 }
 procedure mleaks_stop(produceReport: bool = true);
 
-{$ENDIF }	// CHECK_MEMORY_LEAKS
+{$ENDIF CHECK_MEMORY_LEAKS }
+
 
 //	  -- EVENTS --
 
@@ -5510,11 +5459,6 @@ end;
 
 // == strings ==
 
-
-{$IFDEF __BEFORE_D6__ }
-  // Delphi 4 and 5 gone ambiguous with wide/ansi strings
-  // So we lost some functionality but avoid ambiguousness
-{$ELSE }
 // --  --
 function trimS(const value: string; left, right: bool): string;
 var
@@ -5555,12 +5499,11 @@ begin
   else
     result := value;
 end;
-{$ENDIF __BEFORE_D6__ }
 
-{$IFDEF __BEFORE_DC__ }
+{$IFDEF __AFTER_D5__ }
 
 // --  --
-function trimS(const value: wString; left, right: bool): wString;
+function trimS(const value: waString; left, right: bool): waString;
 var
   s: int;
   l: int;
@@ -5600,50 +5543,8 @@ begin
     result := value;
 end;
 
-{$ELSE }
+{$ENDIF __AFTER_D5__ }
 
-// --  --
-function trimS(const value: aString; left, right: bool): aString;
-var
-  s: unsigned;
-  l: unsigned;
-begin
-  if ('' <> value) then begin
-    //
-    s := 1;
-    l := length(value);
-    if (left) then begin
-      //
-      // -- trim left
-      while (s < l) do begin
-	//
-	if (' ' >= value[s]) then
-	  inc(s)
-	else
-	  break;
-	//
-      end;
-    end;
-    //
-    if (right) then
-      //
-      // -- trim right
-      while (l >= s) do begin
-	//
-	if (' ' >= value[l]) then
-	  dec(l)
-	else
-	  break;
-	//
-      end;
-    //
-    result := copy(value, s, l + 1 - s);
-  end
-  else
-    result := value;
-end;
-
-{$ENDIF __BEFORE_DC__ }
 
 // --  --
 function loCase(value: char): char;
@@ -5655,39 +5556,19 @@ begin
   end;
 end;
 
-{$IFDEF __BEFORE_DC__ }
+{$IFDEF __AFTER_D5__ }
 
 // --  --
-function loCase(value: wChar): wChar;
+function loCase(value: waChar): waChar;
 begin
   case (value) of
-    'A'..'Z': result := wChar(word(value) or $0020);
+    'A'..'Z': result := waChar(word(value) or $0020);
     else
       result := value;
   end;
 end;
 
-{$ELSE }
-
-// --  --
-function loCase(value: aChar): aChar; assembler
-{
-	IN:	EAX = value
-	OUT:	EAX = result
-}
-asm
-	cmp	al, 'A'
-	jb	@exit
-
-	cmp	al, 'Z'
-	ja	@exit
-
-	or	al, 020h
-  @exit:
-//	mov	result, al
-end;
-
-{$ENDIF __BEFORE_DC__ }
+{$ENDIF __AFTER_D5__ }
 
 
 // --  --
@@ -5701,40 +5582,19 @@ begin
 end;
 
 
-{$IFDEF __BEFORE_DC__ }
+{$IFDEF __AFTER_D5__ }
 
 // --  --
-function upCase(value: wChar): wChar;
+function upCase(value: waChar): waChar;
 begin
   case (value) of
-    'a'..'z': result := wChar(word(value) and not $0020);
+    'a'..'z': result := waChar(word(value) and not $0020);
     else
       result := value;
   end;
 end;
 
-{$ELSE }
-
-// --  --
-function upCase(value: aChar): aChar;
-{
-	IN:	EAX = value
-	OUT:	EAX = result
-}
-asm
-//	mov	al, value
-	cmp	al, 'a'
-	jb	@exit
-
-	cmp	al, 'z'
-	ja	@exit
-
-	sub	al, 020h
-  @exit:
-//	mov	result, al
-end;
-
-{$ENDIF __BEFORE_DC__ }
+{$ENDIF __AFTER_D5__ }
 
 
 {$IFDEF __SYSUTILS_H_ }
@@ -5764,13 +5624,11 @@ end;
 
 {$ENDIF __SYSUTILS_H_ }
 
-{$IFDEF __BEFORE_DC__ }
 
-{$IFDEF __BEFORE_D6__ }
-{$ELSE }
+{$IFDEF __AFTER_D5__ }
 
 // --  --
-function lowerCase(const value: wString): wString;
+function lowerCase(const value: waString): waString;
 begin
   if ('' <> value) then begin
     //
@@ -5779,44 +5637,26 @@ begin
 {$ENDIF NO_ANSI_SUPPORT }
       //
       result := value;
-      CharLowerW(pwChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
-					// There is no extended error information for this function; do not call GetLastError.
+{$IFDEF __AFTER_D5__ }
+      CharLowerA(paChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
+						// There is no extended error information for this function; do not call GetLastError.
+{$ELSE }
+      CharLowerW(paChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
+						// There is no extended error information for this function; do not call GetLastError.
+{$ENDIF __AFTER_D5__ }
+     //
 {$IFNDEF NO_ANSI_SUPPORT }
     end
     else
-      result := lowerCase(aString(value));
+      result := lowerCase(string(value));
 {$ENDIF NO_ANSI_SUPPORT }
   end
   else
     result := '';
 end;
 
-{$ENDIF __BEFORE_D6__ }
-
-{$ELSE }	// __BEFORE_DC__
-
 // --  --
-function lowerCase(const value: aString): aString;
-begin
-  if ('' <> value) then begin
-    //
-    result := value;
-    CharLowerA(paChar(result));
-  end
-  else
-    result := '';
-end;
-
-{$ENDIF __BEFORE_DC__ }
-
-
-{$IFDEF __BEFORE_DC__ }
-
-{$IFDEF __BEFORE_D6__ }
-{$ELSE }
-
-// --  --
-function upperCase(const value: wString): wString;
+function upperCase(const value: waString): waString;
 begin
   if ('' <> value) then begin
     //
@@ -5825,48 +5665,25 @@ begin
 {$ENDIF NO_ANSI_SUPPORT }
       //
       result := value;
+{$IFDEF __AFTER_D5__ }
+      CharUpperA(paChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
+						// There is no extended error information for this function; do not call GetLastError.
+{$ELSE }
       CharUpperW(pwChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
-					// There is no extended error information for this function; do not call GetLastError.
+						// There is no extended error information for this function; do not call GetLastError.
+{$ENDIF __AFTER_D5__ }
+      //
 {$IFNDEF NO_ANSI_SUPPORT }
     end
     else
-      result := upperCase(aString(value));
+      result := upperCase(string(value));
 {$ENDIF NO_ANSI_SUPPORT }
   end
   else
     result := '';
 end;
 
-{$ENDIF __BEFORE_D6__ }
-{$ELSE }
-
-// --  --
-function upperCase(const value: aString): aString;
-begin
-  if ('' <> value) then begin
-    //
-    result := value;
-    CharUpperA(paChar(result));
-  end
-  else
-    result := '';
-end;
-
-{$ENDIF __BEFORE_DC__ }
-
-{$IFDEF __BEFORE_D6__ }
-{$ELSE }
-
-// --  --
-function sameString(const str1, str2: string; doTrim: bool): bool;
-begin
-  if (doTrim) then
-    result := (lowerCase(trimS(str1)) = lowerCase(trimS(str2)))
-  else
-    result := (lowerCase(str1) = lowerCase(str2));
-end;
-
-{$ENDIF __BEFORE_D6__ }
+{$ENDIF __AFTER_D5__ }
 
 // --  --
 function compareStr(const str1, str2: string; ignoreCase: bool): int;
@@ -5892,24 +5709,24 @@ begin
 	c1 := str1[i];
 	c2 := str2[i];
 	if (ignoreCase) then begin
-          //
+	  //
 	  c1 := loCase(c1);
 	  c2 := loCase(c2);
 	end;
 	//
 	if (c1 < c2) then begin
-          //
+	  //
 	  result := -1;
 	  break;
 	end
 	else begin
-          //
+	  //
 	  if (c1 > c2) then begin
-            //
+	    //
 	    result := +1;
 	    break;
 	  end;
-        end;
+	end;
 	//
 	inc(i);
       end;
@@ -5918,17 +5735,14 @@ begin
 end;
 
 
-{$IFDEF __BEFORE_DC__ }
-
-{$IFDEF __BEFORE_D6__ }
-{$ELSE }
+{$IFDEF __AFTER_D5__ }
 
 // --  --
-function compareStr(const str1, str2: wString; ignoreCase: bool): int;
+function compareStr(const str1, str2: waString; ignoreCase: bool): int;
 var
   i: unsigned;
   len1, len2: unsigned;
-  c1, c2: wChar;
+  c1, c2: waChar;
 begin
   len1 := length(str1);
   len2 := length(str2);
@@ -5947,24 +5761,24 @@ begin
 	c1 := str1[i];
 	c2 := str2[i];
 	if (ignoreCase) then begin
-          //
+	  //
 	  c1 := loCase(c1);
 	  c2 := loCase(c2);
 	end;
 	//
 	if (c1 < c2) then begin
-          //
+	  //
 	  result := -1;
 	  break;
 	end
 	else begin
-          //
+	  //
 	  if (c1 > c2) then begin
-            //
+	    //
 	    result := +1;
 	    break;
 	  end;
-        end;
+	end;
 	//
 	inc(i);
       end;
@@ -5972,61 +5786,7 @@ begin
   end;
 end;
 
-{$ENDIF __BEFORE_D6__ }
-
-{$ELSE }
-
-// --  --
-function compareStr(const str1, str2: aString; ignoreCase: bool): int;
-var
-  i: unsigned;
-  len1, len2: unsigned;
-  c1, c2: aChar;
-begin
-  len1 := length(str1);
-  len2 := length(str2);
-  //
-  if (len1 < len2) then
-    result := -1
-  else begin
-    //
-    if (len1 > len2) then
-      result := +1
-    else begin
-      i := 1;
-      result := 0;
-      while (i < len1) do begin
-	//
-	c1 := str1[i];
-	c2 := str2[i];
-	if (ignoreCase) then begin
-          //
-	  c1 := loCase(c1);
-	  c2 := loCase(c2);
-	end;
-	//
-	if (c1 < c2) then begin
-          //
-	  result := -1;
-	  break;
-	end
-	else begin
-          //
-	  if (c1 > c2) then begin
-            //
-	    result := +1;
-	    break;
-	  end;
-        end;
-	//
-	inc(i);
-      end;
-    end;
-  end;
-end;
-
-{$ENDIF __BEFORE_DC__ }
-
+{$ENDIF __AFTER_D5__ }
 
 //
 //  A language ID is a 16 bit value which is the combination of a
@@ -6080,19 +5840,29 @@ begin
   result := uint32(langId) or ((uint32(sortId) and $0F) shl 16);
 end;
 
-{$IFDEF __BEFORE_DC__ }
+// --  --
+function sameString(const str1, str2: string; doTrim: bool): bool;
+begin
+  if (doTrim) then
+    result := (lowerCase(trimS(str1)) = lowerCase(trimS(str2)))
+  else
+    result := (lowerCase(str1) = lowerCase(str2));
+end;
+
+
+{$IFDEF __AFTER_D5__ }
 
 // --  --
-function sameString(const str1, str2: wString; doTrim: bool; locale: LCID): bool;
+function sameString(const str1, str2: waString; doTrim: bool; locale: LCID): bool;
 var
-  s1, s2: wString;
+  s1, s2: waString;
   l1, l2: int;
   res: int;
 begin
   if (doTrim) then begin
     //
-    s1 := unaUtils.trimS(str1);
-    s2 := unaUtils.trimS(str2);
+    s1 := trimS(str1);
+    s2 := trimS(str2);
   end
   else begin
     //
@@ -6112,7 +5882,7 @@ begin
       if (LOCALE_SYSTEM_DEFAULT = locale) then
 	locale := MAKELCID(MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US), SORT_DEFAULT);
       //
-      res := CompareStringW(locale, NORM_IGNORECASE, pwChar(s1), l1, pwChar(s2), l2);
+      res := CompareStringW(locale, NORM_IGNORECASE, pwChar(wString(s1)), l1, pwChar(wString(s2)), l2);
       case (res) of
 
 	CSTR_EQUAL:
@@ -6138,17 +5908,7 @@ begin
     result := (1 > l1) and (1 > l2);	// same only if both are empty
 end;
 
-{$ELSE }
-
-function sameString(const str1, str2: aString; doTrim: bool): bool;
-begin
-  if (doTrim) then
-    result := (lowerCase(trimS(str1)) = lowerCase(trimS(str2)))
-  else
-    result := (lowerCase(str1) = lowerCase(str2));
-end;
-
-{$ENDIF __BEFORE_DC__ }
+{$ENDIF __AFTER_D5__ }
 
 
 // --  --
@@ -6182,10 +5942,10 @@ begin
   end;
 end;
 
-{$IFDEF __BEFORE_DC__ }
+{$IFDEF __AFTER_D5__ }
 
 // --  --
-function adjust(const value: wString; len: int; fill: wChar; left: bool; truncate: bool): wString;
+function adjust(const value: waString; len: int; fill: waChar; left: bool; truncate: bool): waString;
 begin
   len := abs(len);
   //
@@ -6215,40 +5975,8 @@ begin
   end;
 end;
 
-{$ELSE }
+{$ENDIF __AFTER_D5__ }
 
-// --  --
-function adjust(const value: aString; len: int; fill: aChar; left: bool; truncate: bool): aString;
-begin
-  len := abs(len);
-  //
-  // check if we need to add some chars
-  if (length(value) < len) then begin
-    //
-    if (left) then
-      // add filling at left
-      result := padChar(fill, len - length(value)) + value
-    else
-      // add filling at right
-      result := value + padChar(fill, len - length(value));
-  end
-  else
-    // nothing to adjust
-    result := value;
-  //
-  // check if we need to truncate the result
-  if (truncate and (length(result) > len)) then begin
-    //
-    if (left) then
-      // cut from the left
-      result := copy(result, length(result) - len + 1, length(result))
-    else
-      // cut from the right
-      result := copy(result, 1, len);
-  end;
-end;
-
-{$ENDIF __BEFORE_DC__ }
 
 // --  --
 function padChar(pad: char; len: unsigned): string;
@@ -8375,715 +8103,6 @@ begin
 end;
 
 // --  --
-procedure mfill16(mem: pointer; count: unsigned; value: uint16);
-begin
-  asm
-	push	edi
-	//
-	mov	edi, mem
-	mov	ax, value
-	mov	ecx, count
-	//
-  @loop:
-	stosw
-	loop	@loop
-	//
-	pop	edi
-  end;
-end;
-
-
-{$IFDEF UNAUTILS_MEM_USE_HEAP_CALLS }
-var
-  g_heap: tHandle;
-{$ENDIF UNAUTILS_MEM_USE_HEAP_CALLS }
-
-// --  --
-function malloc(size: unsigned; doFill: bool; fill: byte): pointer;
-begin
-  if (0 < size) then begin
-    //
-{$IFDEF UNAUTILS_MEM_USE_HEAP_CALLS }
-    result := HeapAlloc(g_heap, HEAP_GENERATE_EXCEPTIONS, size);
-{$ELSE }
-    getMem(result, size);
-{$ENDIF UNAUTILS_MEM_USE_HEAP_CALLS }
-    //
-    if (nil <> result) then begin
-      //
-    {$IFDEF LOG_UNAUTILS_MALLOCS }
-      logMessage('MA: ' + adjust(int2str(size), 6) + ' -> ' + adjust(int2str(unsigned(result), 16), 8), c_logModeFlags_noOL or g_infoLogMessageFlags);
-    {$ENDIF LOG_UNAUTILS_MALLOCS }
-      //
-{$IFDEF UNAUTILS_DEBUG_MEM }
-      //
-      EnterCriticalSection(g_memLock);
-      try
-	//inc(g_allocMemSize, size);
-	asm
-	  // try to locate empty spot in array
-	  sub	ecx, ecx		// value
-	  lea	eax, g_allocMemPtr	// buf
-	  mov	edx, g_allocMemCount	// count
-	  call	mscand
-	  or	eax, eax
-	  jz	@@doAdd
-	  //
-	  // we have found a spot, put new ptr there
-	  sub	eax, offset g_allocMemPtr
-	  mov	ecx, eax
-	  //
-	  jmp	@@put
-    @@doAdd:
-	  //
-	  mov	ecx, 1
-     lock xadd	[g_allocMemCount], ecx	// temp <= ecx + [g_allocMemCount]
-					  // ecx <= [g_allocMemCount]
-					  // [g_allocMemCount] <= temp
-	  //
-	  cmp	ecx, c_maxAllocEntries
-	  jae	@@done	// mo more space in array
-	  //
-	  shl	ecx, 2	// convert index to offset
-    @@put:
-	  mov	eax, result
-	  mov	edx, size
-	  //
-	  mov	dword ptr g_allocMemPtr[ecx], eax	// ptr
-	  mov	dword ptr g_allocMemSz [ecx], edx	// size
-    @@done:
-	  mov	edx, size
-    lock  xadd	[g_allocMemSize], edx
-	  //
-	end;
-	//
-      finally
-	LeaveCriticalSection(g_memLock);
-      end;
-      //
-{$ENDIF UNAUTILS_DEBUG_MEM }
-      //
-      if (doFill) then
-	fillChar(result^, size, fill and $FF);
-    end;
-  end
-  else
-    result := nil;
-end;
-
-// --  --
-function malloc(size: unsigned; data: pointer): pointer;
-begin
-  result := malloc(size);
-  //
-  if ((nil <> result) and (nil <> data) and (0 < size)) then
-    move(data^, result^, size);
-end;
-
-{$IFDEF UNAUTILS_DEBUG_MEM }
-
-// --  --
-function getAllocSize(p: pointer): unsigned; assembler;
-asm
-	mov	ecx, eax		// value
-	lea	eax, g_allocMemPtr	// buf
-	mov	edx, g_allocMemCount	// count
-	call	mscand
-	sub	ecx, ecx	// assume zero size if not found
-	or	eax, eax
-	jz	@@notFound
-	//
-	sub	eax, offset g_allocMemPtr // get offset
-	mov	ecx, dword ptr g_allocMemSz[eax]
-	jmp	@@done
-	//
-@@notFound:
-	mov	ecx, -1
-	mov	eax, ecx
-@@done:
-	xchg	eax, ecx
-end;
-
-{$ENDIF UNAUTILS_DEBUG_MEM }
-
-//var
-//  g_inRM: bool;
-
-// --  --
-procedure rm(var p: pointer; size: int);
-{$IFDEF LOG_UNAUTILS_MALLOCS }
-var
-  pbefore: pointer;
-  s: string;
-{$ENDIF LOG_UNAUTILS_MALLOCS }
-begin
-{$IFDEF LOG_UNAUTILS_MALLOCS }
-  pbefore := p;
-{$ENDIF LOG_UNAUTILS_MALLOCS }
-  //
-{$IFDEF UNAUTILS_MEM_USE_HEAP_CALLS }
-  //
-  if (nil = p) then begin
-    //
-    if (0 < size) then
-      p := HeapAlloc(g_heap, HEAP_GENERATE_EXCEPTIONS, size);
-  end
-  else begin
-    //
-    if (0 < size) then
-      p := HeapReAlloc(g_heap, HEAP_GENERATE_EXCEPTIONS, p, size)
-    else begin
-      //
-      HeapFree(g_heap, HEAP_GENERATE_EXCEPTIONS, p);
-      p := nil;
-    end;
-  end;
-  //
-{$ELSE }
-  reallocMem(p, size);
-{$ENDIF UNAUTILS_MEM_USE_HEAP_CALLS }
-  //
-{$IFDEF LOG_UNAUTILS_MALLOCS }
-  if (nil <> pbefore) then
-    s := 'RM: ' + adjust(int2str(unsigned(pbefore), 16), 8) + ' / ' + adjust('?', 6) + ' -> ' + adjust(int2str(size), 6) + ' / ' + adjust(int2str(unsigned(p), 16), 8)
-  else
-    s := 'RM: ' + adjust(int2str(unsigned(pbefore), 16), 8) + ' / ' + adjust(int2str(0), 6) +                     ' -> ' + adjust(int2str(size), 6) + ' / ' + adjust(int2str(unsigned(p), 16), 8);
-  //
-  logMessage(s, c_logModeFlags_noOL or g_infoLogMessageFlags);
-  //
-{$ENDIF LOG_UNAUTILS_MALLOCS }
-end;
-
-
-procedure mrealloc(var data; newSize: unsigned);
-begin
-  rm(pointer(data), newSize);
-end;
-
-(*
-
-// --  --
-{$IFDEF __AFTER_D9__ }	// Delphi 2006 or later
-
-// Delphi 2006 and later use new smart MM, so use it by default
-
-function mrealloc(var data; newSize: unsigned): pointer; assembler;
-asm
-	// IN:
-	//   	EAX = @data
-	//   	EDX = newSize
-	//
-	// OUT:
-	//	EAX = pointer
-	//
-{$IFDEF UNAUTILS_DEBUG_MEM }
-	//
-	push	ebx
-	push	esi
-	push	edi
-	//
-	mov	esi, eax
-	mov	ebx, edx
-	//
-	push	offset g_memLock
-	call	EnterCriticalSection
-	//
-	// check if data is not NIL
-	mov	edi, -1
-	mov	ecx, [esi]	// ECX = pointer(data)
-	or	ecx, ecx
-	je	@@rm	// data = nil
-	//
-	mov	eax, [esi]
-	call	getAllocSize
-	cmp	eax, edi
-	mov	edi, ecx
-	je	@@rm
-	//
-	neg	eax
-  lock 	xadd	[g_allocMemSize], eax
-	//
-@@rm:
-	mov	edx, ebx	// restore size
-	mov	eax, esi        // restore data
-{$ELSE }
-	push	eax
-{$ENDIF UNAUTILS_DEBUG_MEM }
-	call 	rm
-{$IFDEF UNAUTILS_DEBUG_MEM }
-	mov	eax, [esi]
-	mov	esi, eax
-	//
-	cmp	edi, -1
-	je	@@skipZ
-	//
-	sub	ecx, ecx
-	mov	dword ptr g_allocMemPtr[edi], ecx	// zero ptr
-	mov	dword ptr g_allocMemSz [edi], ecx	// zero sz
-	//
-@@skipZ:
-	or	eax, eax
-	jz	@@exit	// new ptr is nil
-	//
-@@tryAdd:
-	//
-	// try to locate empty spot in array
-	sub	ecx, ecx		// value
-	lea	eax, g_allocMemPtr	// buf
-	mov	edx, g_allocMemCount	// count
-	call	mscand
-	or	eax, eax
-	jz	@@doAdd
-	//
-	// we have found a spot, put new ptr there
-	sub	eax, offset g_allocMemPtr
-	mov	ecx, eax
-	//
-	jmp	@@put
-	//
-@@doAdd:
-	//
-	mov	ecx, 1
-   lock xadd	[g_allocMemCount], ecx	// temp <= ecx + [g_allocMemCount]
-					// ecx <= [g_allocMemCount]
-					// [g_allocMemCount] <= temp
-	//
-	cmp	ecx, c_maxAllocEntries
-	jae	@@done		// mo more space in array
-	//
-	shl 	ecx, 2		// convert index to offset
-@@put:
-	mov	dword ptr g_allocMemPtr[ecx], esi	// ptr
-	mov	dword ptr g_allocMemSz [ecx], ebx	// size
-	//
-@@done:
-  lock	xadd	[g_allocMemSize], ebx
-	//
-@@exit:
-	push	offset g_memLock
-	call	LeaveCriticalSection
-	//
-	mov	eax, esi
-	//
-	pop	edi
-	pop	esi
-	pop	ebx
-{$ELSE }
-	pop	ecx
-	{$IFDEF FPC }
-	mov	eax, [{$IFDEF CPU64 }rcx{$ELSE }ecx{$ENDIF CPU64 }]
-	{$ELSE }
-	mov	eax, [ecx]
-	{$ENDIF FPC }
-{$ENDIF UNAUTILS_DEBUG_MEM }
-end;
-
-{$ELSE }
-
-// Delphi 2005 and earlier use strange MM, so help it to be a little smarter
-
-function mrealloc(var data; newSize: unsigned): pointer; assembler;
-asm
-	// IN:
-	//	EAX = @data
-	//	EDX = newSize
-
-	// OUT:
-	//	result = EAX = new pointer
-
-	//  newSize := ((newSize + 511) shr 9) shl 9
-	add	edx, 511
-	shr	edx, 9
-	shl 	edx, 9
-
-	//
-	or	edx, edx
-	// save eax
-	mov	ecx, eax
-	je	@@bother	// if newSize = 0
-
-	mov	ecx, eax
-	mov	ecx, [ecx]	// ECX = pointer(data)
-	or	ecx, ecx
-	// save eax
-	mov	ecx, eax
-	je	@@bother	// or data = nil
-
-	// check if realloc is really required
-
-	mov	eax, [eax]	// EAX = pointer(data)
-
-	//
-	// get current size allocated
-	// NOTE: THE CODE BELOW DEPENDS ON GETMEM.INC IMPLEMENATION!
-	//       (WHICH SEEMS TO BE NOT CHANGED SINCE DELPHI 2 UP TO DELPHI 2005)
-	//
-	sub	eax, 4
-	mov	eax, [eax]
-	and	eax, $7FFFFFFC
-	sub	eax, 4
-
-	// check if new size is the same as allocated
-	// for some reason Borland implementation did not perform this check
-	cmp	eax, edx
-
-	// restore @data
-	mov	eax, ecx
-
-	je	@@noBother	// skip reallocMem call
-
-  @@bother:
-	// reallocMem(pointer(data), newSize)
-	//
-	// due to "smart" implementation of reallocMem, it is not possible to call it directly
-	//
-	push	ecx
-	call	rm
-	pop	ecx
-
-  @@noBother:
-	// result = [ecx]
-	mov	eax, [ecx]
-end;
-
-{$ENDIF __AFTER_D9__ }
-
-*)
-
-// --  --
-function mcompare(p1, p2: pointer; size: unsigned): bool; assembler;
-asm
-	push    esi
-	push    edi
-
-	mov     esi, p1
-	mov     edi, p2
-	mov     edx, ecx	// size
-	xor     eax, eax	// false
-
-	and     edx, 3		// last 0..3 bytes (000, 001, 010, 011)
-	shr     ecx, 1		// div 2
-	shr     ecx, 1		// div 2
-
-	repe    cmpsd		// compare dwords
-	jne     @@exit
-
-	mov     ecx, edx	// number of last 0..3 bytes
-	repe    cmpsb		// compare bytes
-	jne     @@exit
-
-	inc     eax  	// true
-
-@@exit: pop     edi
-	pop     esi
-end;
-
-// --  --
-function mscanb(buf: pointer; count: unsigned; value: uint8): pointer; assembler;
-{
-	IN:	EAX = buf
-		EDX = count
-		ECX = value
-	OUT:
-		EAX = result
-}
-asm
-	or	eax, eax
-	je	@exit
-
-	push	edi
-	mov	edi, eax
-	mov	eax, ecx
-	mov	ecx, edx
-
-	// cld			it looks to be assumed
-	or	edi, edi	// reset ZF
-	jecxz	@skip
-
-	repne	scasb
-  @skip:
-	mov	eax, ecx	// ecx will be 0 if nothing was found
-	jne	@none
-
-	mov	eax, edi
-	dec	eax
-  @none:
-	pop	edi
-  @exit:
-end;
-
-// --  --
-function mscanw(buf: pointer; count: unsigned; value: uint16): pointer; assembler;
-{
-	IN:	EAX = buf
-		EDX = count
-		ECX = value
-	OUT:
-		EAX = result
-}
-asm
-	or	eax, eax
-	je	@exit
-
-	test	eax, $01	// chek proper alingment
-	jz	@OK
-
-	or	edx, edx	// zero lenght?
-	jnz	@OK
-
-  @notOK:
-	sub	eax, eax
-	jmp	@exit
-
-  @OK:
-	or	edx, edx	// zero lenght?
-	jz	@notOK
-
-	push	edi
-	mov	edi, eax
-	mov	eax, ecx
-	mov	ecx, edx
-
-	// cld			assumed
-	or	edi, edi	// reset ZF
-	jecxz	@skip
-
-	repne	scasw
-  @skip:
-	mov	eax, ecx        // ecx will be 0 if nothing was found
-	jne	@none
-
-	mov	eax, edi
-	dec	eax
-	dec	eax
-  @none:
-	pop	edi
-  @exit:
-end;
-
-// --  --
-function mscand(buf: pointer; count: unsigned; value: uint32): pointer; assembler;
-{
-	IN:	EAX = buf
-		EDX = count
-		ECX = value
-	OUT:
-		EAX = result
-}
-asm
-	or	eax, eax
-	je	@exit
-
-	test	eax, $03	// chek proper alingment
-	jz	@OK
-
-  @notOK:
-	sub	eax, eax
-	jmp	@exit
-
-  @OK:
-	or	edx, edx	// zero count?
-	jz	@notOK
-
-	push	edi
-	mov	edi, eax	// buf
-	mov	eax, ecx	// value
-	mov	ecx, edx	// count
-
-	// cld			// assumed
-	or	edi, edi	// reset ZF
-	jecxz	@skip
-
-	repne	scasd
-  @skip:
-	mov	eax, ecx	// ecx will be 0 if nothing was found
-	jne	@none
-
-	mov	eax, edi
-	sub	eax, 4
-  @none:
-	pop	edi
-
-  @exit:
-end;
-
-// --  --
-function mscanq(buf: pointer; count: unsigned; const value: int64): pointer;
-var
-  bufd: pUint32;
-  maxBuf: UIntPtr;
-begin
-  result := nil;
-  //
-  if ((0 < count) and (nil <> buf)) then begin
-    //
-    bufd := buf;
-    maxBuf := UIntPtr(bufd) + count shl 3;
-    repeat
-      //
-  {
-    bytes:  [00] [01] [02] [03] [04] [05] [06] [07] [08] [09] [0A] [0B] [0C] [0D] [0E] [0F]
-
-    words:  [00.....] [01.....] [02.....] [03.....] [04.....] [05.....] [06.....] [07.....]
-
-   dwords:  [00...............] [01...............] [02...............] [03...............]
-
-   qwords:  [00...................................] [01...................................]
-
-	     ^                   ^                   ^
-	     |                   |                   |
-	     n_bytes  = 16       n_bytes  = 12       n_bytes  = 8
-	     n_words  = 8        n_words  = 6        n_words  = 4
-	     n_dwords = 4        n_dwords = 3        n_dwords = 2
-	     n_qwords = 2        n_qwords = X        n_qwords = 1
-  }
-      //
-      result := mscand(bufd, count shl 1 - 1, uint32(value));
-      if (nil <> result) then begin
-	//
-	if (0 = ((UIntPtr(result) - UIntPtr(bufd)) and $07)) then begin
-	  //
-	  bufd := result;
-	  inc(bufd);
-	  // found first part, lets check if next dword matches
-	  if (bufd^ = uint32(value shr 32)) then
-	    // found, exit
-	    break
-	  else
-	    // skip to next qword
-	    result := nil;	// not found yet
-	  //
-	end
-	else begin
-	  //
-	  // delta is not qword aligned, align to next qword
-	  bufd := result;
-	  result := nil;
-	end;
-      end
-      else
-	break;	// not found
-      //
-      inc(bufd);
-      count := (maxBuf - UIntPtr(bufd)) shr 3;
-      //
-    until (1 > count);
-  end;
-end;
-
-// --  --
-function mscanbuf(buf: pointer; bufSize: unsigned; value: pointer; valueLen: unsigned): pointer;
-var
-  offs: unsigned;
-  c: unsigned;
-begin
-  result := nil;
-  //
-  if ((0 < bufSize) and (0 < valueLen)) then begin
-    //
-    if (1 = valueLen) then
-      result := mscanb(buf, bufSize, pArray(value)[0])
-    else begin
-      //
-      offs := 0;
-      repeat
-	//
-	while ((offs < bufSize) and (pArray(buf)[offs] <> pArray(value)[0])) do
-	  inc(offs);
-	//
-	if ((offs < bufSize) and (pArray(buf)[offs] = pArray(value)[0])) then begin
-	  //
-	  c := 1;
-	  inc(offs);
-	  //
-	  while ((offs < bufSize) and (c < valueLen) and (pArray(buf)[offs] = pArray(value)[c])) do begin
-	    //
-	    inc(offs);
-	    inc(c);
-	  end;
-	  //
-	  if ((offs <= bufSize) and (c = valueLen)) then begin
-	    //
-	    result := @pArray(buf)[int(offs) - int(valueLen)];
-	    break;
-	  end;
-	end;
-	//
-      until (offs >= bufSize);
-      //
-    end;
-  end;
-end;
-
-// --  --
-procedure mswapbuf16(buf: pointer; len: int);
-begin
-    asm
-{$IFDEF CPU64 }
-	push	ecx
-	push	esi
-
-	mov	esi, buf
-	mov	ecx, len
-
-  @loophere:
-	cmp	ecx, 2
-	jb	@stoploop
-
-	mov	ax, [rsi]
-	mov	ax, [rsi]
-	xchg	al, ah
-	mov	[rsi], ax
-	mov	[rsi], ax
-	inc	esi
-	inc	esi
-	dec	ecx
-	dec	ecx
-	jmp	@loophere
-
-  @stoploop:
-	pop	esi
-	pop	ecx
-{$ELSE }
-	push	ecx
-	push	esi
-
-	mov	esi, buf
-	mov	ecx, len
-
-  @loophere:
-	cmp	ecx, 2
-	jb	@stoploop
-
-	mov	ax, [esi]
-	mov	ax, [esi]
-	xchg	al, ah
-	mov	[esi], ax
-	mov	[esi], ax
-	inc	esi
-	inc	esi
-	dec	ecx
-	dec	ecx
-	jmp	@loophere
-
-  @stoploop:
-	pop	esi
-	pop	ecx
-{$ENDIF CPU64 }
-    end;
-end;
-
-// --  --
-procedure freeAndNil(var objRef);
-var
-  ref: tObject;
-begin
-  ref := tObject(objRef);
-  pointer(objRef) := nil;
-  ref.free();
-end;
-
-// --  --
 function waitForObject(handle: tHandle; timeout: unsigned): bool;
 begin
   result := (WAIT_OBJECT_0 = WaitForSingleObject(handle, timeout));
@@ -9828,18 +8847,22 @@ type
   // --  --
   pCallStack = ^tCallStack;
   tCallStack = packed record
-    // NOTE: fillCallStack() has hard-coded offsets in this struct!
+    // NOTE: __fillCallStack() has hard-coded offsets in this struct!
     r_threadId: unsigned;
     r_callStack: array[0..maxCallStackDepth - 1] of pointer;
+    r_size: int;
   end;
 
 var
   // --  --
-  oldMM: tMemoryManager;
+{$IFDEF CHECK_MEMORY_LEAKS_UNA_ONLY }
+{$ELSE }
+  oldMM: {$IFDEF __AFTER_DA__ }tMemoryManagerEx{$ELSE }tMemoryManager{$ENDIF __AFTER_DA__ };
 
   gmc: int64;
   rmc: int64;
   fmc: int64;
+{$ENDIF CHECK_MEMORY_LEAKS_UNA_ONLY }
 
   leakPointersArray : array[0..maxLeakEntries - 1] of pointer;
   leakCallStackArray: array[0..maxLeakEntries - 1] of tCallStack;
@@ -9849,14 +8872,14 @@ var
   g_maxStackSize: unsigned;
 
 // --  --
-procedure fillCallStack(entryIndex: int); assembler;
+procedure __fillCallStack(entryIndex: int); assembler;
 asm
 	push	edi
 	push	esi
 	push	ebx
 
 	//
-	mov	ecx, 4 + 4 * maxCallStackDepth 	// sizeOf(tCallStack)
+	mov	ecx, 4 + 4 + 4 * maxCallStackDepth 	// ecx = sizeOf(tCallStack)
 	imul	eax, ecx	// assuming EDX will be 0
 
 	lea	edi, leakCallStackArray
@@ -9942,68 +8965,22 @@ asm
 end;
 
 // --  --
-function _getMem(size: integer): pointer;
+procedure __reallocML(p: unsigned; newValue: unsigned; size: int);
 var
-  ptr: pInt;
+  ptr: pUInt;
   index: int;
 begin
-  inc(gmc);
-  result := oldMM.getMem(size);
-  //
-  ptr := mscand(@leakPointersArray, maxLeakEntries, 0);
+  ptr := mscand(@leakPointersArray, maxLeakEntries, p);
   if (nil <> ptr) then begin
     //
-    ptr^ := int(result);
+    ptr^ := newValue;
     try
       index := (int(ptr) - int(@leakPointersArray)) div sizeOf(leakPointersArray[0]);
       if (0 <= index) then begin
 	//
-	fillCallStack(index);
+	__fillCallStack(index);
 	leakCallStackArray[index].r_threadId := GetCurrentThreadId();
-      end;
-    except
-    end;
-  end
-  else
-    ; // problem: out of entries
-  //
-end;
-
-// --  --
-function _freeMem(p: pointer): integer;
-var
-  ptr: pInt;
-begin
-  inc(fmc);
-  result := oldMM.freeMem(p);
-  //
-  ptr := mscand(@leakPointersArray, maxLeakEntries, unsigned(p));
-  if (nil <> ptr) then begin
-    ptr^ := 0;
-  end
-  else
-    ; // problem: no ptr was found
-end;
-
-// --  --
-function _reallocMem(p: pointer; size: integer): pointer;
-var
-  ptr: pInt;
-  index: int;
-begin
-  inc(rmc);
-  result := oldMM.reallocMem(p, size);
-  //
-  ptr := mscand(@leakPointersArray, maxLeakEntries, unsigned(p));
-  if (nil <> ptr) then begin
-    //
-    ptr^ := int(result);
-    try
-      index := (int(ptr) - int(@leakPointersArray)) div sizeOf(leakPointersArray[0]);
-      if (0 <= index) then begin
-	//
-	fillCallStack(index);
-	leakCallStackArray[index].r_threadId := GetCurrentThreadId();
+	leakCallStackArray[index].r_size := size;
       end;
     except
     end;
@@ -10012,20 +8989,73 @@ begin
     ;// not our ptr
 end;
 
+
+procedure __freeML(p: unsigned);
+var
+  ptr: pInt;
+begin
+  ptr := mscand(@leakPointersArray, maxLeakEntries, unsigned(p));
+  if (nil <> ptr) then begin
+    ptr^ := 0;
+  end
+  else
+    ; // problem: no ptr was found
+end;
+
+{$IFDEF CHECK_MEMORY_LEAKS_UNA_ONLY }
+{$ELSE }
+
+// --  --
+function _getMem(size: integer): pointer;
+begin
+  inc(gmc);
+  result := oldMM.getMem(size);
+  //
+  __reallocML(0, unsigned(result), size);
+end;
+
+// --  --
+function _freeMem(p: pointer): integer;
+begin
+  inc(fmc);
+  result := oldMM.freeMem(p);
+  //
+  __freeML(unsigned(p));
+end;
+
+// --  --
+function _reallocMem(p: pointer; size: integer): pointer;
+begin
+  inc(rmc);
+  result := oldMM.reallocMem(p, size);
+  //
+  __reallocML(unsigned(p), unsigned(result), size);
+end;
+
+
 const
   // --  --
-  ourMM: tMemoryManager = (
+  ourMM: {$IFDEF __AFTER_DA__ }tMemoryManagerEx{$ELSE }tMemoryManager{$ENDIF __AFTER_DA__ } = (
     getMem: _getMem;
     freeMem: _freeMem;
-    reallocMem: _reallocMem
+    reallocMem: _reallocMem;
+{$IFDEF __AFTER_DA__ }
+    allocMem: SysAllocMem;
+    RegisterExpectedMemoryLeak: SysRegisterExpectedMemoryLeak;
+    UnregisterExpectedMemoryLeak: SysUnregisterExpectedMemoryLeak
+{$ENDIF __AFTER_DA__ }
   );
+
+{$ENDIF CHECK_MEMORY_LEAKS_UNA_ONLY }
+
 
 // --  --
 procedure mleaks_start(maxStackSize: unsigned);
 begin
   if (not g_isStarted) then begin
     //
-    logMessage('--- MLeaks detection started ---');
+    fillChar(leakPointersArray,  sizeOf(leakPointersArray),  #0);
+    fillChar(leakCallStackArray, sizeOf(leakCallStackArray), #0);
     //
     g_isStarted := true;
     //
@@ -10040,11 +9070,11 @@ begin
     //
     g_maxStackSize := maxStackSize;
     //
-    fillChar(leakPointersArray,  sizeOf(leakPointersArray),  #0);
-    fillChar(leakCallStackArray, sizeOf(leakCallStackArray), #0);
-    //
+{$IFDEF CHECK_MEMORY_LEAKS_UNA_ONLY }
+{$ELSE }
     getMemoryManager(oldMM);
     setMemoryManager(ourMM);
+{$ENDIF CHECK_MEMORY_LEAKS_UNA_ONLY }
   end;
 end;
 
@@ -10055,11 +9085,15 @@ var
   j: unsigned;
   pter: unsigned;
   size: unsigned;
-  s: aString;
+  s: string;
 begin
   if (g_isStarted) then begin
+    //
+{$IFDEF CHECK_MEMORY_LEAKS_UNA_ONLY }
+{$ELSE }
     // restore old manager
     setMemoryManager(oldMM);
+{$ENDIF CHECK_MEMORY_LEAKS_UNA_ONLY }
     //
     logMessage('--- MLeaks detection stopped ---');
     //
@@ -10073,6 +9107,7 @@ begin
 	if (nil <> leakPointersArray[i]) then begin
 	  //
 	  pter := unsigned(leakPointersArray[i]);
+	  {
 	  asm
 	    push	eax
 
@@ -10086,8 +9121,10 @@ begin
 
 	    pop		eax
 	  end;
+	  }
+	  size := leakCallStackArray[i].r_size;
 	  //
-	  s := 'TID=' + adjust(int2str(leakCallStackArray[i].r_threadId, 16), 4) + '; ptr=$' + adjust(int2str(pter, 16), 8, '0') + '/' + int2str(size, 10, 3) + ' bytes / Stack: ';
+	  s := 'TID=' + adjust(int2str(leakCallStackArray[i].r_threadId, 16), 4) + '; ptr=$' + adjust(int2str(pter, 16), 8, '0') + '/' + adjust(int2str(size, 10, 3), 4) + ' bytes / Stack: ';
 	  //
 	  j := 0;
 	  while (j < maxCallStackDepth) do begin
@@ -10115,6 +9152,544 @@ begin
 end;
 
 {$ENDIF CHECK_MEMORY_LEAKS }
+
+
+
+// --  --
+procedure mfill16(mem: pointer; count: unsigned; value: uint16);
+begin
+  asm
+	push	edi
+	//
+	mov	edi, mem
+	mov	ax, value
+	mov	ecx, count
+	//
+  @loop:
+	stosw
+	loop	@loop
+	//
+	pop	edi
+  end;
+end;
+
+
+{$IFDEF UNAUTILS_MEM_USE_HEAP_CALLS }
+var
+  g_heap: tHandle;
+{$ENDIF UNAUTILS_MEM_USE_HEAP_CALLS }
+
+// --  --
+function malloc(size: unsigned; doFill: bool; fill: byte): pointer;
+begin
+  if (0 < size) then begin
+    //
+{$IFDEF UNAUTILS_MEM_USE_HEAP_CALLS }
+    result := HeapAlloc(g_heap, HEAP_GENERATE_EXCEPTIONS, size);
+{$ELSE }
+    getMem(result, size);
+{$ENDIF UNAUTILS_MEM_USE_HEAP_CALLS }
+    //
+    if (nil <> result) then begin
+      //
+    {$IFDEF LOG_UNAUTILS_MALLOCS }
+      logMessage('MA: ' + adjust(int2str(size), 6) + ' -> ' + adjust(int2str(unsigned(result), 16), 8), c_logModeFlags_noOL or g_infoLogMessageFlags);
+    {$ENDIF LOG_UNAUTILS_MALLOCS }
+      //
+{$IFDEF UNAUTILS_DEBUG_MEM }
+      //
+      EnterCriticalSection(g_memLock);
+      try
+	//inc(g_allocMemSize, size);
+	asm
+	  // try to locate empty spot in array
+	  sub	ecx, ecx		// value
+	  lea	eax, g_allocMemPtr	// buf
+	  mov	edx, g_allocMemCount	// count
+	  call	mscand
+	  or	eax, eax
+	  jz	@@doAdd
+	  //
+	  // we have found a spot, put new ptr there
+	  sub	eax, offset g_allocMemPtr
+	  mov	ecx, eax
+	  //
+	  jmp	@@put
+    @@doAdd:
+	  //
+	  mov	ecx, 1
+     lock xadd	[g_allocMemCount], ecx	// temp <= ecx + [g_allocMemCount]
+					  // ecx <= [g_allocMemCount]
+					  // [g_allocMemCount] <= temp
+	  //
+	  cmp	ecx, c_maxAllocEntries
+	  jae	@@done	// mo more space in array
+	  //
+	  shl	ecx, 2	// convert index to offset
+    @@put:
+	  mov	eax, result
+	  mov	edx, size
+	  //
+	  mov	dword ptr g_allocMemPtr[ecx], eax	// ptr
+	  mov	dword ptr g_allocMemSz [ecx], edx	// size
+    @@done:
+	  mov	edx, size
+    lock  xadd	[g_allocMemSize], edx
+	  //
+	end;
+	//
+      finally
+	LeaveCriticalSection(g_memLock);
+      end;
+      //
+{$ENDIF UNAUTILS_DEBUG_MEM }
+      //
+      if (doFill) then
+	fillChar(result^, size, fill and $FF);
+    end;
+    //
+{$IFDEF CHECK_MEMORY_LEAKS_UNA_ONLY }
+    __reallocML(0, unsigned(result), size);
+{$ENDIF CHECK_MEMORY_LEAKS_UNA_ONLY }
+    //
+  end
+  else
+    result := nil;
+end;
+
+// --  --
+function malloc(size: unsigned; data: pointer): pointer;
+begin
+  result := malloc(size);
+  //
+  if ((nil <> result) and (nil <> data) and (0 < size)) then
+    move(data^, result^, size);
+end;
+
+{$IFDEF UNAUTILS_DEBUG_MEM }
+
+// --  --
+function getAllocSize(p: pointer): unsigned; assembler;
+asm
+	mov	ecx, eax		// value
+	lea	eax, g_allocMemPtr	// buf
+	mov	edx, g_allocMemCount	// count
+	call	mscand
+	sub	ecx, ecx	// assume zero size if not found
+	or	eax, eax
+	jz	@@notFound
+	//
+	sub	eax, offset g_allocMemPtr // get offset
+	mov	ecx, dword ptr g_allocMemSz[eax]
+	jmp	@@done
+	//
+@@notFound:
+	mov	ecx, -1
+	mov	eax, ecx
+@@done:
+	xchg	eax, ecx
+end;
+
+{$ENDIF UNAUTILS_DEBUG_MEM }
+
+// --  --
+procedure rm(var p: pointer; size: int);
+{$IFDEF LOG_UNAUTILS_MALLOCS }
+var
+  pbefore: pointer;
+  s: string;
+{$ENDIF LOG_UNAUTILS_MALLOCS }
+begin
+{$IFDEF LOG_UNAUTILS_MALLOCS }
+  pbefore := p;
+{$ENDIF LOG_UNAUTILS_MALLOCS }
+  //
+{$IFDEF UNAUTILS_MEM_USE_HEAP_CALLS }
+  //
+  try
+    if (nil = p) then begin
+      //
+      if (0 < size) then
+	p := HeapAlloc(g_heap, HEAP_GENERATE_EXCEPTIONS, size);
+    end
+    else begin
+      //
+      if (0 < size) then
+	p := HeapReAlloc(g_heap, HEAP_GENERATE_EXCEPTIONS, p, size)
+      else begin
+	//
+	HeapFree(g_heap, HEAP_GENERATE_EXCEPTIONS, p);
+	p := nil;
+      end;
+    end;
+  except
+  end;
+  //
+{$ELSE }
+  reallocMem(p, size);
+{$ENDIF UNAUTILS_MEM_USE_HEAP_CALLS }
+  //
+{$IFDEF LOG_UNAUTILS_MALLOCS }
+  if (nil <> pbefore) then
+    s := 'RM: ' + adjust(int2str(unsigned(pbefore), 16), 8) + ' / ' + adjust('?', 6) + ' -> ' + adjust(int2str(size), 6) + ' / ' + adjust(int2str(unsigned(p), 16), 8)
+  else
+    s := 'RM: ' + adjust(int2str(unsigned(pbefore), 16), 8) + ' / ' + adjust(int2str(0), 6) +                     ' -> ' + adjust(int2str(size), 6) + ' / ' + adjust(int2str(unsigned(p), 16), 8);
+  //
+  logMessage(s, c_logModeFlags_noOL or g_infoLogMessageFlags);
+  //
+{$ENDIF LOG_UNAUTILS_MALLOCS }
+end;
+
+// --  --
+procedure mrealloc(var data; newSize: unsigned);
+{$IFDEF CHECK_MEMORY_LEAKS_UNA_ONLY }
+var
+  old: pointer;
+{$ENDIF CHECK_MEMORY_LEAKS_UNA_ONLY }
+begin
+{$IFDEF CHECK_MEMORY_LEAKS_UNA_ONLY }
+  old := pointer(data);
+{$ENDIF CHECK_MEMORY_LEAKS_UNA_ONLY }
+  //
+  rm(pointer(data), newSize);
+  //
+{$IFDEF CHECK_MEMORY_LEAKS_UNA_ONLY }
+  __reallocML(unsigned(old), unsigned(data), newSize);
+{$ENDIF CHECK_MEMORY_LEAKS_UNA_ONLY }
+end;
+
+// --  --
+function mcompare(p1, p2: pointer; size: unsigned): bool; assembler;
+asm
+	push    esi
+	push    edi
+
+	mov     esi, p1
+	mov     edi, p2
+	mov     edx, ecx	// size
+	xor     eax, eax	// false
+
+	and     edx, 3		// last 0..3 bytes (000, 001, 010, 011)
+	shr     ecx, 1		// div 2
+	shr     ecx, 1		// div 2
+
+	repe    cmpsd		// compare dwords
+	jne     @@exit
+
+	mov     ecx, edx	// number of last 0..3 bytes
+	repe    cmpsb		// compare bytes
+	jne     @@exit
+
+	inc     eax  	// true
+
+@@exit: pop     edi
+	pop     esi
+end;
+
+// --  --
+function mscanb(buf: pointer; count: unsigned; value: uint8): pointer; assembler;
+{
+	IN:	EAX = buf
+		EDX = count
+		ECX = value
+	OUT:
+		EAX = result
+}
+asm
+	or	eax, eax
+	je	@exit
+
+	push	edi
+	mov	edi, eax
+	mov	eax, ecx
+	mov	ecx, edx
+
+	// cld			it looks to be assumed
+	or	edi, edi	// reset ZF
+	jecxz	@skip
+
+	repne	scasb
+  @skip:
+	mov	eax, ecx	// ecx will be 0 if nothing was found
+	jne	@none
+
+	mov	eax, edi
+	dec	eax
+  @none:
+	pop	edi
+  @exit:
+end;
+
+// --  --
+function mscanw(buf: pointer; count: unsigned; value: uint16): pointer; assembler;
+{
+	IN:	EAX = buf
+		EDX = count
+		ECX = value
+	OUT:
+		EAX = result
+}
+asm
+	or	eax, eax
+	je	@exit
+
+	test	eax, $01	// chek proper alingment
+	jz	@OK
+
+	or	edx, edx	// zero lenght?
+	jnz	@OK
+
+  @notOK:
+	sub	eax, eax
+	jmp	@exit
+
+  @OK:
+	or	edx, edx	// zero lenght?
+	jz	@notOK
+
+	push	edi
+	mov	edi, eax
+	mov	eax, ecx
+	mov	ecx, edx
+
+	// cld			assumed
+	or	edi, edi	// reset ZF
+	jecxz	@skip
+
+	repne	scasw
+  @skip:
+	mov	eax, ecx        // ecx will be 0 if nothing was found
+	jne	@none
+
+	mov	eax, edi
+	dec	eax
+	dec	eax
+  @none:
+	pop	edi
+  @exit:
+end;
+
+// --  --
+function mscand(buf: pointer; count: unsigned; value: uint32): pointer; assembler;
+{
+	IN:	EAX = buf
+		EDX = count
+		ECX = value
+	OUT:
+		EAX = result
+}
+asm
+	or	eax, eax
+	je	@exit
+
+	test	eax, $03	// chek proper alingment
+	jz	@OK
+
+  @notOK:
+	sub	eax, eax
+	jmp	@exit
+
+  @OK:
+	or	edx, edx	// zero count?
+	jz	@notOK
+
+	push	edi
+	mov	edi, eax	// buf
+	mov	eax, ecx	// value
+	mov	ecx, edx	// count
+
+	// cld			// assumed
+	or	edi, edi	// reset ZF
+	jecxz	@skip
+
+	repne	scasd
+  @skip:
+	mov	eax, ecx	// ecx will be 0 if nothing was found
+	jne	@none
+
+	mov	eax, edi
+	sub	eax, 4
+  @none:
+	pop	edi
+
+  @exit:
+end;
+
+// --  --
+function mscanq(buf: pointer; count: unsigned; const value: int64): pointer;
+var
+  bufd: pUint32;
+  maxBuf: UIntPtr;
+begin
+  result := nil;
+  //
+  if ((0 < count) and (nil <> buf)) then begin
+    //
+    bufd := buf;
+    maxBuf := UIntPtr(bufd) + count shl 3;
+    repeat
+      //
+  {
+    bytes:  [00] [01] [02] [03] [04] [05] [06] [07] [08] [09] [0A] [0B] [0C] [0D] [0E] [0F]
+
+    words:  [00.....] [01.....] [02.....] [03.....] [04.....] [05.....] [06.....] [07.....]
+
+   dwords:  [00...............] [01...............] [02...............] [03...............]
+
+   qwords:  [00...................................] [01...................................]
+
+	     ^                   ^                   ^
+	     |                   |                   |
+	     n_bytes  = 16       n_bytes  = 12       n_bytes  = 8
+	     n_words  = 8        n_words  = 6        n_words  = 4
+	     n_dwords = 4        n_dwords = 3        n_dwords = 2
+	     n_qwords = 2        n_qwords = X        n_qwords = 1
+  }
+      //
+      result := mscand(bufd, count shl 1 - 1, uint32(value));
+      if (nil <> result) then begin
+	//
+	if (0 = ((UIntPtr(result) - UIntPtr(bufd)) and $07)) then begin
+	  //
+	  bufd := result;
+	  inc(bufd);
+	  // found first part, lets check if next dword matches
+	  if (bufd^ = uint32(value shr 32)) then
+	    // found, exit
+	    break
+	  else
+	    // skip to next qword
+	    result := nil;	// not found yet
+	  //
+	end
+	else begin
+	  //
+	  // delta is not qword aligned, align to next qword
+	  bufd := result;
+	  result := nil;
+	end;
+      end
+      else
+	break;	// not found
+      //
+      inc(bufd);
+      count := (maxBuf - UIntPtr(bufd)) shr 3;
+      //
+    until (1 > count);
+  end;
+end;
+
+// --  --
+function mscanbuf(buf: pointer; bufSize: unsigned; value: pointer; valueLen: unsigned): pointer;
+var
+  offs: unsigned;
+  c: unsigned;
+begin
+  result := nil;
+  //
+  if ((0 < bufSize) and (0 < valueLen)) then begin
+    //
+    if (1 = valueLen) then
+      result := mscanb(buf, bufSize, pArray(value)[0])
+    else begin
+      //
+      offs := 0;
+      repeat
+	//
+	while ((offs < bufSize) and (pArray(buf)[offs] <> pArray(value)[0])) do
+	  inc(offs);
+	//
+	if ((offs < bufSize) and (pArray(buf)[offs] = pArray(value)[0])) then begin
+	  //
+	  c := 1;
+	  inc(offs);
+	  //
+	  while ((offs < bufSize) and (c < valueLen) and (pArray(buf)[offs] = pArray(value)[c])) do begin
+	    //
+	    inc(offs);
+	    inc(c);
+	  end;
+	  //
+	  if ((offs <= bufSize) and (c = valueLen)) then begin
+	    //
+	    result := @pArray(buf)[int(offs) - int(valueLen)];
+	    break;
+	  end;
+	end;
+	//
+      until (offs >= bufSize);
+      //
+    end;
+  end;
+end;
+
+// --  --
+procedure mswapbuf16(buf: pointer; len: int);
+begin
+    asm
+{$IFDEF CPU64 }
+	push	ecx
+	push	esi
+
+	mov	esi, buf
+	mov	ecx, len
+
+  @loophere:
+	cmp	ecx, 2
+	jb	@stoploop
+
+	mov	ax, [rsi]
+	mov	ax, [rsi]
+	xchg	al, ah
+	mov	[rsi], ax
+	mov	[rsi], ax
+	inc	esi
+	inc	esi
+	dec	ecx
+	dec	ecx
+	jmp	@loophere
+
+  @stoploop:
+	pop	esi
+	pop	ecx
+{$ELSE }
+	push	ecx
+	push	esi
+
+	mov	esi, buf
+	mov	ecx, len
+
+  @loophere:
+	cmp	ecx, 2
+	jb	@stoploop
+
+	mov	ax, [esi]
+	mov	ax, [esi]
+	xchg	al, ah
+	mov	[esi], ax
+	mov	[esi], ax
+	inc	esi
+	inc	esi
+	dec	ecx
+	dec	ecx
+	jmp	@loophere
+
+  @stoploop:
+	pop	esi
+	pop	ecx
+{$ENDIF CPU64 }
+    end;
+end;
+
+// --  --
+procedure freeAndNil(var objRef);
+var
+  ref: tObject;
+begin
+  ref := tObject(objRef);
+  pointer(objRef) := nil;
+  ref.free();
+end;
 
 
 var
@@ -10175,6 +9750,19 @@ initialization
   //
 {$ENDIF CONSOLE_IO }
 
+
+{$IFDEF CHECK_MEMORY_LEAKS }
+  //
+  mleaks_start(300);
+  //
+  logMessage('--- MLeaks detection started ---');
+  //
+  {$IFDEF LOG_UNAUTILS_INFOS }
+  logMessage('unaUtils - memory leaks check is enabled.');
+  {$ENDIF LOG_UNAUTILS_INFOS }
+  //
+{$ENDIF CHECK_MEMORY_LEAKS }
+
   //
 {$IFDEF DEBUG }
   setInfoMessageMode('', nil, {$IFDEF CONSOLE }-1{$ELSE }0{$ENDIF }, 1);
@@ -10187,14 +9775,6 @@ initialization
   //
   logMessage(#13#10'unaUtils - >> initializing >>');
   {$ENDIF LOG_UNAUTILS_INFOS }
-
-  //
-{$IFDEF CHECK_MEMORY_LEAKS }
-  mleaks_start(300);
-  {$IFDEF LOG_UNAUTILS_INFOS }
-  logMessage('unaUtils - memory leaks check is enabled.');
-  {$ENDIF LOG_UNAUTILS_INFOS }
-{$ENDIF CHECK_MEMORY_LEAKS }
 
 {$IFDEF UNA_PROFILE }
   profId_unaUtils_base64encode := profileMarkRegister('unaUtils.base64encode()');

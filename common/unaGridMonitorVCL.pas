@@ -207,7 +207,7 @@ begin
 	f_historyData[i].removeFromEdge(true);	// remove older values first
       //
     finally
-      unlockList(f_historyData[i]{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+      unlockListWO(f_historyData[i]);
     end;
   end;
   //
@@ -478,7 +478,7 @@ begin
 	setItem(count - 1, int(get(count - 1)) + value)
       //
     finally
-      unlockList(f_historyData[index]{$IFDEF DEBUG }, false{$ENDIF DEBUG });
+      unlockListWO(f_historyData[index]);
     end
     else
       f_historyData[index].add(value)

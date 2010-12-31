@@ -823,23 +823,21 @@ type
   {*
 	Different events produced by unaSocks class.
 
-    <PRE>
     unaseServerListen 		- SERVER: server was started
     unaseServerStop		- SERVER: server was stopped
     unaseServerConnect		- SERVER: new client was connected to server
     unaseServerData		- SERVER: new data was received from client
     unaseServerDisconnect	- SERVER: client was disconnected from server (by timeout or socket error for UDP)
 
-    <BR>unaseClientConnect		- CLIENT: client was connected
+    unaseClientConnect		- CLIENT: client was connected
     unaseClientData		- CLIENT: new data was received from server
     unaseClientDisconnect	- CLIENT: client was disconnected from server
 
-    <BR>unaseThreadStartupError	- SERVER: server could not start
+    unaseThreadStartupError	- SERVER: server could not start
 				- CLIENT: client could not connect to server
 
-    <BR>unaseThreadAdjustSocketOptions	- SERVER: adjust socket options created by server (connId is tSocket, data <> nil means "main" socket)
+    unaseThreadAdjustSocketOptions	- SERVER: adjust socket options created by server (connId is tSocket, data <> nil means "main" socket)
 					- CLIENT: adjust socket options created by client (connId is tSocket, data <> nil means "main" socket)
-    </PRE>
 
   }
   unaSocketEvent = (
