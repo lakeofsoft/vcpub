@@ -135,7 +135,7 @@ type
     f_authPass: string;
     f_remotePass: string;
     f_authTakeCare: bool;
-    f_authTM: int64;
+    f_authTM: uint64;
     //
     procedure loadConfig();
     //
@@ -331,7 +331,7 @@ begin
       //
       try
 	if (f_authTakeCare) then
-	  c_memo_remote.lines.add(#13#10 + 'Unauthorized (' + int2str( (10000 - timeElapsed64(f_authTM)) div 1000) + ' seconds left) ' + string(f_delayedStrings[0]))
+	  c_memo_remote.lines.add(#13#10 + 'Unauthorized (' + int2str( (10000 - timeElapsed64U(f_authTM)) div 1000) + ' seconds left) ' + string(f_delayedStrings[0]))
 	else
 	  c_memo_remote.lines.add(#13#10 + f_delayedStrings[0]);
 	//
@@ -351,7 +351,7 @@ begin
       end
       else begin
 	//
-	if (10000 < timeElapsed32(f_authTM)) then
+	if (10000 < timeElapsed32U(f_authTM)) then
 	  ipServer.sendPacket(ipServer.getClientConnId(0{hack, assuming we have only one client)}), cmd_inOutIPPacket_bye); // disconnect client
       end;
       //	  
@@ -685,7 +685,7 @@ begin
   f_authTakeCare := (('' <> f_authPass) and (f_authPass <> f_remotePass));
   //
   if (f_authTakeCare) then
-    f_authTM := timeMark();
+    f_authTM := timeMarkU();
 end;
 
 // --  --

@@ -1250,6 +1250,7 @@ type
     f_onFC: unaLibmpg123_onFormatChange;
     f_noFC: bool;
     f_autoResynch: bool;
+    f_libOK: bool;
     //
     function getProto(): plibmpg123_proto;
     function getDecoder(): string;
@@ -1363,6 +1364,9 @@ type
     {*
     }
     property autoResynch: bool read f_autoResynch write f_autoResynch;
+    {*
+    }
+    property libOK: bool read f_libOK;
   end;
 
 
@@ -1399,11 +1403,7 @@ implementation
 
 
 uses
-  unaUtils
-{$IFDEF __SYSUTILS_H_ }
-  , SysUtils
-{$ENDIF __SYSUTILS_H_ }
-  ;
+  unaUtils;
 
 { utility }
 
@@ -1785,7 +1785,7 @@ begin
       //
       if (0 = f_errorCode) then begin
 	//
-	while (not shouldStop and (0 < f_inStream.getFirstChunkSize())) do begin
+	while (not shouldStop and (0 < f_inStream.firstChunkSize())) do begin
 	  //
 	  size := f_inStream.read(chunk, int(chunkSize));
 	  offset := 0;
@@ -1876,7 +1876,7 @@ begin
 		    done := 0;
 		  //
 		finally
-		  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+		  releaseWO();
 		end;
 		//
 		entered := true;
@@ -1916,7 +1916,7 @@ begin
 		    end;
 		    //
 		  finally
-		    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+		    releaseWO();
 		  end;
 		  //
 		  entered := true;
@@ -2052,8 +2052,12 @@ begin
   inherited;
   //
   close();
-  f_proto.r_mpg123_exit();
-  unloadLibmpg123(f_proto);
+  //
+  if (libOK) then begin
+    //
+    f_proto.r_mpg123_exit();
+    unloadLibmpg123(f_proto);
+  end;
 end;
 
 // --  --
@@ -2073,14 +2077,11 @@ end;
 // --  --
 constructor unaLibmpg123Decoder.create(const libname: string);
 begin
-  if (MPG123_OK <> loadLibmpg123(f_proto, libname)) then
-    abort();
+  f_libOK := (MPG123_OK = loadLibmpg123(f_proto, libname));
   //
-  if (MPG123_OK <> f_proto.r_mpg123_init()) then begin
-    //
+  f_libOK := f_libOK and (MPG123_OK = f_proto.r_mpg123_init());
+  if (not f_libOK) then
     unloadLibmpg123(f_proto);
-    abort();
-  end;
   //
   inherited create();
 end;

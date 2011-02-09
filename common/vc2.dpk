@@ -30,7 +30,7 @@ package
 
 {$R *.res }
 {$R 'vc2ico.res' }
-{$DESCRIPTION 'VC 2.5 components' }
+{$DESCRIPTION 'VC 2.5 components Freeware' }
 {$IMPLICITBUILD OFF }
 {$DEFINE NO_UNA_DESCR }
 

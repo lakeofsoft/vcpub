@@ -388,23 +388,23 @@ type
       Returns current volume of audio signal passing "through" wave device.
       Returned volume range from 0 (silence) to 32768. Scale is linear. Use getLogVolume() method to get volume in logarithmic scale.
 
-      @param channel Channel number to return volume for. Default is 0 (central for mono, left for stereo).
+      @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
     }
-    function getVolume(channel: unsigned = 0): unsigned;
+    function getVolume(channel: unsigned = $FFFFFFFF): unsigned;
     {*
       Returns unchenaged volume of audio signal passing "through" wave device.
       Returned volume range from 0 (silence) to 32768. Scale is linear. Use getLogVolume() method to get volume in logarithmic scale.
 
-      @param channel Channel number to return volume for. Default is 0 (central for mono, left for stereo).
+      @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
     }
-    function getUnVolume(channel: unsigned = 0): unsigned;
+    function getUnVolume(channel: unsigned = $FFFFFFFF): unsigned;
     {*
       Returns current volume of audio signal passing "through" wave device.
       Returned volume range from 0 (silence) to 100. Scale is logarithmic. Use getVolume() method to get volume in linear scale.
 
-      @param channel Channel number to return volume for. Default is 0 (central for mono, left for stereo).
+      @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
     }
-    function getLogVolume(channel: unsigned = 0): unsigned;
+    function getLogVolume(channel: unsigned = $FFFFFFFF): unsigned;
     {*
       Changes the volume of specified channel.
 
@@ -2479,7 +2479,7 @@ begin
   //
   inherited;
   //
-  if (lockNonEmptyList(_providers, true)) then begin
+  if (lockNonEmptyList_r(_providers, true, 1000 {$IFDEF DEBUG }, '.createNewDevice()'{$ENDIF DEBUG })) then begin
     try
       i := 0;
       while (i < _providers.count) do begin

@@ -40,7 +40,7 @@
     <BCC_OptimizeForSpeed>false</BCC_OptimizeForSpeed>
     <Defines>_DEBUG;$(Defines)</Defines>
     <DCC_DebugInfoInExe>true</DCC_DebugInfoInExe>
-    <ILINK_AdditionalOptions>ws2_32.lib</ILINK_AdditionalOptions>
+    <ILINK_AdditionalOptions>w32inet.lib ws2_32.lib</ILINK_AdditionalOptions>
     <ILINK_FullDebugInfo>true</ILINK_FullDebugInfo>
     <BCC_InlineFunctionExpansion>false</BCC_InlineFunctionExpansion>
     <ILINK_DisableIncrementalLinking>true</ILINK_DisableIncrementalLinking>
@@ -87,15 +87,15 @@
            <VersionInfo Name="CodePage">1252</VersionInfo>
          </VersionInfo>
          <VersionInfoKeys>
-           <VersionInfoKeys Name="CompanyName">Lake of Soft, Ltd</VersionInfoKeys>
+           <VersionInfoKeys Name="CompanyName">Lake of Soft</VersionInfoKeys>
            <VersionInfoKeys Name="FileDescription">VC 2.5 C++ Package</VersionInfoKeys>
-           <VersionInfoKeys Name="FileVersion">2.5.2008.07</VersionInfoKeys>
+           <VersionInfoKeys Name="FileVersion">2.5.2011.01</VersionInfoKeys>
            <VersionInfoKeys Name="InternalName">VC2CB07</VersionInfoKeys>
-           <VersionInfoKeys Name="LegalCopyright">Copyrigth (c) 2001-2010 Lake of Soft</VersionInfoKeys>
+           <VersionInfoKeys Name="LegalCopyright">Copyrigth (c) 2001-2011 Lake of Soft</VersionInfoKeys>
            <VersionInfoKeys Name="LegalTrademarks"></VersionInfoKeys>
            <VersionInfoKeys Name="OriginalFilename"></VersionInfoKeys>
            <VersionInfoKeys Name="ProductName">VC components 2.5</VersionInfoKeys>
-           <VersionInfoKeys Name="ProductVersion">2.5.2010.07</VersionInfoKeys>
+           <VersionInfoKeys Name="ProductVersion">2.5.2011.01</VersionInfoKeys>
            <VersionInfoKeys Name="Comments"></VersionInfoKeys>
          </VersionInfoKeys>
          <Debugging>
@@ -128,23 +128,22 @@
     <PackageImport Include="vcl.bpi">
       <BuildOrder>1</BuildOrder>
     </PackageImport>
-    <DelphiCompile Include="..\demos\common\u_common_audioConfig.pas">
-      <BuildOrder>2</BuildOrder>
-    </DelphiCompile>
-    <DelphiCompile Include="..\demos\common\u_common_dsplFilterConfig.pas">
-      <BuildOrder>4</BuildOrder>
-    </DelphiCompile>
-    <DelphiCompile Include="..\demos\common\u_common_dsplFilters.pas">
-      <BuildOrder>3</BuildOrder>
-    </DelphiCompile>
+
     <DelphiCompile Include="unavcIDE.pas">
       <BuildOrder>5</BuildOrder>
     </DelphiCompile>
-    <CppCompile Include="vc2cb07.cpp">
+    <DelphiCompile Include="unaIPStreaming.pas">
       <BuildOrder>6</BuildOrder>
+    </DelphiCompile>
+    <DelphiCompile Include="unaVCDSComp.pas">
+      <BuildOrder>7</BuildOrder>
+    </DelphiCompile>
+
+    <CppCompile Include="vc2cb07.cpp">
+      <BuildOrder>8</BuildOrder>
     </CppCompile>
     <ResFiles Include="vc2ico.res">
-      <BuildOrder>7</BuildOrder>
+      <BuildOrder>9</BuildOrder>
     </ResFiles>
     <BuildConfiguration Include="Debug">
       <Key>Cfg_1</Key>

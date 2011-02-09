@@ -267,7 +267,7 @@ begin
   //
   {$IFDEF DEBUG }
   c_sb_main.panels[0].text := 'Mem: ' + int2str(ams() shr 10, 10, 3) + ' KB';
-  {$ENDIF }
+  {$ENDIF DEBUG }
   //
   if (f_streamDone) then
     c_button_stop.click();
@@ -280,7 +280,7 @@ begin
       //
       f_addText := '';
     finally
-      vcDTMFDecoder.leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+      vcDTMFDecoder.leaveRO();
     end;
   end;
 end;
@@ -325,7 +325,7 @@ begin
     try
       f_addText := f_addText + code;
     finally
-      vcDTMFDecoder.leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+      vcDTMFDecoder.leaveRO();
     end;
   end;
 end;

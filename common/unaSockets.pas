@@ -63,11 +63,7 @@ interface
 
 uses
   Windows, unaTypes, unaClasses,
-  WinSock, WinInet
-{$IFDEF __SYSUTILS_H_ }
-  , SysUtils
-{$ENDIF __SYSUTILS_H_ }
-  ;
+  WinSock, WinInet;
 
 const
 {$IFDEF __BEFORE_D6__ }
@@ -160,6 +156,7 @@ type
     //
     f_bindToIP: string;
     f_bindToPort: protoEnt;
+    f_bound: bool;
     //
     f_MTUValid: bool;
     f_MTU: unsigned;
@@ -694,7 +691,7 @@ type
     f_destroying: bool;
     //
     //f_gate: unaInProcessGate;
-    f_lpStamp: int64;
+    f_lpStamp: uint64;
     //
     function getAddr(): pSockAddrIn;
   protected
@@ -705,7 +702,11 @@ type
     property destroying: bool read f_destroying;
     property threadSocket: unaSocket read f_threadSocket;
   public
+    {*
+    }
     constructor create(thread: unaSocksThread; connId: unsigned; socket: unaSocket; addr: pSockAddrIn = nil; len: int = 0);
+    {*
+    }
     procedure BeforeDestruction(); override;
     //
     {*
@@ -919,7 +920,11 @@ type
     {*
 	Unlocks socks object.
     }
-    procedure leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
+    procedure leaveRO();
+    {*
+	Unlocks socks object.
+    }
+    procedure leaveWO();
     {*
 	Sets new pool size.
 
@@ -1316,7 +1321,7 @@ begin
   //
   if (g_unaWSAGateReady) then begin
     //
-    if (g_unaWSAGate.acquire(false, 1000)) then begin
+    if (g_unaWSAGate.acquire(false, 1000, false {$IFDEF DEBUG }, ' in startup(version' + int2str(version) + ')' {$ENDIF DEBUG })) then begin
       //
       try
 	if (nil = g_unaWSA) then
@@ -1340,7 +1345,7 @@ begin
   //
   if (g_unaWSAGateReady) then begin
     //
-    if (g_unaWSAGate.acquire(false, 1000)) then begin
+    if (g_unaWSAGate.acquire(false, 1000, false {$IFDEF DEBUG }, ' in shutdown()' {$ENDIF DEBUG })) then begin
       //
       try
 	if (0 < g_unaWSACount) then
@@ -1496,49 +1501,46 @@ begin
     //
     result := 0;
     //
-    if (g_unaWSA.acquire(false, 3000)) then begin
-      try
+    if (g_unaWSA.acquire(false, 3000, false {$IFDEF DEBUG }, ' in lookupHost(host=' + host + ')' {$ENDIF DEBUG })) then try
+      //
+      added := false;
+      addr := unsigned(inet_addr(paChar(aString(host))));
+      if ((addr = DWORD(INADDR_NONE)) or (addr = INADDR_ANY)) then begin
 	//
-	added := false;
-	addr := unsigned(inet_addr(paChar(aString(host))));
-	if ((addr = DWORD(INADDR_NONE)) or (addr = INADDR_ANY)) then begin
+	// try to resolve the name
+	phost := gethostbyname(paChar(aString(host)));
+	//
+	if (phost = nil) then
+	  result := WSAGetLastError()
+	else begin
 	  //
-	  // try to resolve the name
-	  phost := gethostbyname(paChar(aString(host)));
-	  //
-	  if (phost = nil) then
-	    result := WSAGetLastError()
-	  else begin
+	  move(phost.h_addr^[0], addr, 4);
+	  if (nil <> list) then begin
 	    //
-	    move(phost.h_addr^[0], addr, 4);
-	    if (nil <> list) then begin
+	    ar := pointer(phost.h_addr_list);
+	    while (0 <> ar^) do begin
 	      //
-	      ar := pointer(phost.h_addr_list);
-	      while (0 <> ar^) do begin
-		//
-		arr := pointer(ar^);
-		list.add(string(inet_ntoa(in_addr(arr^))));
-		//
-		inc(ar);
-	      end;
+	      arr := pointer(ar^);
+	      list.add(string(inet_ntoa(in_addr(arr^))));
 	      //
-	      added := true;
+	      inc(ar);
 	    end;
+	    //
+	    added := true;
 	  end;
 	end;
-	//
-	if (0 = result) then begin
-	  // return IP address
-	  ip := string(inet_ntoa(in_addr(addr)));
-	  //
-	  if ((nil <> list) and not added) then
-	    list.add(ip);
-	end;
-	//
-      finally
-	g_unaWSA.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
       end;
       //
+      if (0 = result) then begin
+	// return IP address
+	ip := string(inet_ntoa(in_addr(addr)));
+	//
+	if ((nil <> list) and not added) then
+	  list.add(ip);
+      end;
+      //
+    finally
+      g_unaWSA.releaseWO();
     end;
   end
   else
@@ -1693,6 +1695,7 @@ end;
 function makeAddr(const host, port: string; var addr: sockaddr_in): bool;
 begin
   fillChar(addr, sizeof(sockaddr_in), #0);
+  //
   addr.sin_family := AF_INET;
   addr.sin_port := htons(u_short( lookupPort(port) ));
   addr.sin_addr.s_addr := inet_addr(paChar( aString( ipH2str(lookupHost(host, 0)) )));
@@ -1753,6 +1756,8 @@ begin
   result := f_status;
 end;
 
+
+
 { unaSocket }
 
 // --  --
@@ -1780,7 +1785,7 @@ begin
     end
     else
       socket := checkError(SOCKET_ERROR, true {$IFDEF DEBUG}, self._classID + '.accept()'{$ENDIF});
-    //  
+    //
   end
   else
     socket := WSAETIMEDOUT;
@@ -1811,6 +1816,7 @@ begin
     end;
     //
     result := checkError(WinSock.bind(f_socket, laddr, sizeof(laddr)), true {$IFDEF DEBUG}, self._classID + '.bind()'{$ENDIF});
+    f_bound := (0 = result);
   end;
 end;
 
@@ -1891,6 +1897,7 @@ begin
   if ((WSAENOTCONN = result) or (0 = result)) then
     result := closeSocket();
   //
+  f_bound := false;
   f_MTUValid := false;
 end;
 
@@ -1907,6 +1914,7 @@ begin
   else
     result := 0;
   //
+  f_bound := false;
   f_MTUValid := false;
 end;
 
@@ -1939,26 +1947,26 @@ begin
       //
       if (0 = result) then begin
 	//
-	bindSocketToPort();	// bind the socket to first available (or specified with bindToPort) port before connecting
-	//
-	// even if explicit bind fail, connect will bind the socket to first availbale port number
-	{$IFDEF VC25_OVERLAPPED }
-	//
-	if (f_overlapped) then begin
+	if ((IPPROTO_TCP = socketProtocol) or (0 = bindSocketToPort())) then begin	// bind the socket to first available (or specified with bindToPort) port before connecting
 	  //
-	  result := WSAConnect(f_socket, @laddr, sizeof(laddr), nil, nil, nil, nil);
-	  if ((SOCKET_ERROR = result) and (WSAEWOULDBLOCK = WSAGetLastError())) then
-	    result := 0
+	  {$IFDEF VC25_OVERLAPPED }
+	  if (f_overlapped) then begin
+	    //
+	    result := WSAConnect(f_socket, @laddr, sizeof(laddr), nil, nil, nil, nil);
+	    if ((SOCKET_ERROR = result) and (WSAEWOULDBLOCK = WSAGetLastError())) then
+	      result := 0
+	    else
+	      result := checkError(WSAGetLastError());
+	  end
 	  else
-	    result := checkError(WSAGetLastError());
-	end
-	else
+	    result := checkError(WinSock.connect(f_socket, laddr, sizeof(laddr)), true {$IFDEF DEBUG}, self._classID + '.connect()'{$ENDIF});
+	  {$ELSE }
+	  //
 	  result := checkError(WinSock.connect(f_socket, laddr, sizeof(laddr)), true {$IFDEF DEBUG}, self._classID + '.connect()'{$ENDIF});
-	//
-	{$ELSE }
-	//
-	result := checkError(WinSock.connect(f_socket, laddr, sizeof(laddr)), true {$IFDEF DEBUG}, self._classID + '.connect()'{$ENDIF});
-	{$ENDIF VC25_OVERLAPPED }
+	  {$ENDIF VC25_OVERLAPPED }
+	  //
+	  f_bound := (0 = result);
+	end;
       end;
       //
     end;
@@ -2184,7 +2192,7 @@ end;
 // --  --
 function unaSocket.isConnected(timeout: unsigned): bool;
 begin
-  result := not check_error(timeout) and okToWrite(timeout);
+  result := f_bound and not check_error(timeout) and okToWrite(timeout);
 end;
 
 // --  --
@@ -2227,7 +2235,7 @@ function unaSocket.read(const buf: pointer; var size: unsigned; timeout: unsigne
 var
   e: int;
 begin
-  if (noCheck or (isActive and waitForData(timeout, true))) then begin
+  if (noCheck or (isActive and waitForData(timeout, noCheck))) then begin
     //
     e := recv(f_socket, buf^, size, 0);
     if (SOCKET_ERROR = e) then
@@ -2375,6 +2383,7 @@ begin
   else
     result := 0;
   //
+  f_bound := false;
   f_MTUValid := false;
 end;
 
@@ -2393,6 +2402,8 @@ begin
     {$ELSE }
     f_socket := WinSock.socket(addressFamily, socketType, socketProtocol);
     {$ENDIF VC25_OVERLAPPED }
+    //
+    f_bound := false;
   end;
   //
   if (INVALID_SOCKET = f_socket) then
@@ -2404,7 +2415,9 @@ end;
 // --  --
 function unaSocket.waitForData(timeout: unsigned; noCheckState: bool): bool;
 begin
-  result := okToRead(timeout, noCheckState) and (0 < getPendingDataSize(true));
+  result := (0 < getPendingDataSize(true));
+  if (not result) then
+    result := okToRead(timeout, noCheckState);
 end;
 
 
@@ -2761,7 +2774,7 @@ begin
       // make sure no one will acquire us any more
       f_destroying := true;
     finally
-      inherited release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      inherited releaseWO();
     end;
   end;
   //
@@ -2792,8 +2805,6 @@ begin
   f_connId := connId;
   f_threadSocket := socket;
   //
-  //f_gate := unaInProcessGate.create();
-  //
   if (nil <> addr) then
     f_addr := addr^
   else
@@ -2813,7 +2824,7 @@ end;
 // --  --
 function unaSocksConnection.getTimeout(): unsigned;
 begin
-  result := timeElapsed32(f_lpStamp);
+  result := timeElapsed32U(f_lpStamp);
 end;
 
 // --  --
@@ -2825,14 +2836,13 @@ end;
 // --  --
 procedure unaSocksConnection.release();
 begin
-  //f_gate.leave();
-  inherited release({$IFDEF DEBUG }true{$ENDIF DEBUG });
+  inherited releaseRO();
 end;
 
 // --  --
 procedure unaSocksConnection.resetTimeout();
 begin
-  f_lpStamp := timeMark();
+  f_lpStamp := timeMarkU();
 end;
 
 // --  --
@@ -2983,7 +2993,7 @@ begin
 	end;
       end;
     finally
-      release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      releaseWO();
     end;
   end;
   //
@@ -3037,7 +3047,7 @@ begin
     end;
     //
   finally
-    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    releaseWO();
   end;
 end;
 
@@ -3048,7 +3058,7 @@ begin
     //
     buf.r_flags := 0;	// mark it as free
   finally
-    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    releaseWO();
   end;
 end;
 
@@ -3169,7 +3179,7 @@ begin
 	  end;
 	  //
 	finally
-	  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+	  releaseWO();
 	end
 	else begin
 	  //
@@ -3217,7 +3227,7 @@ begin
       //
     end;
   finally
-    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    releaseWO();
   end
   else
     result := false;
@@ -3243,7 +3253,7 @@ begin
       end;
     end;
   finally
-    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    releaseWO();
   end;
   //
 {$IFDEF LOG_SOCKS_THREADS }
@@ -4154,7 +4164,7 @@ begin
       end;
       //
     finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      leaveWO();
     end;
   end;
 end;
@@ -4180,7 +4190,6 @@ begin
     //
   end;
   //
-  //f_gate := unaInProcessGate.create({$IFDEF DEBUG}_classID + '(f_gate)'{$ENDIF});
   f_threads := unaSocksThreads.create(uldt_obj);
   f_threads.timeOut := 1000;
   //
@@ -4227,7 +4236,7 @@ begin
       end;
       //
     finally
-      f_threads.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      f_threads.releaseWO();
     end;
   end;
 end;
@@ -4240,7 +4249,7 @@ var
 begin
   result := 0;
   //
-  if (lockNonEmptyList(f_threads, true, 1000)) then try
+  if (lockNonEmptyList_r(f_threads, true, 1000 {$IFDEF DEBUG }, '.createServer()'{$ENDIF DEBUG })) then try
     //
     thread := getThreadFromPool();
     if (nil <> thread) then begin
@@ -4510,10 +4519,15 @@ begin
 end;
 
 // --  --
-procedure unaSocks.leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
+procedure unaSocks.leaveRO();
 begin
-  //f_gate.leave();
-  release({$IFDEF DEBUG }ro{$ENDIF DEBUG });
+  releaseRO();
+end;
+
+// --  --
+procedure unaSocks.leaveWO();
+begin
+  releaseWO();
 end;
 
 // --  --
@@ -4762,7 +4776,7 @@ type
     f_timeout: unsigned;
     f_isHTTP: bool;
     //
-    f_dataPing: int64;
+    f_dataPing: Uint64;
     f_socksId: unsigned;
     f_socksConnId: unsigned;
     f_socksNotSentYet: bool;
@@ -4843,7 +4857,7 @@ var
 begin
   if ((nil <> data) and (0 < len)) then begin
     //
-    f_dataPing := timeMark();
+    f_dataPing := timeMarkU();
     //
     setLength(newData, len);
     move(data[0], newData[1], len);
@@ -4918,7 +4932,7 @@ begin
   f_timeout := timeout;
   f_isHTTP := isHTTP;
   //
-  f_dataPing := timeMark();
+  f_dataPing := timeMarkU();
   f_socksIsDone := false;
   f_socksNotSentYet := true;
   f_expectedSize := -1;
@@ -4929,7 +4943,7 @@ end;
 // --  --
 function ipQueryInfo.getDataPingTimeout(): unsigned;
 begin
-  result := timeElapsed32(f_dataPing);
+  result := timeElapsed32U(f_dataPing);
 end;
 
 
@@ -4989,7 +5003,7 @@ begin
     if (not shouldStop) then begin
       //
       // check if we have some job to be done with one or more query
-      if (lockNonEmptyList(f_queries, false)) then try
+      if (lockNonEmptyList_r(f_queries, false, 100 {$IFDEF DEBUG }, '.execute()'{$ENDIF DEBUG })) then try
 	//
 	i := 0;
 	while (i < f_queries.count) do begin
@@ -5040,7 +5054,7 @@ begin
   query := nil;
   //
   // locate the query
-  if (lockNonEmptyList(f_queries, false)) then try
+  if (lockNonEmptyList_r(f_queries, false, 100 {$IFDEF DEBUG }, '.onSocketEvent()'{$ENDIF DEBUG })) then try
     //
     for i := 0 to f_queries.count - 1 do begin
       //
@@ -5123,8 +5137,8 @@ begin
     if (not w) then begin
       //
       // wide chars as ansi chars
-      crack.r_scheme 	:= string(lowerCase(copy(paChar(u.lpszScheme), 		1, u.dwSchemeLength)));
-      crack.r_hostName 	:= string(lowerCase(copy(paChar(u.lpszHostName), 	1, u.dwHostNameLength)));
+      crack.r_scheme 	:= string(loCase(copy(paChar(u.lpszScheme),    	1, u.dwSchemeLength)));
+      crack.r_hostName 	:= string(loCase(copy(paChar(u.lpszHostName), 	1, u.dwHostNameLength)));
       crack.r_userName 	:= string(copy(paChar(u.lpszUserName), 	1, u.dwUserNameLength));
       crack.r_password 	:= string(copy(paChar(u.lpszPassword), 	1, u.dwPasswordLength));
       crack.r_path 	:= string(copy(paChar(u.lpszUrlPath), 	1, u.dwUrlPathLength));
@@ -5135,8 +5149,8 @@ begin
   {$ELSE }
     if (w) then begin
       // ansi chars as wide chars
-      crack.r_scheme 	:= lowerCase(copy(pwChar(u.lpszScheme), 	1, u.dwSchemeLength));
-      crack.r_hostName 	:= lowerCase(copy(pwChar(u.lpszHostName), 	1, u.dwHostNameLength));
+      crack.r_scheme 	:= loCase(copy(pwChar(u.lpszScheme), 	1, u.dwSchemeLength));
+      crack.r_hostName 	:= loCase(copy(pwChar(u.lpszHostName), 	1, u.dwHostNameLength));
       crack.r_userName 	:= copy(pwChar(u.lpszUserName),  1, u.dwUserNameLength);
       crack.r_password 	:= copy(pwChar(u.lpszPassword),  1, u.dwPasswordLength);
       crack.r_path 	:= copy(pwChar(u.lpszUrlPath), 	 1, u.dwUrlPathLength);
@@ -5146,8 +5160,8 @@ begin
       //
   {$ENDIF __AFTER_DB__ }
       // ansi chars as ansi chars OR wide chars as wide chars
-      crack.r_scheme 	:= lowerCase(copy(u.lpszScheme, 	1, u.dwSchemeLength));
-      crack.r_hostName 	:= lowerCase(copy(u.lpszHostName, 	1, u.dwHostNameLength));
+      crack.r_scheme 	:= loCase(copy(u.lpszScheme, 	1, u.dwSchemeLength));
+      crack.r_hostName 	:= loCase(copy(u.lpszHostName, 	1, u.dwHostNameLength));
       crack.r_userName 	:= copy(u.lpszUserName,	 1, u.dwUserNameLength);
       crack.r_password 	:= copy(u.lpszPassword,  1, u.dwPasswordLength);
       crack.r_path 	:= copy(u.lpszUrlPath, 	 1, u.dwUrlPathLength);
@@ -5221,7 +5235,7 @@ finalization
   //
   g_unaWSAGateReady := false;
   //
-  if (g_unaWSAGate.acquire(false, 1000)) then
+  if (g_unaWSAGate.acquire(false, 1000, false {$IFDEF DEBUG }, ' in finalization()' {$ENDIF DEBUG })) then
     g_unaWSAGate.releaseWO();
   //
   freeAndNil(g_unaWSAGate);

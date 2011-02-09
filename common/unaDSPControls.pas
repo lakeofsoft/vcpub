@@ -280,7 +280,7 @@ begin
 	f_fft.setFormat(formatOriginal.pcmBitsPerSample, formatOriginal.pcmNumChannels);
       //
     finally
-      leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      leaveWO();
     end;
   //
   result := inherited applyFormat(data, len, provider, restoreActiveState);
@@ -353,7 +353,7 @@ begin
 	data := nil;
       //
     finally
-      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+      leaveRO();
     end;
   end
   else begin
@@ -382,7 +382,7 @@ begin
     try
       f_fft.fft_complex_forward(@f_dataProxy, f_channel);
     finally
-      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+      leaveRO();
     end;
   //
   if (assigned(f_onFFTDone)) then

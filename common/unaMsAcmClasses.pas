@@ -394,7 +394,7 @@ type
     }
     function getHandle(): HACMDRIVER;
     {*
-      Sends a message to installed or opened driver. 
+      Sends a message to installed or opened driver.
     }
     function sendDriverMessage(msg: UINT; lParam1: LongInt; lParam2: Longint = 0): Longint;
     //
@@ -964,29 +964,38 @@ type
     function isOpen(): bool;
     //
     {*
-      Returns current volume level for open device.
-      Volume range is from 0 to 32768.
-    }
-    function getVolume(channel: unsigned = 0): unsigned;
-    {*
-      Returns unchanged volume level for open device.
-      Volume range is from 0 to 32768.
-    }
-    function getUnVolume(channel: unsigned = 0): unsigned;
-    {*
-      Returns previous volume level for open device.
-    }
-    function getPrevVolume(channel: unsigned = 0): unsigned;
-    {*
-      Changes the volume of specified channel.
+	Returns current volume level for open device.
+	Volume range is from 0 to 32768.
 
-      @param volume 100 means no volume change (100%); 50 = 50%; 200 = 200% and so on.
-      @param channel Default value of -1 means this volume will be applied on all channels.
+	@param channel Channel number to read volume of.
+	If default value is specifed ($FFFFFFFF), returns median volume of all channels
+    }
+    function getVolume(channel: unsigned = $FFFFFFFF): unsigned;
+    {*
+	Returns unchanged volume level for open device.
+	Volume range is from 0 to 32768.
+
+	@param channel Channel number to read volume of.
+	If default value is specifed ($FFFFFFFF), returns median volume of all channels
+    }
+    function getUnVolume(channel: unsigned = $FFFFFFFF): unsigned;
+    {*
+	Returns previous volume level for open device.
+
+	@param channel Channel number to read volume of.
+	If default value is specifed ($FFFFFFFF), returns median volume of all channels
+    }
+    function getPrevVolume(channel: unsigned = $FFFFFFFF): unsigned;
+    {*
+	Changes the volume of specified channel.
+
+	@param volume 100 means no volume change (100%); 50 = 50%; 200 = 200% and so on.
+	@param channel Default value of -1 means this volume will be applied on all channels.
     }
     procedure setVolume100(channel: int = -1; volume: unsigned = 100);
     //
     {*
-      Use this method to check if you can read new data from device.
+	Use this method to check if you can read new data from device.
     }
     function okToRead(): bool;
     {*
@@ -1905,11 +1914,13 @@ $0FFFFFFF - no init
     f_bufDstSize: unsigned;
     //
     f_oob: array[byte] of int64;
+    f_oobHadSome: array[byte] of int64;
     f_svol: array[byte] of int;
     //
     function getOOB(index: int): int64;		// store data for up to 256 channels
     function getSVolume(index: int): int; 	// store data for up to 256 channels
   protected
+    function doOpen(flags: unsigned): MMRESULT; override;
     function onHeaderDone(header: unaWaveHeader; wakeUpByHeaderDone: bool): bool; override;
   public
     destructor Destroy(); override;
@@ -1965,8 +1976,10 @@ $0FFFFFFF - no init
     f_dstChunk: unaPCMChunk;
     //
     f_useSpeexDSP: bool;
+    f_useSpeexDSPwasAutoReset: bool;
     f_speexdsp: array[0..31] of unaSpeexDSP;	// up to 32 channels
-    f_speexavail: bool;
+    f_speextried: bool;
+    f_speexavail2: bool;
     //
     f_subBuf: pArray;
     f_subBufSize: int;
@@ -1978,6 +1991,7 @@ $0FFFFFFF - no init
   protected
     function onHeaderDone(header: unaWaveHeader; wakeUpByHeaderDone: bool): bool; override;
     function afterOpen(): MMRESULT; override;
+    procedure afterClose(closeResult: MMRESULT); override;
     {*
       Returns false.
     }
@@ -2016,9 +2030,8 @@ $0FFFFFFF - no init
   //
   // -- unaMMTimer --
   //
-
   {*
-    Multimedia timer wrapper class.
+	Multimedia timer wrapper class.
   }
   unaMMTimer = class(unaAbstractTimer)
   private
@@ -2162,12 +2175,6 @@ function removeWaveHdr(var hdr: unaWaveHeader; device: unaWaveDevice): bool;
 
 
 implementation
-
-
-{$IFDEF __SYSUTILS_H_ }
-uses
-  SysUtils;
-{$ENDIF __SYSUTILS_H_ }
 
 
 { unaMsAcmObject }
@@ -3242,7 +3249,7 @@ end;
 // --  --
 function unaMsAcmStreamDevice.assignStream(isInStream: bool; stream: unaAbstractStream; careDestroy: bool): unaAbstractStream;
 begin
-  if (acquire(false, 1000)) then try
+  if (acquire(false, 1000, false {$IFDEF DEBUG }, '.assignStream()' {$ENDIF DEBUG })) then try
     //
     destroyStream(isInStream);
     //
@@ -3703,7 +3710,7 @@ end;
 // --  --
 function unaMsAcmStreamDevice.close2(timeout: unsigned): MMRESULT;
 begin
-  if (acquire(false, 1100)) then try
+  if (acquire(false, timeout, false {$IFDEF DEBUG }, '.close2()' {$ENDIF DEBUG })) then try
     //
     if (isOpen()) then begin
       //
@@ -3717,7 +3724,7 @@ begin
       stop(timeout);
       //
       try
-        clearHeaders();
+	clearHeaders();
       except
       end;
       //
@@ -3726,29 +3733,29 @@ begin
       //
       result := doClose(timeout);
       if (mmNoError(result)) then begin
-        //
-        // 3. -- wait for close to complete
-        if (f_openCloseEvent.waitFor(timeout)) then begin
-          //
-          // 4. -- close complete
-          result := MMSYSERR_NOERROR
-        end
-        else begin
-          //
-          {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
-          logMessage(self._classID + '.close2(' + int2str(timeout) + ') - timeout expired');
-          {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
-          //
-          result := MMSYSERR_HANDLEBUSY;	// ?
-        end;
-        //
-        f_handle := 0;
+	//
+	// 3. -- wait for close to complete
+	if (f_openCloseEvent.waitFor(timeout)) then begin
+	  //
+	  // 4. -- close complete
+	  result := MMSYSERR_NOERROR
+	end
+	else begin
+	  //
+	  {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
+	  logMessage(self._classID + '.close2(' + int2str(timeout) + ') - timeout expired');
+	  {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
+	  //
+	  result := MMSYSERR_HANDLEBUSY;	// ?
+	end;
+	//
+	f_handle := 0;
       end
       else begin
-        //
-        {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
-        logMessage(self._classID + '.close2(' + int2str(timeout) + ') fails, code=' + getErrorText(result));
-        {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
+	//
+	{$IFDEF LOG_UNAMSACMCLASSES_INFOS }
+	logMessage(self._classID + '.close2(' + int2str(timeout) + ') fails, code=' + getErrorText(result));
+	{$ENDIF LOG_UNAMSACMCLASSES_INFOS }
       end;
       //
       afterClose(result);
@@ -3915,7 +3922,7 @@ begin
 	  result := inStream.write(buf, size);
 	//
       finally
-	inStream.leave({$IFDEF DEBUG }false{$ENDIF DEBUG });
+	inStream.leaveWO();
       end;
     end;
   end;
@@ -4046,8 +4053,32 @@ end;
 
 // --  --
 function unaMsAcmStreamDevice.getVolume(channel: unsigned): unsigned;
+var
+  i: int;
+  nch: unsigned;
 begin
-  result := f_volume[channel and $FF];
+  if ($FFFFFFFF = channel) then begin
+    //
+    nch := 1;
+    if getMasterIsSrc() then begin
+      //
+      if (nil <> f_srcFormatExt) then
+	nch := f_srcFormatExt.Format.nChannels
+    end
+    else begin
+      //
+      if (nil <> f_dstFormatExt) then
+	nch := f_dstFormatExt.Format.nChannels;
+    end;
+    //
+    result := 0;
+    for i := 0 to nch - 1 do
+      result := result + f_volume[i];
+    //
+    result := result div nch;
+  end
+  else
+    result := f_volume[channel and $FF];
 end;
 
 // --  --
@@ -4253,7 +4284,7 @@ end;
 // --  --
 function unaMsAcmStreamDevice.open2(query: bool; timeout, flags: unsigned; startDevice: bool): MMRESULT;
 begin
-  if (acquire(false, 1100)) then try
+  if (acquire(false, 1100, false {$IFDEF DEBUG }, '.open2()' {$ENDIF DEBUG } )) then try
     //
     if (not isOpen()) then begin
 
@@ -4337,7 +4368,7 @@ begin
     if (0 = size) then begin
       //
       if (f_outStreamIsunaMemoryStream) then
-	result := outStream.read(buf, unaMemoryStream(outStream).getFirstChunkSize())
+	result := outStream.read(buf, unaMemoryStream(outStream).firstChunkSize())
     end
     else
       result := outStream.read(buf, int(size));
@@ -4421,7 +4452,7 @@ var
   wFormatExt: PWAVEFORMATEXTENSIBLE;
   isPCM: bool;
 begin
-  if (acquire(false, 1000)) then try
+  if (acquire(false, 1000, false {$IFDEF DEBUG }, '.setFormat()' {$ENDIF DEBUG })) then try
     //
     if (isSrc) then begin
       //
@@ -4625,7 +4656,7 @@ end;
 // --  --
 function unaMsAcmStreamDevice.waitForData(waitForInData: bool; timeout: unsigned; expectedDataSize: unsigned): bool;
 var
-  mark: int64;
+  mark: uint64;
   dataMark: unsigned;
   stream: unaAbstractStream;
 begin
@@ -4641,11 +4672,11 @@ begin
       // we should wait for some specific amount of data
       if (getDataAvailable(waitForInData) < expectedDataSize) then begin
 	//
-	mark := timeMark();
+	mark := timeMarkU();
 	repeat
 	  stream.dataEvent.waitFor(timeout);
 	  //
-	until ((timeElapsed64(mark) > timeout) or (getDataAvailable(waitForInData) >= expectedDataSize));
+	until ((timeElapsed64U(mark) > timeout) or (getDataAvailable(waitForInData) >= expectedDataSize));
 	//
 	result := (getDataAvailable(waitForInData) >= expectedDataSize);
       end
@@ -4667,11 +4698,11 @@ begin
       // we should wait for some specific amount of data
       if (getDataAvailable(waitForInData) < expectedDataSize) then begin
 	//
-	mark := timeMark();
+	mark := timeMarkU();
 	repeat
 	  sleepThread(10);
 	  //
-	until ((timeElapsed64(mark) > timeout) or (getDataAvailable(waitForInData) >= expectedDataSize));
+	until ((timeElapsed64U(mark) > timeout) or (getDataAvailable(waitForInData) >= expectedDataSize));
 	//
 	result := (getDataAvailable(waitForInData) >= expectedDataSize);
       end
@@ -4682,9 +4713,9 @@ begin
     else begin
       //
       // we should wait just for some new data to appear
-      mark := timeMark();
+      mark := timeMarkU();
       dataMark := getDataAvailable(waitForInData);
-      while ((timeElapsed64(mark) < timeout) and (getDataAvailable(waitForInData) = dataMark)) do begin
+      while ((timeElapsed64U(mark) < timeout) and (getDataAvailable(waitForInData) = dataMark)) do begin
 	//
 	sleepThread(10);
       end;
@@ -5375,10 +5406,8 @@ begin
           // send header to convertion routine
           inc(f_inBytes, f_header.f_header.cbSrcLength);
           //
-          logMessage('ST before');
-          res := streamConvert(f_header, f_flags);
-          logMessage('ST after, res=' + int2str(res));
-          if (mmNoError(res)) then begin
+	  res := streamConvert(f_header, f_flags);
+	  if (mmNoError(res)) then begin
             //
             if (nil <> f_acmHeader) then begin
               //
@@ -8643,11 +8672,7 @@ begin
     if (waveExt2wave(srcFormat, fmt, true)) then
       createNew(fileName, fmt^, dstFormatTag, acm)
     else
-    {$IFDEF __SYSUTILS_H_ }
-      abort();
-    {$ELSE }
       raise self;
-    {$ENDIF __SYSUTILS_H_ }
     //  
   finally
     mrealloc(fmt);
@@ -9081,7 +9106,7 @@ end;
 // --  --
 function unaWaveMultiStreamDevice.addStream(stream: unaAbstractStream): unaAbstractStream;
 begin
-  if (acquire(false, 1000)) then try
+  if (acquire(false, 1000, false {$IFDEF DEBUG }, '.addStream()' {$ENDIF DEBUG })) then try
     //
     if (nil = stream) then begin
       //
@@ -9182,6 +9207,17 @@ begin
 end;
 
 // --  --
+function unaWaveMixerDevice.doOpen(flags: unsigned): MMRESULT;
+begin
+  result := inherited doOpen(flags);
+  if (MMSYSERR_NOERROR = result) then begin
+    //
+    fillChar(f_oob, sizeof(f_oob), #0);
+    fillChar(f_oobHadSome, sizeof(f_oobHadSome), #0);
+  end;
+end;
+
+// --  --
 function unaWaveMixerDevice.getOOB(index: int): int64;
 begin
   if (index >= low(f_oob)) and (index <= high(f_oob)) then
@@ -9193,7 +9229,7 @@ end;
 // --  --
 function unaWaveMixerDevice.getSVolume(index: int): int;
 begin
-  if (index >= low(f_oob)) and (index <= high(f_oob)) then
+  if (index >= low(f_svol)) and (index <= high(f_svol)) then
     result := f_svol[index]
   else
     result := -1;
@@ -9296,13 +9332,8 @@ begin
 	  end
 	  else begin
 	    //
-	    if ((i <= high(f_oob)) and (0 < f_oob[i])) then begin
-	      //
-	      if (1 < f_oob[i]) then
-		dec(f_oob[i], 2)
-	      else
-		dec(f_oob[i]);
-	    end;
+	    if (0 < f_oob[i]) then
+	      dec(f_oob[i]);
 	    //
 	    result := true;
 {$IFDEF DEBUG_LOG_MIXER2 }
@@ -9366,10 +9397,14 @@ var
   i: unsigned;
 begin
   result := 0;
-  if (0 < getStreamCount()) then
-    for i := 0 to getStreamCount() - 1 do
+  if (0 < getStreamCount()) then begin
+    //
+    for i := 0 to getStreamCount() - 1 do begin
+      //
       if ((result = 0) or (getStream(i).getAvailableSize() < int(result))) then
 	result := getStream(i).getAvailableSize();
+    end;
+  end;
 end;
 
 // -- --
@@ -9496,6 +9531,13 @@ end;
 { unaWaveResampler }
 
 // --  --
+procedure unaWaveResampler.afterClose(closeResult: MMRESULT);
+begin
+  if (f_useSpeexDSPwasAutoReset) then
+    useSpeexDSP := true;
+end;
+
+// --  --
 procedure unaWaveResampler.AfterConstruction();
 begin
   inherited;
@@ -9503,8 +9545,6 @@ begin
   // make sure resampler will have both input and ouput streams
   assignStream(true, unaMemoryStream.create(100{$IFDEF DEBUG }, _classID + '(inStream)'{$ENDIF DEBUG }), true);
   assignStream(false, unaMemoryStream.create(100{$IFDEF DEBUG }, _classID + '(outStream)'{$ENDIF DEBUG }), true);
-  //
-  f_speexavail := true;
 end;
 
 // --  --
@@ -9558,7 +9598,7 @@ begin
       if (f_srcChunk.chunkBufSize <= size) then begin
 	//
 	if (useSpeexDSP and
-	    (nil <> f_speexdsp[0]) and
+	    (f_speexavail2) and
 	    (16 = f_srcChunk.chunkFormat.pcmBitsPerSample) and
 	    (16 = f_dstChunk.chunkFormat.pcmBitsPerSample) and
 	    (f_srcChunk.chunkFormat.pcmNumChannels = f_dstChunk.chunkFormat.pcmNumChannels)) then begin
@@ -9574,7 +9614,6 @@ begin
 	  else begin
 	    //
 	    // resample each channel individually
-	    //
 	    cs := size div f_srcChunk.chunkFormat.pcmNumChannels;
 	    if (f_channelBufSize < cs) then begin
 	      //
@@ -9596,7 +9635,11 @@ begin
 	end
 	else begin
 	  //
-	  useSpeexDSP := false;
+	  if (useSpeexDSP) then begin
+	    //
+	    useSpeexDSP := false;
+	    f_useSpeexDSPwasAutoReset := true;
+	  end;
 	  //
 	  move(buf^, f_srcChunk.chunkData^, size);
 	  f_srcChunk.chunkDataLen := size;
@@ -9745,22 +9788,23 @@ begin
       //
       mrealloc(f_channelBufOut, f_dstChunkSize);
       //
-      if ((nil = f_speexdsp[0]) and f_speexavail) then begin
-        //
-        try
+      if (not f_speextried) then begin
+	//
+	f_speextried := true;
+	try
           f_speexdsp[0] := unaSpeexDSP.create();
         except
-        end;
-        f_speexavail := (nil <> f_speexdsp[0]);
-        //
-        if (f_speexavail) then begin
+	end;
+	//
+	f_speexavail2 := (nil <> f_speexdsp[0]) and f_speexdsp[0].libOK;
+	if (f_speexavail2) then begin
           //
           for i := 1 to 31 do
             f_speexdsp[i] := unaSpeexDSP.create();
         end;
       end;
       //
-      if (nil <> f_speexdsp[0]) then begin
+      if (f_speexavail2) then begin
         //
         for i := 0 to 31 do begin
           //

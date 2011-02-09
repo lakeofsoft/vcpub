@@ -327,7 +327,8 @@ type
     {*
 	Leaves the internal critical section.
     }
-    procedure leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
+    procedure leaveRO();
+    procedure leaveWO();
     {*
 	Writes data into the pipe.
 
@@ -580,9 +581,6 @@ implementation
 
 
 uses
-{$IFDEF __SYSUTILS_H_ }
-  SysUtils,
-{$ENDIF __SYSUTILS_H_ }
   unaPlacebo;
 
 type
@@ -596,7 +594,7 @@ type
     r_data: pointer;		// data itself
     r_dataSize: unsigned;	// size of data buffer allocated so far
 {$IFDEF DEBUG }
-    r_leadIn: int64;		// time when buffer was filled
+    r_leadIn: uint64;		// time when buffer was filled
 {$ENDIF DEBUG }
   end;
 
@@ -614,7 +612,7 @@ type
     //  \------- order of fields is important ---------/
     //
 {$IFDEF DEBUG}
-    f_totalLatency: int64;
+    f_totalLatency: uint64;
 {$ENDIF DEBUG }
     f_owner: unavclInOutPipe;
     f_destroying: bool;
@@ -692,7 +690,7 @@ begin
 	  with (f_dataArray[f_tail]) do begin
 	    //
   {$IFDEF DEBUG }
-	    inc(f_totalLatency, timeElapsed64(r_leadIn));
+	    inc(f_totalLatency, timeElapsed64U(r_leadIn));
   {$ENDIF DEBUG }
 	    f_owner.doWrite(r_data, r_len, r_provider);
 	    //
@@ -728,11 +726,11 @@ function unaDataProxyThread.write(data: pointer; len: unsigned; provider: unavcl
 var
   newHead: unsigned;
 {$IFDEF DEBUG }
-  leadIn: int64;
+  leadIn: uint64;
 {$ENDIF DEBUG }
 begin
 {$IFDEF DEBUG }
-  leadIn := timeMark();
+  leadIn := timeMarkU();
 {$ENDIF DEBUG }
   result := 0;
   //
@@ -844,7 +842,7 @@ begin
   //
   if (isFormatProvider) then begin
     //
-    if (lockNonEmptyList(f_consumers, true)) then begin
+    if (lockNonEmptyList_r(f_consumers, true, 1006 {$IFDEF DEBUG }, '.applyFormatOnConsumers()'{$ENDIF DEBUG })) then begin
       try
 	//
 	i := 0;
@@ -888,7 +886,7 @@ function unavclInOutPipe.checkIfAutoActivate(value: bool; timeout: unsigned): bo
 var
   i: int;
 begin
-  if (autoActivate and lockNonEmptyList(f_consumers, true)) then begin
+  if (autoActivate and lockNonEmptyList_r(f_consumers, true, timeout {$IFDEF DEBUG }, '.checkIfAutoActivate(value=' + bool2strStr(value) + ')'{$ENDIF DEBUG })) then begin
     //
     try
       //
@@ -954,7 +952,7 @@ function unavclInOutPipe.doAddConsumer(consumer: unavclInOutPipe; forceNewFormat
 var
   newProvider: bool;
 begin
-  if ((nil <> consumer) and lockList(f_consumers, false)) then begin
+  if ((nil <> consumer) and lockList_r(f_consumers, false, 1005 {$IFDEF DEBUG }, '.doAddConsumer()'{$ENDIF DEBUG })) then begin
     //
     try
       //
@@ -991,7 +989,7 @@ end;
 // --  --
 function unavclInOutPipe.doAddProvider(provider: unavclInOutPipe): bool;
 begin
-  if ((nil <> provider) and lockList(f_providers, false)) then begin
+  if ((nil <> provider) and lockList_r(f_providers, false, 1007 {$IFDEF DEBUG }, '.doAddProvider()'{$ENDIF DEBUG })) then begin
     //
     try
       if (0 > getProviderIndex(provider)) then
@@ -1106,7 +1104,7 @@ var
   notReal: bool;
   activeState: int;
   activeStateIsSame: bool;
-  entryMark: int64;
+  entryMark: uint64;
   {$IFDEF LOG_UNAVC_PIPE_INFOEX }
   provName: string;
   {$ENDIF LOG_UNAVC_PIPE_INFOEX }
@@ -1118,7 +1116,12 @@ begin
     provName := 'nil';
   //
   logMessage(className + '[' + name + '].doSetActive(v=' + bool2strStr(value) + ' /a=' + bool2strStr(active) + ' /to=' + int2str(timeout) + ') by ' + provName);
-  //
+  {$ELSE }
+    //
+    {$IFDEF LOG_UNAVC_PIPE_INFOS }
+      logMessage('  ==: ' + className + '[' + name + '].doSetActive(' + bool2strStr(value) + '/' + bool2strStr(active) + ') :==');
+    {$ENDIF LOG_UNAVC_PIPE_INFOS }
+    //
   {$ENDIF LOG_UNAVC_PIPE_INFOEX }
   //
   notReal := ((csLoading in componentState) or (csDesigning in componentState) or (csDestroying in componentState));
@@ -1127,7 +1130,7 @@ begin
   else begin
     //
     activeState := choice(value, +1, -1);
-    entryMark := timeMark();
+    entryMark := timeMarkU();
     //
     repeat
       //
@@ -1190,59 +1193,59 @@ begin
 	    // 14 Aug 2007 / Lake
 	    //
 	    if (value) then begin
-              //
-	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
-              logMessage(self.className + '[' + name + ']' + '.doSetActive(true) - about to call checkIfAutoActivate()..');
-	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
+	      //
+	    {$IFDEF LOG_UNAVC_PIPE_INFOEX }
+	      logMessage(self.className + '[' + name + ']' + '.doSetActive(true) - about to call checkIfAutoActivate()..');
+	    {$ENDIF LOG_UNAVC_PIPE_INFOEX }
 	      checkIfAutoActivate(value, timeout);
-	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
-              logMessage(self.className + '[' + name + ']' + '.doSetActive(true) - done.');
-	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
-            end;
+	    {$IFDEF LOG_UNAVC_PIPE_INFOEX }
+	      logMessage(self.className + '[' + name + ']' + '.doSetActive(true) - done.');
+	    {$ENDIF LOG_UNAVC_PIPE_INFOEX }
+	    end;
 	    //
 	    if (getActive() <> value) then begin
 	      //
 	      try
 		//
 		if (value) then begin
-	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
+	    {$IFDEF LOG_UNAVC_PIPE_INFOEX }
 		  logMessage(self.className + '[' + name + ']' + ': before doOpen()..');
-	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
+	    {$ENDIF LOG_UNAVC_PIPE_INFOEX }
 		  doOpen();
 		end
 		else begin
 		  //
-	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
+	    {$IFDEF LOG_UNAVC_PIPE_INFOEX }
 		  logMessage(self.className + '[' + name + ']' + ': before doClose()..');
-	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
+	    {$ENDIF LOG_UNAVC_PIPE_INFOEX }
 		  doClose();
 		  f_closing := false;
 		end;
 		//
-	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
+	    {$IFDEF LOG_UNAVC_PIPE_INFOEX }
 		logMessage(self.className + '[' + name + ']' + ': done with doOpen()/doClose().');
-	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
+	    {$ENDIF LOG_UNAVC_PIPE_INFOEX }
 	      except
 	      end;
 	    end;
 	    //
 	    if (not value) then begin
-              //
-	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
-              logMessage(self.className + '[' + name + ']' + '.doSetActive(false) - about to call checkIfAutoActivate()..');
-	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
+	      //
+	    {$IFDEF LOG_UNAVC_PIPE_INFOEX }
+	      logMessage(self.className + '[' + name + ']' + '.doSetActive(false) - about to call checkIfAutoActivate()..');
+	    {$ENDIF LOG_UNAVC_PIPE_INFOEX }
 	      checkIfAutoActivate(value, timeout);
-	    {$IFDEF LOG_UNAVC_PIPE_INFOS }
-              logMessage(self.className + '[' + name + ']' + '.doSetActive(false) - done.');
-	    {$ENDIF LOG_UNAVC_PIPE_INFOS }
-            end;
+	    {$IFDEF LOG_UNAVC_PIPE_INFOEX }
+	      logMessage(self.className + '[' + name + ']' + '.doSetActive(false) - done.');
+	    {$ENDIF LOG_UNAVC_PIPE_INFOEX }
+	    end;
 	    //
 	    break; // exit repeat
 	    //
 	  finally
 	    f_activateState := 0;
 	    //
-	    leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+	    leaveRO();
 	  end;
 	end;
 	//
@@ -1250,7 +1253,7 @@ begin
       else
 	Sleep(1);
       //
-    until ((timeout < timeElapsed32(entryMark)) or (getActive() = value));
+    until ((timeout < timeElapsed32U(entryMark)) or (getActive() = value));
   end;
   //
   try
@@ -1273,7 +1276,7 @@ end;
 // --  --
 function unavclInOutPipe.enter(ro: bool; timeout: unsigned): bool;
 begin
-  result := f_lockObj.acquire(ro, timeout);
+  result := f_lockObj.acquire(ro, timeout, false {$IFDEF DEBUG }, '.enter()' {$ENDIF DEBUG });
 end;
 
 // --  --
@@ -1369,9 +1372,15 @@ begin
 end;
 
 // --  --
-procedure unavclInOutPipe.leave({$IFDEF DEBUG }ro: bool{$ENDIF DEBUG });
+procedure unavclInOutPipe.leaveRO();
 begin
   f_lockObj.releaseRO();
+end;
+
+// --  --
+procedure unavclInOutPipe.leaveWO();
+begin
+  f_lockObj.releaseWO();
 end;
 
 // --  --
@@ -1392,7 +1401,7 @@ begin
   //
   if ((opRemove = operation) and (component is unavclInOutPipe)) then begin
     //
-    if (lockNonEmptyList(f_providers, false)) then
+    if (lockNonEmptyList_r(f_providers, false, 100 {$IFDEF DEBUG }, '.notofication(_1_)'{$ENDIF DEBUG })) then
       try
 	//
 	i := getProviderIndex(component as unavclInOutPipe);
@@ -1402,7 +1411,7 @@ begin
 	unlockListWO(f_providers);
       end;
     //
-    if (lockNonEmptyList(f_consumers, false)) then
+    if (lockNonEmptyList_r(f_consumers, false, 100 {$IFDEF DEBUG }, '.notification(_2_)'{$ENDIF DEBUG })) then
       try
 	//
 	i := getConsumerIndex(component as unavclInOutPipe);
@@ -1421,7 +1430,7 @@ var
   consumer: unavclInOutPipe;
   copy: unaList;
 begin
-  if (lockNonEmptyList(f_consumers, false)) then
+  if (lockNonEmptyList_r(f_consumers, false, 300 {$IFDEF DEBUG }, '.notifyConsumers()'{$ENDIF DEBUG })) then
     try
       // need a copy here, because consumers will remove themselfs from f_consumers
       copy := unaList.create();
@@ -1452,7 +1461,7 @@ var
   provider: unavclInOutPipe;
   copy: unaList;
 begin
-  if (lockNonEmptyList(f_providers, false)) then
+  if (lockNonEmptyList_r(f_providers, false, 300 {$IFDEF DEBUG }, '.notifyProviders()'{$ENDIF DEBUG })) then
     try
       // need a local copy here, because providers may remove themselfs from f_providers
       copy := unaList.create();
@@ -1491,7 +1500,7 @@ begin
     //
     triggerDataDSPEvent(data, len);
     //
-    if (lockNonEmptyList(f_consumers, true)) then
+    if (lockNonEmptyList_r(f_consumers, true, 50 {$IFDEF DEBUG }, '.onNewData(len=' + int2str(len) + ')'{$ENDIF DEBUG })) then
       try
 	i := 0;
 	while (i < f_consumers.count) do begin
@@ -1574,7 +1583,7 @@ end;
 // --  --
 procedure unavclInOutPipe.setConsumerOneAndOnly(value: unavclInOutPipe);
 begin
-  if (lockList(f_consumers, false)) then
+  if (lockList_r(f_consumers, false, 1008 {$IFDEF DEBUG }, '.setConsumerOneAndOnly()'{$ENDIF DEBUG })) then
     try
       if (consumer <> value) then begin
 	//

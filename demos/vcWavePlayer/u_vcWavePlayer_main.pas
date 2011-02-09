@@ -21,6 +21,7 @@
 		Lake, Feb-May 2003
 		Lake, Oct 2005
 		Lake, Apr 2007
+		Lake, Jan 2011
 
 	----------------------------------------------
 *)
@@ -88,6 +89,7 @@ type
     Resume1: TMenuItem;
     Help1: TMenuItem;
     About1: TMenuItem;
+    c_cb_speexDSP: TCheckBox;
     //
     procedure formCreate(sender: tObject);
     procedure formDestroy(sender: tObject);
@@ -117,6 +119,7 @@ type
     procedure Exit1Click(Sender: TObject);
     procedure c_panel_topClick(Sender: TObject);
     procedure About1Click(Sender: TObject);
+    procedure c_cb_speexDSPClick(Sender: TObject);
   private
     { Private declarations }
     f_config: unaIniFile;
@@ -169,6 +172,7 @@ begin
   c_edit_fileName.text := f_config.get('gui.file.name', '');
   c_checkBox_enableGO.checked := f_config.get('gui.go.checked', true);
   c_checkBox_autoRewind.checked := f_config.get('gui.ar.checked', false);
+  c_cb_speexDSP.checked := f_config.get('gui.speexdsp.checked', false);
   //
   c_edit_fileNameChange(self);
   //
@@ -190,6 +194,7 @@ begin
   f_config.setValue('gui.file.name', c_edit_fileName.text);
   f_config.setValue('gui.go.checked', c_checkBox_enableGO.checked);
   f_config.setValue('gui.ar.checked', c_checkBox_autoRewind.checked);
+  f_config.setValue('gui.speexdsp.checked', c_cb_speexDSP.checked);
 end;
 
 // --  --
@@ -205,6 +210,8 @@ begin
     waveRiffSource.waveStream.streamPosition := 0;
   //
   c_trackBar_tempo.enabled := isOpen;
+  //
+  c_cb_speexDSP.enabled := not isOpen;
 end;
 
 // --  --
@@ -317,6 +324,7 @@ end;
 // --  --
 procedure Tc_form_main.a_playback_startExecute(Sender: TObject);
 begin
+  waveResampler.useSpeexDSP := c_cb_speexDSP.checked;
   waveRiffSource.fileName := c_edit_fileName.Text;
   //
   c_statusBar_main.panels[1].text := waveRiffSource.waveStream.srcFormatInfo;
@@ -337,6 +345,12 @@ begin
   //
   c_trackBar_tempo.position := 10;
   c_trackBar_volume.position := 10;
+end;
+
+// --  --
+procedure Tc_form_main.c_cb_speexDSPClick(Sender: TObject);
+begin
+  waveResampler.useSpeexDSP := c_cb_speexDSP.checked;
 end;
 
 // --  --

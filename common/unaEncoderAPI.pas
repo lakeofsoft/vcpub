@@ -907,7 +907,7 @@ type
   // --  --
   unaBassStreamDecoder = class(unaThread)
   private
-    f_dataTimeout: int;
+    f_dataTimeout: unsigned;
     f_bassStream: unaBassStream;
     f_dataStream: unaAbstractStream;
     f_onAS: tUnaBassApplySampling;
@@ -925,7 +925,7 @@ type
     property onApplySampling: tUnaBassApplySampling read f_onAS write f_onAS;
     property onDataAvailable: tUnaBassDataAvailable read f_onDA write f_onDA;
     //
-    property dataTimeout: int read f_dataTimeout write f_dataTimeout;	// ms
+    property dataTimeout: unsigned read f_dataTimeout write f_dataTimeout;	// ms
   end;
 
 
@@ -2657,7 +2657,7 @@ procedure unaBass.bass_free();
 var
   i: int;
 begin
-  if (lockNonEmptyList(f_consumers, false, 1000)) then
+  if (lockNonEmptyList_r(f_consumers, false, 1000 {$IFDEF DEBUG }, '.bass_free()'{$ENDIF DEBUG })) then
     try
       i := 0;
       while (i < f_consumers.count) do begin
@@ -4291,7 +4291,7 @@ end;
 function bassStreamFileProc(action, param1, param2, user: DWORD): DWORD; stdcall;
 var
   readSize: unsigned;
-  mark: int64;
+  mark: uint64;
   total: uint32;
   decoder: unaBassStreamDecoder;
 begin
@@ -4308,7 +4308,7 @@ begin
     BASS_FILE_READ: begin
       //
       total := 0;
-      mark := timeMark();
+      mark := timeMarkU();
       //
       //assert(debugMessage('BASS_FILE_READ: BASS wants to read ' + int2str(param1) + ' bytes, buf=$' + adjust(int2str(param2, 16), 8, '0') + ''));
       repeat
@@ -4324,7 +4324,7 @@ begin
 	  end
 	  else begin
 	    //
-	    if ((0 = decoder.dataTimeout) or (decoder.dataTimeout < timeElapsed64(mark))) then
+	    if ((0 = decoder.dataTimeout) or (decoder.dataTimeout < timeElapsed64U(mark))) then
 	      break;
 	    //
 	  end;
@@ -4341,7 +4341,7 @@ begin
       //
       //assert(debugMessage('BASS_FILE_QUERY: enter, BASS wants max. ' + int2str(param1) + ' bytes.'));
       //
-      mark := timeMark();
+      mark := timeMarkU();
       while (int(param1) > decoder.f_dataStream.getAvailableSize()) do begin
 	//
 	if (decoder.shouldStop) then begin
@@ -4351,7 +4351,7 @@ begin
 	//
 	decoder.f_dataStream.waitForData(20);
 	//
-	if ((0 = decoder.dataTimeout) or (decoder.dataTimeout < timeElapsed64(mark))) then
+	if ((0 = decoder.dataTimeout) or (decoder.dataTimeout < timeElapsed64U(mark))) then
 	  break;
 	//
       end;

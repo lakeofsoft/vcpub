@@ -449,6 +449,7 @@ type
     f_nSps: unsigned;
     f_active: bool;
     f_gotAnyData: bool;
+    f_libOK: bool;
     //
     function calcFrameSize(rate: int): int;
   protected
@@ -504,6 +505,9 @@ type
     property nMPEG: unsigned read f_mpeg write f_mpeg;
     //
     property active: bool read f_active;
+    {*
+    }
+    property libOK: bool read f_libOK;
   end;
 
 {*
@@ -524,9 +528,6 @@ implementation
 
 uses
   unaUtils,
-  {$IFDEF __SYSUTILS_H_ }
-  SysUtils,
-  {$ENDIF __SYSUTILS_H_ }
   unaWave;
 
 
@@ -856,7 +857,7 @@ end;
 // --  --
 procedure unaLameEncoder.close();
 begin
-  if (acquire(false, 100)) then try
+  if (acquire(false, 100, false {$IFDEF DEBUG }, '.close()' {$ENDIF DEBUG } )) then try
     //
     if (0 <> f_stream) then begin
       //
@@ -868,15 +869,14 @@ begin
     //
     mrealloc(f_buf);
   finally
-    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    releaseWO();
   end;
 end;
 
 // --  --
 constructor unaLameEncoder.create(const libName: string);
 begin
-  if (0 <> lame_loadDLL(f_proc, libName)) then
-    abort();
+  f_libOK := (0 = lame_loadDLL(f_proc, libName));
   //
   bCopyright := false;
   bPrivate := false;
@@ -927,7 +927,7 @@ begin
       result := BE_ERR_BUFFER_TOO_SMALL;
     //
   finally
-    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    releaseWO();
   end;
 end;
 
@@ -950,7 +950,7 @@ begin
     //
   finally
     if (not locked) then
-      release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      releaseWO();
   end;
 end;
 
@@ -974,7 +974,7 @@ begin
   close();
   //
   result := BE_ERR_INVALID_HANDLE;
-  if (acquire(false, 100)) then try
+  if (acquire(false, 100, false {$IFDEF DEBUG }, '.open()' {$ENDIF DEBUG })) then try
     //
     fillChar(cfg, sizeof(tBE_CONFIG_LHV1), #0);
     cfg.dwConfig := BE_CONFIG_LAME;
@@ -1030,7 +1030,7 @@ begin
     else
       close();
   finally
-    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    releaseWO();
   end;
 end;
 
@@ -1093,7 +1093,7 @@ begin
       close();
     //
   finally
-    release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+    releaseWO();
   end;
 end;
 

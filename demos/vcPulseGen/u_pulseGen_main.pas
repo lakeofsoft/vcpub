@@ -237,7 +237,7 @@ begin
   //
   f_noMoreFeed := true;
   //
-  if (lockNonEmptyList(pulses, false, 500)) then
+  if (lockNonEmptyList_r(pulses, false, 500 {$IFDEF DEBUG }, '.a_closeDevExecute()'{$ENDIF DEBUG })) then
     try
       while (0 < pulses.count) do
 	tObject(pulses[0]).free;
@@ -298,7 +298,7 @@ begin
   move(data^, f_samples1, len);
   //
   // notify pulses they have to add new chunk
-  if (not f_noMoreFeed and lockNonEmptyList(pulses, true, 50)) then
+  if (not f_noMoreFeed and lockNonEmptyList_r(pulses, true, 50 {$IFDEF DEBUG }, '.myOnACD()'{$ENDIF DEBUG })) then
     try
       for i := 0 to pulses.count - 1 do
 	Tc_form_pulse(pulses[i]).feedSine(self);

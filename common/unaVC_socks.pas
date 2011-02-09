@@ -462,7 +462,7 @@ type
     f_onClientConnect: tunavclConnectEvent;
     f_onClientDisconnect: tunavclConnectEvent;
     //
-    f_pingMark: int64;
+    f_pingMark: uint64;
     f_pingInterval: unsigned;
   protected
     {*
@@ -2924,7 +2924,7 @@ begin
 	//
 	f_connId := connId;
 	f_isConnected := true;
-	f_pingMark := timeMark();
+	f_pingMark := timeMarkU();
 	//
 	with (unavclIpPacketsStack(f_clientPacketStack)) do begin
 	  //
@@ -2988,10 +2988,10 @@ begin
 	if (0 < f_pingInterval) then begin
 	  //
 	  // ping server with some data if ping timeout is specified
-	  if (timeElapsed64(f_pingMark) > f_pingInterval) then begin
+	  if (timeElapsed64U(f_pingMark) > f_pingInterval) then begin
 	    //
 	    sendData(0, @f_pingMark, sizeOf(f_pingMark));
-	    f_pingMark := timeMark();
+	    f_pingMark := timeMarkU();
 	  end;
 	end;
       end;
@@ -3483,7 +3483,7 @@ function unavclIPServer.initSocksThread(): unsigned;
 var
   bl: int;
 begin
-  bl := {$IFDEF __SYSUTILS_H_ }{$ELSE }unaUtils.{$ENDIF __SYSUTILS_H_ }min(maxClients, 8);	// do not wait for more than 8/maxClients connections by default
+  bl := min(maxClients, 8);	// do not wait for more than 8/maxClients connections by default
   result := f_socks.createServer(port, getProto(), false, bl, f_udpTimeout, bindTo{$IFDEF VC25_OVERLAPPED }, useIOCPSocketsModel{$ENDIF });
   //
 {$IFDEF PACKET_DEBUG }
@@ -3501,9 +3501,9 @@ begin
     result := false;
 {$ELSE }
   if (allowEmpty) then
-    result := lockList(f_clients, false, timeout)
+    result := lockList_r(f_clients, false, timeout)
   else
-    result := lockNonEmptyList(f_clients, false, timeout);
+    result := lockNonEmptyList_r(f_clients, false, timeout {$IFDEF DEBUG }, '.lockClients()'{$ENDIF DEBUG });
 {$ENDIF VCX_DEMO_LIMIT_CLIENTS }
 end;
 
@@ -3996,7 +3996,7 @@ begin
       result := sendPacket(rawSize);
       //
     finally
-      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+      leaveRO();
     end
   end
   else
@@ -4020,7 +4020,7 @@ begin
 	//
 	result := sendPacket(rawSize);
       finally
-	leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+	leaveRO();
       end
     end
     else
@@ -4104,7 +4104,7 @@ begin
 	result := sendPacket(rawSize);
 	//
       finally
-	leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+	leaveRO();
       end
     end
     else
@@ -4129,7 +4129,7 @@ begin
       //
       result := sendPacket(rawSize);
     finally
-      leave({$IFDEF DEBUG }true{$ENDIF DEBUG });
+      leaveRO();
     end
   end
   else

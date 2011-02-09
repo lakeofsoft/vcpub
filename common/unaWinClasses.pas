@@ -374,7 +374,6 @@ type
     f_minHeight: int;
     f_modalResult: int;
     //
-    //f_gate: unaInProcessGate;
     f_children: unaList;
     f_wmCommand: tmessageEvent;
     //
@@ -1093,7 +1092,7 @@ type
     f_fps: unsigned;
     f_actualFps: unsigned;
     f_fcount: int64;
-    f_fpsMark: int64;
+    f_fpsMark: uint64;
     //
     f_frameWidth: unsigned;
     f_frameHeight: unsigned;
@@ -1416,8 +1415,7 @@ begin
       //
     finally
       g_winCreateClass := nil;
-      //g_winCreateGate.leave();
-      window.release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+      window.releaseWO();
     end;
   end
   else
@@ -2129,8 +2127,7 @@ end;
 // --  --
 procedure unaWinWindow.leave();
 begin
-  //f_gate.leave();
-  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+  releaseWO();
 end;
 
 // --  --
@@ -2704,7 +2701,7 @@ begin
     WM_NCDESTROY: begin
       //
       dp := not notifyDestroy();
-      if (lockNonEmptyList(g_winList, false)) then try
+      if (lockNonEmptyList_r(g_winList, false, 100 {$IFDEF DEBUG }, '.wndProc(_WM_NCDESTROY_)'{$ENDIF DEBUG })) then try
 	// need to update indexes of other windows
 	i := f_winListIndex + 1;
 	while (i < int(g_winList.count)) do begin
@@ -3445,7 +3442,7 @@ begin
     PatBlt(memDC, 0, 0, f_frameWidth, f_frameHeight, PATCOPY);
   //
   inc(f_fcount);
-  f_actualFps := (f_fcount * 1000) div timeElapsed32(f_fpsMark);
+  f_actualFps := (f_fcount * 1000) div timeElapsed32U(f_fpsMark);
   //
   // create new frame
   if (onDrawFrame()) then begin
@@ -3490,7 +3487,7 @@ begin
   if (result and (nil <> f_drawTimer)) then
     //
     if (enter) then begin
-      f_fpsMark := timeMark();
+      f_fpsMark := timeMarkU();
       f_fcount := 0;
       f_drawTimer.start();
     end

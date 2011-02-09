@@ -132,11 +132,7 @@ implementation
 
 
 uses
-  ShellApi
-{$IFDEF __SYSUTILS_H_ }
-  , SysUtils
-{$ENDIF __SYSUTILS_H_ }
-  ;
+  ShellApi;
 
 { unaApplication }
 

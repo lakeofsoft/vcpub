@@ -55,7 +55,9 @@ type
   uint16	= word;		/// unsigned 16 bits integer
   uint32	= longword;	/// unsigned 32 bits integer
   {$IFNDEF CPU64 }
-  uint64	= int64;	/// NOTE: Delphi up to version 7 has no built-in support for unsigned 64-bit integers
+    {$IFDEF __BEFORE_D9__}
+    uint64	= int64;	/// NOTE: Delphi up to version 7 has no built-in support for unsigned 64-bit integers
+    {$ENDIF __BEFORE_D9__}
   {$ENDIF CPU64 }
 
   {*
@@ -129,7 +131,7 @@ type
 {$ELSE }
   wString       = wideString;   /// wide string
 {$IFNDEF FPC }
-  wChar         = wideChar;     /// wide char
+  wChar         = wideChar;     /// wide char    fastcall
 {$ENDIF FPC }
 {$ENDIF __AFTER_DB__ }
   //

@@ -23,14 +23,12 @@
 		Lake, Jan-Oct 2008
 		Lake, Jun-Dec 2009
 		Lake, Jan-Dec 2010
+		Lake, Jan 2011
 
 	----------------------------------------------
 *)
 
 {$I unaDef.inc }
-
-{xx $DEFINE HOOK_EXCEPTIONS_ALWAYS }		// when defined will hook exceptions regardless to symbol __SYSUTILS_H_ definition
-						// when not defined exceptions will be hooked only when symbol __SYSUTILS_H_ is not defined
 
 {x $DEFINE UNAUTILS_MEM_USE_HEAP_CALLS }	// define to use HeapAlloc()/HeapReAlloc() instead of Borland memory manager
 
@@ -75,10 +73,6 @@ interface
 
 uses
   Windows, unaTypes
-{$IFDEF __SYSUTILS_H_ }
-  , SysUtils
-{$ENDIF __SYSUTILS_H_ }
-
 {$IFDEF FPC }
 {$ELSE }
   , TlHelp32
@@ -147,6 +141,11 @@ function min(A, B: int64): int64; 	overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDI
 }
 function max(A, B: int64): int64; 	overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
+{$IFDEF __AFTER_D8__ }
+function max(A, B: uint64): uint64; 	overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{$ENDIF __AFTER_D8__ }
+
+
 {$ENDIF CPU64 }
 
 {*
@@ -167,17 +166,6 @@ function max(A, B: unsigned): unsigned; overload;{$IFDEF UNA_OK_INLINE }inline;{
 	@return A if A &gt; B, or B otherwise.
 }
 function max(A, B: double): double;	overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
-
-{$IFDEF __SYSUTILS_H_ }
-{$ELSE }
-
-{*
-	Divides 1 by zero to rise an exception.
-}
-procedure abort();
-
-{$ENDIF __SYSUTILS_H_ }
-
 
 //	ENCODING
 
@@ -1078,6 +1066,9 @@ function int2str(value: int; base: unsigned = 10; split: unsigned = 0; splitchar
 	See int2str(int) for description of other parameters.
 }
 function int2str(const value: int64; base: unsigned = 10; split: unsigned = 0; splitchar: char = ' '): string; overload;
+{$IFDEF __AFTER_D8__}
+function int2str(const value: uint64; base: unsigned = 10; split: unsigned = 0; splitchar: char = ' '): string; overload;
+{$ENDIF __AFTER_D8__}
 {*
 	Converts unsigned value to a string.
 	See int2str(int) for description of other parameters.
@@ -1124,25 +1115,10 @@ function str2intInt(const value: string; defValue: int = 0; base: unsigned = 10;
 function str2intUnsigned(const value: string; defValue: unsigned = 0; base: unsigned = 10; ignoreTrails: bool = false): unsigned;
 
 
-{$IFDEF __SYSUTILS_H_ }
-
-{*
-	Converts float value to a string. Uses SysUtils.floatToStrF() routine.
-}
-function float2str(const value: extended): string;
-{*
-	Converts string to a float value. Uses SysUtils.strToFloat() routine.
-}
-function str2float(const value: string): extended;
-
-{$ELSE }
-
 {*
 	Simple version of float2str()
 }
 function float2str(const value: extended): string;
-
-{$ENDIF __SYSUTILS_H_ }
 
 {*
 	Converts string value to int64.
@@ -1179,18 +1155,11 @@ function sameGUIDs(const g1, g2: tGuid): bool;
 	Converts milliseconds to days, hours, minutes, seconds and milliseconds.
 }
 procedure ms2time(ms: int64; out dd, hh, mm, ss, mss: unsigned);
-
-{$IFDEF __SYSUTILS_H_ }
-{$ELSE }
-
 {*
-  Encodes hours, minutes seconds and milliseconds to tDateTime value.
-  Same as SysUtils.encodeTime() routine.
+	Encodes hours, minutes seconds and milliseconds to tDateTime value.
+	Same as SysUtils.encodeTime() routine.
 }
 function encodeTime(hh, mm, ss, ms: unsigned): tDateTime;
-
-{$ENDIF __SYSUTILS_H_ }
-
 {*
 	Converts milliseconds to tDateTime value
 }
@@ -1227,10 +1196,13 @@ function utc2local(const dateTime: SYSTEMTIME): SYSTEMTIME;
 	Returns number of full months passed between two dates.
 }
 function monthsPassed(const now, than: SYSTEMTIME): int;
+{*
+}
+function st2str(const st: SYSTEMTIME): string;
+{*
+}
+function str2st(const date: string; out st: SYSTEMTIME): HRESULT;
 
-
-{$IFDEF __SYSUTILS_H_ }
-{$ELSE }
 
 type
   // --  --
@@ -1247,8 +1219,6 @@ const
   Same as SysUtils.isLeapYear() routine.
 }
 function isLeapYear(y: int): boolean;
-
-{$ENDIF __SYSUTILS_H_ }
 
 {*
   Converts value and total into percentage.
@@ -1275,17 +1245,17 @@ function trimS(const value: waString; left: bool = true; right: bool = true): wa
 {*
 	Plain simple lowercase for ASCII chars $00..$7F.
 }
-function loCase(value: char): char; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function lCase(value: char): char; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {$IFDEF __AFTER_D5__ }
-function loCase(value: waChar): waChar; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function lCase(value: waChar): waChar; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {$ENDIF __AFTER_D5__ }
 
 {*
 	Plain simple uppercase for ASCII chars $00..$7F.
 }
-function upCase(value: char): char; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function uCase(value: char): char; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {$IFDEF __AFTER_D5__ }
-function upCase(value: waChar): waChar; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function uCase(value: waChar): waChar; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {$ENDIF __AFTER_D5__ }
 
 
@@ -1310,23 +1280,19 @@ const
 
 {$ENDIF NEED_CSTR_XXXX }
 
-
-{$IFDEF __SYSUTILS_H_ }
-{$ELSE }
-{*
-	Converts all character in given string into upper case.
-}
-function upperCase(const value: string): string; overload;
 {*
 	Converts all character in given string into lower case.
 }
-function lowerCase(const value: string): string; overload;
+function loCase(const value: string): string; overload;
+{*
+	Converts all character in given string into upper case.
+}
+function upCase(const value: string): string; overload;
 
-{$ENDIF __SYSUTILS_H_ }
 
 {$IFDEF __AFTER_D5__ }
-function lowerCase(const value: waString): waString; overload;
-function upperCase(const value: waString): waString; overload;
+function loCase(const value: waString): waString; overload;
+function upCase(const value: waString): waString; overload;
 {$ENDIF __AFTER_D5__ }
 
 {*
@@ -1785,11 +1751,16 @@ function setPriority(value: int): int;
 {*
 }
 function getPriority(): int;
-
 {*
-  Returns 0 if successfull.
+	Returns 0 if successfull.
 }
 function putIntoClipboard(const data: aString; window: hWnd = 0{current task}): int;
+{*
+	Returns number of cores.
+}
+function getNumCores(): int;
+
+
 
 //	  -- MEMORY --
 
@@ -1873,6 +1844,15 @@ function mscanbuf(buf: pointer; bufSize: unsigned; value: pointer; valueLen: uns
   Swaps int16/uint16 values in a buffer. Len is in bytes and should be even.
 }
 procedure mswapbuf16(buf: pointer; len: int);
+{*
+	Swaps low and high bytes.
+}
+function swap16(w: uint16): uint16;
+{*
+	Swaps bytes.
+}
+function swap32(w: uint32): uint32;
+
 
 {*
   Disposes an object.
@@ -1912,16 +1892,25 @@ function waitForObject(handle: tHandle; timeout: unsigned = 1): bool;{$IFDEF UNA
 //        -- QUICK MT-SAFE ACQUISITION --
 
 {*
+	Tries to acquire an object (interger counter).
+	If acquisition failed, releases the object, so there is no need to call release32() if this function returns false.
+	There is no timeout parameter, so function fails or succeed immediately.
+	Don't forget to call release32() if this function returns True.
+
+	@param a Object to acquire.
+	@return true if counter was equal 0 exactly at this acquisition attempt..
+}
+function acquire32Exclusive(var a: unaAcquireType): bool;       (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
+{*
 	Acquires an object (interger counter).
 
 	This acquire always success, simply marking an object as "busy".
 	Don't forget to call release32() when object is no longer needed to be locked.
 
 	@param a Object to acquire.
-	@return True if a was 0 at them moment of acquition.
+	@return True if a was 0 at the moment of acquition.
 }
-function acquire32NE(var a: unaAcquireType): bool;       (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
-
+function acquire32NonExclusive(var a: unaAcquireType): bool;       (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
 {*
 	Acquires an object (interger counter).
 
@@ -1930,17 +1919,15 @@ function acquire32NE(var a: unaAcquireType): bool;       (* {$IFDEF UNA_OK_INLIN
 
 	@param a Object to acquire.
 }
-procedure acquire32(var a: unaAcquireType); overload;       (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
-
+procedure acquire32NE(var a: unaAcquireType); (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
 {*
 	Acquires an object (interger counter) and returns true if counter was
-	equial to 0 exactly at this acquisition attempt.
+	equil 0 exactly at this acquisition attempt.
 
 	If acquisition failed, releases the object, so there is no need to call release32() if this function returns false.
 
 	@param a Object to acquire.
 	@param timeout Time in ms to spend trying to acquire. 0 means give up without waiting.
-
 	@return True if object was acquired exactly at this acquisition attempt.
 }
 function acquire32(var a: unaAcquireType; timeout: int): bool; overload; (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
@@ -1953,7 +1940,6 @@ function acquire32(var a: unaAcquireType; timeout: int): bool; overload; (* {$IF
 	for example, number of acquired objects.
 
 	@param acquire Object to release.
-
 	@return True if object ref count has reached 0.
 }
 function release32(var a: unaAcquireType): bool;(* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
@@ -1967,28 +1953,71 @@ var
   hrpc_FreqMs: int64 = 0;	// ticks per millisecond
 
 {*
-  "Marks" current time. Uses high-resolution performance counter (HPRC) if possible or GetTickCount() otherwise.
+	"Marks" current time. Uses high-resolution performance counter (HPRC) if possible or GetTickCount() otherwise.
 }
-function timeMark(): int64;
+function hrpc_timeMark(): int64;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
-  Returns number of milliseconds passed between given mark and current time.
-  Uses high-resolution performance counter (HPRC) if available, or GetTickCount() otherwise.
+	Returns number of milliseconds passed between given mark and current time.
+	Uses high-resolution performance counter (HPRC) if available, or GetTickCount() otherwise.
 }
-function timeElapsed32(mark: int64): unsigned;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function hrpc_timeElapsed32(mark: int64): unsigned;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
-  Returns number of milliseconds passed between given mark and current time.
-  Uses high-resolution performance counter (HPRC) if available, or GetTickCount() otherwise.
+	Returns number of milliseconds passed between given mark and current time.
+	Uses high-resolution performance counter (HPRC) if available, or GetTickCount() otherwise.
 }
-function timeElapsed64(mark: int64): int64;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function hrpc_timeElapsed64(mark: int64): int64;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
-  Returns number of internal ticks passed between given mark and current time.
-  Uses high-resolution performance counter (HPRC) if available.
+	Returns number of internal ticks passed between given mark and current time.
+	Uses high-resolution performance counter (HPRC) if available.
 }
-function timeElapsed64ticks(mark: int64): int64;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function hrpc_timeElapsed64ticks(mark: int64): int64;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+
+
+{$EXTERNALSYM timeGetTime }
+{$EXTERNALSYM timeBeginPeriod }
+function timeGetTime(): DWORD; stdcall;
+function timeBeginPeriod(period: UINT): UINT; stdcall;
+
+{*
+	"smart" GetTickCount()
+
+	@return Number of milliseconds since boot, resolution is about 1 ms
+}
+function gtc(): uint64;
+
+{*
+	Internal, do not use.
+	Must be declared in interface so other timeXXXX() could be compiled inline.
+}
+procedure markGTCLoop(loop: uint64);
+
+{*
+	Marks current time.
+}
+function timeMarkU(): uint64;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Number of milliseconds passed between given mark and current time.
+
+	@param mark Time mark made before
+	@return MS passed since mark
+}
+function timeElapsed32U(mark: uint64): uint32;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Number of milliseconds passed between given mark and current time.
+
+	@param mark Time mark made before
+	@return MS passed since mark
+}
+function timeElapsed64U(mark: uint64): uint64;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Returns number of milliseconds passed between given mark and current time.
+}
+function timeElapsedU(mark: uint64): unsigned;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+
 
 //
-function sanityCheck(var mark: int64; maxSlice: unsigned = 300; sleepSlice: unsigned = 20; careMessages: bool = true): bool;
-function sanityCheck64(var mark: int64; maxSlice: int64 = 300000; sleepSlice: unsigned = 20; careMessages: bool = false): bool;
+function sanityCheck(var mark: uint64; maxSlice: unsigned = 300; sleepSlice: unsigned = 20; careMessages: bool = true): bool;
+function sanityCheck64(var mark: uint64; maxSlice: int64 = 300000; sleepSlice: unsigned = 20; careMessages: bool = false): bool;
 
 //	  -- ERROR --
 
@@ -2073,25 +2102,8 @@ function choiceE(value: bool; const true_choice: extended = 0; false_choice: ext
 }
 function gcd(a, b: unsigned): unsigned;
 
-
-type
-  //
-  // -- security attribute --
-  //
-  PSECURITY_ATTRIBUTES = ^SECURITY_ATTRIBUTES;
-{$IFDEF FPC }
-{$ELSE }
-  SECURITY_ATTRIBUTES = packed record
-    //
-    nLength: DWORD;
-    lpSecurityDescriptor: PSecurityDescriptor;
-    bInheritHandle: bool;
-  end;
-
-{$ENDIF FPC }
-
 // --  --
-function getNullDacl(): PSECURITY_ATTRIBUTES;
+function getNullDacl(): PSecurityAttributes;
 
 
 var
@@ -2149,7 +2161,7 @@ var
   g_infoLogUseWideStrings: bool = false;	// use wide string when writting into log file
 
   //
-  g_infoLogTimeMark: int64;
+  g_infoLogTimeMark: uint64;
   g_infoLogLastDate: SYSTEMTIME;
 
   g_unaUtilsFinalized: bool = false;
@@ -2183,6 +2195,19 @@ begin
   else
     result := A;
 end;
+
+{$IFDEF __AFTER_D8__ }
+
+// --  --
+function max(A, B: uint64): uint64;
+begin
+  if (A < B) then
+    result := B
+  else
+    result := A;
+end;
+
+{$ENDIF __AFTER_D8__ }
 
 {$ENDIF CPU64 }
 
@@ -2221,22 +2246,6 @@ begin
   else
     result := A;
 end;
-
-{$IFDEF __SYSUTILS_H_ }
-{$ELSE }
-
-// --  --
-procedure abort();
-var
-  n: int;
-begin
-  n := 0;
-  n := 1 div n;
-  if (0 < n) then
-    ; // compiler is broken :)
-end;
-
-{$ENDIF __SYSUTILS_H_ }
 
 // --  --
 function base64encode(data: pointer; size: unsigned): aString;
@@ -2838,7 +2847,7 @@ asm
 
   @crc32table:
 	// 00..0F
-	DD 0000000AAh, 077073096h, 0EE0E612Ch, 0990951BAh
+	DD 000000000h, 077073096h, 0EE0E612Ch, 0990951BAh
 	DD 0076DC419h, 0706AF48Fh, 0E963A535h, 09E6495A3h
 	DD 00EDB8832h, 079DCB8A4h, 0E0D5E91Eh, 097D2D988h
 	DD 009B64C2Bh, 07EB17CBDh, 0E7B82D07h, 090BF1D91h
@@ -4773,6 +4782,46 @@ begin
     result := v;
 end;
 
+{$IFDEF __AFTER_D8__}
+
+function int2str(const value: uint64; base: unsigned; split: unsigned; splitchar: char): string;
+const
+  digits: string = c_base_str;
+var
+  i: int;
+  v: int64;
+begin
+  if (0 = value) then
+    result := '0'
+  else
+    result := '';
+  //
+  if ((1 < base) and (unsigned(length(digits)) > base)) then begin
+    //
+    v := value;
+    while (0 <> v) do begin
+      //
+      result := digits[abs64(v mod base) + 1] + result;
+      v := v div base;
+    end;
+  end;
+  //
+  if (split > 0) then begin
+    //
+    if (' ' = splitchar) then
+      splitchar := g_thousandSeparator;
+    //
+    i := length(result) - int(split) + 1;
+    while (i > 1) do begin
+      //
+      insert(splitchar, result, i);
+      dec(i, split);
+    end;
+  end;
+end;
+
+{$ENDIF __AFTER_D8__}
+
 // -- --
 function int2str(const value: int64; base: unsigned; split: unsigned; splitchar: char): string;
 const
@@ -4853,10 +4902,10 @@ end;
 // --  --
 function strStr2bool(const value: string; defValue: bool): bool;
 begin
-  if ('true' = lowerCase(value)) then           // this "string" must not be replaced with aString
+  if ('true' = loCase(value)) then           // this "string" must not be replaced with aString
     result := true
   else
-    if ('false' = lowerCase(value)) then        // this "string" must not be replaced with aString
+    if ('false' = loCase(value)) then        // this "string" must not be replaced with aString
       result := false
     else
       result := defValue;
@@ -5180,9 +5229,6 @@ begin
   mss := ms mod 1000;
 end;
 
-{$IFDEF __SYSUTILS_H_ }
-{$ELSE }
-
 // --  --
 function encodeTime(hh, mm, ss, ms: unsigned): tDateTime;
 begin
@@ -5196,8 +5242,6 @@ begin
   else
     result := 0;
 end;
-
-{$ENDIF __SYSUTILS_H_ }
 
 // --  --
 function ms2dateTime(ms: int64): tDateTime;
@@ -5427,16 +5471,71 @@ begin
     result := - monthsPassed(than, now);
 end;
 
-{$IFDEF __SYSUTILS_H_ }
-{$ELSE }
+const
+  c_months: array[1..12] of string = ('JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC');
+
+// --  --
+function month2str(m: int): string;
+begin
+  case (m) of
+
+    1..12: result := c_months[m];
+    else
+	   result := int2str(m);
+  end;
+end;
+
+// --  --
+function str2month(const v: string; def: int): int;
+var
+  m: int;
+begin
+  result := def;
+  //
+  for m := low(c_months) to high(c_months) do begin
+    //
+    if (sameString(v, c_months[m], false)) then begin
+      //
+      result := m;
+      break;
+    end;
+  end;
+end;
+
+// --  --
+function st2str(const st: SYSTEMTIME): string;
+begin
+  result := adjust(int2str(st.wDay), 2, '0')  + '-' + month2str(st.wMonth) + '-' + adjust(int2str(st.wYear), 4, '0');
+end;
+
+// --  --
+function str2st(const date: string; out st: SYSTEMTIME): HRESULT;
+var
+  p: int;
+  s: string;
+begin
+  result := E_FAIL;
+  //
+  p := pos('-', date);
+  if (1 < p) then begin
+    //
+    st.wDay := str2intInt(copy(date, 1, p - 1), 1);
+    s := copy(date, p + 1, maxInt);
+    //
+    p := pos('-', s);
+    if (1 < p) then begin
+      //
+      st.wMonth := str2month(copy(s, 1, p - 1), 1);
+      st.wYear := str2intInt(copy(s, p + 1, maxInt), 1900);
+    end;
+  end;
+end;
 
 // --  --
 function isLeapYear(y: int): boolean;
 begin
   result := (0 = (y and 3)) and ((0 <> (y mod 100)) or (0 = (y mod 400)));
 end;
-
-{$ENDIF __SYSUTILS_H_ }
 
 // --  --
 function percent(value, total: unsigned): unsigned;
@@ -5547,7 +5646,7 @@ end;
 
 
 // --  --
-function loCase(value: char): char;
+function lCase(value: char): char;
 begin
   case (value) of
     'A'..'Z': {$IFDEF __BEFORE_DC__ }result := char(byte(value) or $20){$ELSE }result := char(word(value) or $0020){$ENDIF __BEFORE_DC__ };
@@ -5559,7 +5658,7 @@ end;
 {$IFDEF __AFTER_D5__ }
 
 // --  --
-function loCase(value: waChar): waChar;
+function lCase(value: waChar): waChar;
 begin
   case (value) of
     'A'..'Z': result := waChar(word(value) or $0020);
@@ -5572,7 +5671,7 @@ end;
 
 
 // --  --
-function upCase(value: char): char;
+function uCase(value: char): char;
 begin
   case (value) of
     'a'..'z': {$IFDEF __BEFORE_DC__ }result := char(byte(value) and not $20){$ELSE }result := char(word(value) and not $0020){$ENDIF __BEFORE_DC__ };
@@ -5585,7 +5684,7 @@ end;
 {$IFDEF __AFTER_D5__ }
 
 // --  --
-function upCase(value: waChar): waChar;
+function uCase(value: waChar): waChar;
 begin
   case (value) of
     'a'..'z': result := waChar(word(value) and not $0020);
@@ -5596,39 +5695,33 @@ end;
 
 {$ENDIF __AFTER_D5__ }
 
-
-{$IFDEF __SYSUTILS_H_ }
-{$ELSE }
-
 // --  --
-function upperCase(const value: string): string;
+function upCase(const value: string): string;
 var
   i: int;
 begin
   setLength(result, length(value));
   //
   for i := 1 to length(value) do
-    result[i] := unaUtils.upCase(value[i]);
+    result[i] := uCase(value[i]);
 end;
 
 // --  --
-function lowerCase(const value: string): string;
+function loCase(const value: string): string;
 var
   i: int;
 begin
   setLength(result, length(value));
   //
   for i := 1 to length(value) do
-    result[i] := loCase(value[i]);
+    result[i] := lCase(value[i]);
 end;
-
-{$ENDIF __SYSUTILS_H_ }
 
 
 {$IFDEF __AFTER_D5__ }
 
 // --  --
-function lowerCase(const value: waString): waString;
+function loCase(const value: waString): waString;
 begin
   if ('' <> value) then begin
     //
@@ -5637,18 +5730,18 @@ begin
 {$ENDIF NO_ANSI_SUPPORT }
       //
       result := value;
-{$IFDEF __AFTER_D5__ }
-      CharLowerA(paChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
+{$IFDEF __BEFORE_DC__ }
+      CharLowerW(pwChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
 						// There is no extended error information for this function; do not call GetLastError.
 {$ELSE }
-      CharLowerW(paChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
+      CharLowerA(paChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
 						// There is no extended error information for this function; do not call GetLastError.
-{$ENDIF __AFTER_D5__ }
+{$ENDIF __BEFORE_DC__ }
      //
 {$IFNDEF NO_ANSI_SUPPORT }
     end
     else
-      result := lowerCase(string(value));
+      result := loCase(string(value));
 {$ENDIF NO_ANSI_SUPPORT }
   end
   else
@@ -5656,7 +5749,7 @@ begin
 end;
 
 // --  --
-function upperCase(const value: waString): waString;
+function upCase(const value: waString): waString;
 begin
   if ('' <> value) then begin
     //
@@ -5665,18 +5758,18 @@ begin
 {$ENDIF NO_ANSI_SUPPORT }
       //
       result := value;
-{$IFDEF __AFTER_D5__ }
-      CharUpperA(paChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
-						// There is no extended error information for this function; do not call GetLastError.
-{$ELSE }
+{$IFDEF __BEFORE_DC__ }
       CharUpperW(pwChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
 						// There is no extended error information for this function; do not call GetLastError.
-{$ENDIF __AFTER_D5__ }
+{$ELSE }
+      CharUpperA(paChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
+						// There is no extended error information for this function; do not call GetLastError.
+{$ENDIF __BEFORE_DC__ }
       //
 {$IFNDEF NO_ANSI_SUPPORT }
     end
     else
-      result := upperCase(string(value));
+      result := upCase(string(value));
 {$ENDIF NO_ANSI_SUPPORT }
   end
   else
@@ -5710,8 +5803,8 @@ begin
 	c2 := str2[i];
 	if (ignoreCase) then begin
 	  //
-	  c1 := loCase(c1);
-	  c2 := loCase(c2);
+	  c1 := lCase(c1);
+	  c2 := lCase(c2);
 	end;
 	//
 	if (c1 < c2) then begin
@@ -5762,8 +5855,8 @@ begin
 	c2 := str2[i];
 	if (ignoreCase) then begin
 	  //
-	  c1 := loCase(c1);
-	  c2 := loCase(c2);
+	  c1 := lCase(c1);
+	  c2 := lCase(c2);
 	end;
 	//
 	if (c1 < c2) then begin
@@ -5844,9 +5937,9 @@ end;
 function sameString(const str1, str2: string; doTrim: bool): bool;
 begin
   if (doTrim) then
-    result := (lowerCase(trimS(str1)) = lowerCase(trimS(str2)))
+    result := (loCase(trimS(str1)) = loCase(trimS(str2)))
   else
-    result := (lowerCase(str1) = lowerCase(str2));
+    result := (loCase(str1) = loCase(str2));
 end;
 
 
@@ -5894,13 +5987,13 @@ begin
 
 	else
 	  // give up, compare as dummy strings
-	  result := (lowerCase(s1) = lowerCase(s2));
+	  result := (loCase(s1) = loCase(s2));
 
       end;
 {$IFNDEF NO_ANSI_SUPPORT }
     end
     else
-      result := (lowerCase(s1) = lowerCase(s2));
+      result := (loCase(s1) = loCase(s2));
 {$ENDIF NO_ANSI_SUPPORT }
     //
   end
@@ -6715,7 +6808,7 @@ begin
       '-', '_' : result := result + value[i];
 
       else
-	result := result + '%' + aString(int2str(ord(value[i]), 16));
+	result := result + '%' + aString(adjust(int2str(ord(value[i]), 16), 2, '0'));
 
     end;
   end;
@@ -6784,7 +6877,7 @@ begin
   vlen := length(vars);
   vmode := false;
   vname := '';
-  uVars := aString(upperCase(string(vars)));
+  uVars := aString(upCase(string(vars)));
   //
   while (p <= len) do begin
     //
@@ -6799,7 +6892,7 @@ begin
 	end
 	else begin
 	  //
-	  vname := aString(upperCase(string(vname)) + #9);
+	  vname := aString(upCase(string(vname)) + #9);
 	  //
 	  i := pos(vname, uVars);
 	  //
@@ -7216,7 +7309,7 @@ function infoMessage(const message: string; logToScreen: int; logToFile: int; lo
 var
   data: wString;
   dataA: aString;
-  te: int64;
+  te: uint64;
   st: SYSTEMTIME;
   stdout: tHandle;
 begin
@@ -7278,12 +7371,12 @@ begin
 	  data := '';
 	//
 	if (unaLtm_dateTimeDelta64 = logTimeMode) then
-	  te := timeElapsed64(g_infoLogTimeMark)
+	  te := timeElapsed64U(g_infoLogTimeMark)
 	else
-	  te := timeElapsed32(g_infoLogTimeMark);
+	  te := timeElapsed32U(g_infoLogTimeMark);
 	//
 	data := data + getTime(st) + '+' + adjust(int2str(te, 10, 3), choice(unaLtm_dateTimeDelta64 = logTimeMode, 12, int(8)), ' ') + ' ';
-	g_infoLogTimeMark := timeMark();
+	g_infoLogTimeMark := timeMarkU();
       end;
 
       else
@@ -7379,7 +7472,7 @@ begin
     result := getModuleFileNameExt('log')
   else begin
     //
-    if ('<NONE>' = upperCase(result)) then
+    if ('<NONE>' = upCase(result)) then
       result := ''
     else
       if ('<>' = result) then
@@ -7416,7 +7509,7 @@ begin
   //
   g_infoLogUseWideStrings := useWideStrings;
   //
-  g_infoLogTimeMark := timeMark();
+  g_infoLogTimeMark := timeMarkU();
 end;
 
 {$IFDEF DEBUG }
@@ -7866,9 +7959,9 @@ begin
   result := 0;
   mrealloc(procEntriesW);
   //
-  name := lowerCase(trimS(exeName));
+  name := loCase(trimS(exeName));
   if ('' = name) then
-    name := lowerCase(extractFileName(paramStr(0)));
+    name := loCase(extractFileName(paramStr(0)));
   //
   procEntryW.dwSize := sizeOf(procEntryW);
   shot := CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -7878,7 +7971,7 @@ begin
       ok := Process32FirstW(shot, procEntryW);
       while (ok) do begin
 	//
-	if (1 <= pos(name, string(lowerCase(procEntryW.szExeFile)))) then begin
+	if (1 <= pos(name, string(loCase(procEntryW.szExeFile)))) then begin
 	  //
 	  inc(result);
 	  mrealloc(procEntriesW, result * sizeOf(procEntriesW[0]));
@@ -8072,6 +8165,25 @@ begin
 end;
 
 // --  --
+function getNumCores(): int;
+var
+  pam, sam: DWORD;
+begin
+  if (GetProcessAffinityMask(GetCurrentProcess(), pam, sam)) then begin
+    //
+    result := 0;
+    while (0 <> pam) do begin
+      //
+      inc(result, pam and 1);
+      pam := pam shr 1;
+    end;
+  end
+  else
+    result := -1;
+end;
+
+
+// --  --
 function putIntoClipboard(const data: aString; window: hWnd): int;
 var
   sz: DWORD;
@@ -8145,13 +8257,19 @@ begin
 end;
 
 // --  --
-function acquire32NE(var a: unaAcquireType): bool;
+function acquire32Exclusive(var a: unaAcquireType): bool;
+begin
+  result := _acquire32(a, true);
+end;
+
+// --  --
+function acquire32NonExclusive(var a: unaAcquireType): bool;
 begin
   result := _acquire32(a, false);
 end;
 
 // --  --
-procedure acquire32(var a: unaAcquireType);
+procedure acquire32NE(var a: unaAcquireType);
 begin
   _acquire32(a, false);
 end;
@@ -8159,7 +8277,7 @@ end;
 // --  --
 function acquire32(var a: unaAcquireType; timeout: int): bool;
 var
-  tm: int64;
+  tm: uint64;
 begin
   tm := 0;
   repeat
@@ -8170,11 +8288,11 @@ begin
     if (not result and (0 < timeout)) then begin
       //
       if (0 = tm) then
-	tm := timeMark();
+	tm := timeMarkU();
       //
       sleep(1 + timeout shr 8);
       //
-      if (timeout < timeElapsed64(tm)) then
+      if (timeout < timeElapsed64U(tm)) then
 	break;
     end;
     //
@@ -8273,7 +8391,7 @@ begin
 end;
 
 // --  --
-function timeMark(): int64;
+function hrpc_timeMark(): int64;
 begin
   if (hrpc_FreqFail) then
     result := GetTickCount()
@@ -8282,7 +8400,7 @@ begin
 end;
 
 // --  --
-function timeElapsed32(mark: int64): unsigned;
+function hrpc_timeElapsed32(mark: int64): unsigned;
 begin
   if (hrpc_FreqFail) then
     result := GetTickCount() - mark
@@ -8291,43 +8409,191 @@ begin
 end;
 
 // --  --
-function timeElapsed64ticks(mark: int64): int64;
+function hrpc_timeElapsed64ticks(mark: int64): int64;
 begin
   result := hrpc_getTimeInterval64(mark);
 end;
 
 // --  --
-function timeElapsed64(mark: int64): int64;
+function hrpc_timeElapsed64(mark: int64): int64;
 begin
   if (not hrpc_FreqFail) then
     result := (hrpc_getTimeInterval64(mark) div hrpc_FreqMs) and $7FFFFFFFFFFFFFFF
   else
-    result := timeElapsed32(mark);
+    result := hrpc_timeElapsed32(mark);
+end;
+
+
+//  =====  "smart" GetTickCount() ===
+
+
+type
+  // available under Vista and above
+  proc_GetTickCount64 = function(): uint64; stdcall;
+
+
+var
+  g_gtc64: proc_GetTickCount64;
+  //
+  g_gtc_is64: bool;
+  g_gtc_loops: uint64;
+  g_gtc_loopsAcq: unaAcquireType;
+  //
+  g_gtc_prev: uint32;
+
+{$IFDEF DEBUG }
+  {xx $DEFINE _GTC_WRAP_EMULATE_ }
+{$ENDIF DEBUG }
+
+
+{$IFDEF _GTC_WRAP_EMULATE_ }
+  g_gtc_init: unsigned = $FFFF0000;
+  g_gtc_prevEmul: uint32;
+{$ENDIF _GTC_WRAP_EMULATE_ }
+
+function timeGetTime; external 'winmm.dll' name 'timeGetTime';
+function timeBeginPeriod; external 'winmm.dll' name 'timeBeginPeriod';
+
+// --  --
+function gtc(): uint64;
+var
+{$IFDEF _GTC_WRAP_EMULATE_ }
+  gtc: unsigned;
+{$ENDIF _GTC_WRAP_EMULATE_ }
+  loop: uint64;
+begin
+  if (not g_gtc_is64) then
+    loop := g_gtc_loops	// remember loop value in case we need to adjust it later
+  else
+    loop := 0;			// make compiler happy
+  //
+{$IFNDEF _GTC_WRAP_EMULATE_ }
+  if (g_gtc_is64) then
+    result := g_gtc64()
+  else
+    result := timeGetTime() + g_gtc_loops;
+{$ELSE }
+  if (0 = g_gtc_prevEmul) then
+    g_gtc_prevEmul := timeGetTime();
+  //
+  gtc := timeGetTime() - g_gtc_prevEmul;
+  g_gtc_prevEmul := timeGetTime();
+  asm
+	mov	eax, gtc
+	add	g_gtc_init, eax
+  end;
+  result := g_gtc_init + g_gtc_loops;
+{$ENDIF _GTC_WRAP_EMULATE_ }
+  //
+  if (not g_gtc_is64) then begin
+    //
+    // check for wrap
+    //
+    if (0 = g_gtc_prev) then begin
+      //
+      timeBeginPeriod(1);	// get max out of it
+      g_gtc_prev := timeGetTime();
+    end;
+    //
+    if (result < g_gtc_prev) then begin
+      //
+      asm
+      {$IFDEF CPU64 }
+	push	rax
+
+	lea	rax, result
+	add	rax, 4
+	inc	[rax]
+
+	pop	rax
+      {$ELSE }
+	push	eax
+
+	lea	eax, result
+	add	eax, 4
+	inc	dword ptr[eax]
+
+	pop	eax
+      {$ENDIF CPU64 }
+      end;
+      //
+      // try to adjust loop counter
+      markGTCLoop(loop);
+    end;
+  end;
+end;
+
+// --  --
+procedure markGTCLoop(loop: uint64);
+begin
+  if (_acquire32(g_gtc_loopsAcq, true)) then try
+    //
+    // make sure we make it once
+    if (loop = g_gtc_loops) then
+      g_gtc_loops := g_gtc_loops + $100000000;
+    //
+  finally
+    release32(g_gtc_loopsAcq);
+  end;
 end;
 
 
 // --  --
-function sanityCheck(var mark: int64; maxSlice, sleepSlice: unsigned; careMessages: bool): bool;
+function timeMarkU(): uint64;
+begin
+  result := gtc();
+end;
+
+// --  --
+function timeElapsed32U(mark: uint64): uint32;
+begin
+  result := uint32(timeElapsed64U(mark));
+end;
+
+// --  --
+function timeElapsed64U(mark: uint64): uint64;
+var
+  tc: uint64;
+begin
+  tc := gtc();
+  if (tc < mark) then
+    tc := mark;	// looks like programmer's error (passed wrong mark value)
+  //
+  result := tc - mark;
+  if (result > 10000) then
+    result := result;
+end;
+
+// --  --
+function timeElapsedU(mark: uint64): unsigned;
+begin
+  result := unsigned(timeElapsed64U(mark));
+end;
+
+
+
+// --  --
+function sanityCheck(var mark: uint64; maxSlice, sleepSlice: unsigned; careMessages: bool): bool;
 begin
   result := sanityCheck64(mark, maxSlice, sleepSlice, careMessages);
 end;
 
 // --  --
-function sanityCheck64(var mark: int64; maxSlice: int64; sleepSlice: unsigned; careMessages: bool): bool;
+function sanityCheck64(var mark: uint64; maxSlice: int64; sleepSlice: unsigned; careMessages: bool): bool;
 begin
   result := false;
   //
   if (0 = mark) then
-    mark := timeMark()
+    mark := timeMarkU()
   else
-    if (maxSlice < timeElapsed64(mark)) then begin
+    if (maxSlice < timeElapsed64U(mark)) then begin
       //
       if (careMessages) then
 	processMessages();
       //
       Sleep(sleepSlice);
       //
-      mark := timeMark();
+      mark := timeMarkU();
       result := true;
     end;
 end;
@@ -8537,9 +8803,9 @@ begin
 	  c := ' ';
 	//
 	if (('=' = c) or (':' = c)) then
-	  result := (upperCase(copy(s, 2, length(name))) = upperCase(name))
+	  result := (upCase(copy(s, 2, length(name))) = upCase(name))
 	else
-	  result := (upperCase(copy(s, 2, maxInt)) = upperCase(name))
+	  result := (upCase(copy(s, 2, maxInt)) = upCase(name))
       end;
       //
       if (result) then
@@ -8595,61 +8861,11 @@ begin
   result := max(a, b);
 end;
 
-
-{$IFDEF __SYSUTILS_H_ }
-
-// --  --
-function float2str(const value: extended): string;
-var
-  i: integer;
-begin
-  result := floatToStrF(value, ffExponent, 18, 4);
-  if ('.' <> decimalSeparator) then begin
-    //
-    i := length(result);
-    while (i > 0) do begin
-      //
-      if (decimalSeparator = result[i]) then
-	result[i] := '.';
-      //
-      dec(i);
-    end;
-  end;
-end;
-
-// --  --
-function str2float(const value: string): extended;
-var
-  i: integer;
-  res: string;
-begin
-  res := trimS(value);
-  //
-  if ('.' <> decimalSeparator) then begin
-    //
-    i := length(res);
-    while (i > 0) do begin
-      //
-      if ('.' = res[i]) then
-	res[i] := decimalSeparator;
-      //
-      dec(i);
-    end;
-  end;
-  //
-  result := strToFloat(res);
-end;
-
-{$ELSE }
-
 // --  --
 function float2str(const value: extended): string;
 begin
   result := int2str(trunc(value)) + '.' + adjust(int2str(trunc(frac(value) * 1000000000)), 9, '0');
 end;
-
-{$ENDIF __SYSUTILS_H_ }
-
 
 // -------------
 
@@ -8839,6 +9055,9 @@ begin
   g_inInc64 := GetProcAddress(GetModuleHandle(kernel32), 'InterlockedIncrement64');
   g_inDec64 := GetProcAddress(GetModuleHandle(kernel32), 'InterlockedDecrement64');
 {$ENDIF CPU64 }
+  //
+  g_gtc64 := GetProcAddress(GetModuleHandle(kernel32), 'GetTickCount64');
+  g_gtc_is64 := false; //assigned(g_gtc64); -- dont use g_gtc64 since its resolution is poor
 end;
 
 {$IFDEF CHECK_MEMORY_LEAKS }
@@ -9682,6 +9901,20 @@ begin
 end;
 
 // --  --
+function swap16(w: uint16): uint16;
+asm
+	xchg	al, ah
+end;
+
+// --  --
+function swap32(w: uint32): uint32;
+asm
+	xchg    al, ah
+	rol	eax, 16
+	xchg    al, ah
+end;
+
+// --  --
 procedure freeAndNil(var objRef);
 var
   ref: tObject;
@@ -9695,22 +9928,22 @@ end;
 var
   // --  --
   sa: SECURITY_ATTRIBUTES;
-  sd: PSecurityDescriptor;
+  sd: TSecurityDescriptor;
   bInitalized: bool;
 
 // --  --
-function getNullDacl(): PSECURITY_ATTRIBUTES;
+function getNullDacl(): PSecurityAttributes;
 begin
   if (not bInitalized) then begin
     //
     // create a section with a NULL DACL
-    InitializeSecurityDescriptor(sd, SECURITY_DESCRIPTOR_REVISION);
+    InitializeSecurityDescriptor(@sd, SECURITY_DESCRIPTOR_REVISION);
     //
-    SetSecurityDescriptorDacl(sd, TRUE, nil, FALSE);
-    SetSecurityDescriptorSacl(sd, TRUE, nil, FALSE);
+    SetSecurityDescriptorDacl(@sd, TRUE, nil, FALSE);
+    SetSecurityDescriptorSacl(@sd, TRUE, nil, FALSE);
     //
     sa.nLength := sizeOf(sa);
-    sa.lpSecurityDescriptor := sd;
+    sa.lpSecurityDescriptor := @sd;
     sa.bInheritHandle := FALSE;
     //
     bInitalized := true;
@@ -9779,32 +10012,15 @@ initialization
 {$IFDEF UNA_PROFILE }
   profId_unaUtils_base64encode := profileMarkRegister('unaUtils.base64encode()');
   profId_unaUtils_base64decode := profileMarkRegister('unaUtils.base64decode()');
+  //
   {$IFDEF LOG_UNAUTILS_INFOS }
   logMessage('unaUtils - profiling is enabled.');
   {$ENDIF LOG_UNAUTILS_INFOS }
 {$ENDIF UNA_PROFILE }
 
-{$IFDEF __SYSUTILS_H_ }
   //
-  {$IFDEF HOOK_EXCEPTIONS_ALWAYS }
-    setExceptionHandler();
-    assert(setAssertionHandler());
-  {$ENDIF HOOK_EXCEPTIONS_ALWAYS }
-  //
-  {$IFDEF LOG_UNAUTILS_INFOS }
-  logMessage('unaUtils - assuming SysUtils.pas is linked.');
-  {$ENDIF LOG_UNAUTILS_INFOS }
-{$ELSE }
-  //
-  setExceptionHandler();
-  assert(setAssertionHandler());
-  //
-  {$IFDEF LOG_UNAUTILS_INFOS }
-  logMessage('unaUtils - assuming SysUtils.pas is NOT linked.');
-  {$ENDIF LOG_UNAUTILS_INFOS }
-
-{$ENDIF __SYSUTILS_H_ }
-
+  //setExceptionHandler();
+  //assert(setAssertionHandler());
   //
   fillLocale();
 
@@ -9826,13 +10042,7 @@ finalization
   //
   g_unaUtilsFinalized := true;
   //
-{$IFDEF __SYSUTILS_H_ }
-  {$IFDEF HOOK_EXCEPTIONS_ALWAYS }
-  doneExceptionAssertionHandlers();
-  {$ENDIF HOOK_EXCEPTIONS_ALWAYS }
-{$ELSE }
-  doneExceptionAssertionHandlers();
-{$ENDIF __SYSUTILS_H_ }
+  //doneExceptionAssertionHandlers();
   //
   g_infoLogFileNameW := '';
   if (INVALID_HANDLE_VALUE <> g_infoLogFileHandle) then begin

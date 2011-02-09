@@ -1390,6 +1390,7 @@ type
   private
     f_lib: tSpeexLibrary_proc;
     f_lastError: int;
+    f_libOK: bool;
     //
     function getLib(): pSpeexLibrary_proc;
   public
@@ -1399,6 +1400,9 @@ type
     property lastError: int read f_lastError;
     //
     property api: pSpeexLibrary_proc read getLib;
+    {*
+    }
+    property libOK: bool read f_libOK;
   end;
 
 
@@ -1415,6 +1419,8 @@ type
     f_samplingRate: int;
     f_active: bool;
     f_lfv: bool;
+    //
+    f_libOK: bool;
     //
     f_sps: int;
     //
@@ -1448,6 +1454,8 @@ type
     destructor Destroy(); override;
     //
     {*
+	Open DSP instance.
+
 	@param frameSize size of one frame in samples
 	@param samplingRate sampling rate
 	@param aec enable AEC module
@@ -1456,7 +1464,7 @@ type
     }
     function open(frameSize, samplingRate: int; aec: bool = false): int;
     {*
-	Opens DSP moudule.
+	Close DSP instance.
     }
     procedure close();
     {*
@@ -1500,6 +1508,9 @@ type
     //
     // DSP properties
     //
+    {*
+    }
+    property libOK: bool read f_libOK;
     {*
 	True for voice, false for silence/noise (only if VAD is enabled).
     }
@@ -1583,9 +1594,6 @@ type
     constructor create(lib: unaSpeexLib; mode: int = SPEEX_MODEID_NB);
     {*
     }
-    destructor Destroy(); override;
-    {*
-    }
     procedure BeforeDestruction(); override;
     {*
 	Releases resources used by processor.
@@ -1600,12 +1608,18 @@ type
     //
     // -- properties --
     //
+    {*
+    }
     property lib: unaSpeexLib read f_lib;
+    {*
+    }
     property state: pointer read f_state;
     {*
 	Mode could be SPEEX_MODEID_NB, SPEEX_MODEID_WB or SPEEX_MODEID_UWB.
     }
     property mode: int read f_mode write setMode;
+    {*
+    }
     property modeInfo: pSpeexMode read getModeInfo;
     {*
 	Size of frame in samples.
@@ -1788,9 +1802,6 @@ implementation
 
 
 uses
-{$IFDEF __SYSUTILS_H_ }
-  SysUtils,
-{$ENDIF __SYSUTILS_H_ }
   unaUtils;
 
 // --  --
@@ -2030,8 +2041,7 @@ begin
   inherited create();
   //
   f_lastError := speex_loadDLL(f_lib, libPath);
-  if (0 <> f_lastError) then
-    abort();
+  f_libOK := (0 = f_lastError);
 end;
 
 // --  --
@@ -2090,11 +2100,6 @@ end;
 // --  --
 constructor unaSpeexCoder.create(lib: unaSpeexLib; mode: int);
 begin
-  //f_lock := unaInProcessGate.create();
-  //
-  if (nil = lib) then
-    abort();
-  //
   f_lib := lib;
   self.mode := mode;
   //
@@ -2102,17 +2107,9 @@ begin
 end;
 
 // --  --
-destructor unaSpeexCoder.Destroy();
-begin
-  inherited;
-  //
-  //freeAndNil(f_lock);
-end;
-
-// --  --
 function unaSpeexCoder.enter(timeout: unsigned): bool;
 begin
-  result := acquire(false, timeout);
+  result := lib.libOK and acquire(false, timeout, false {$IFDEF DEBUG }, '.enter()' {$ENDIF DEBUG });
 end;
 
 // --  --
@@ -2172,8 +2169,7 @@ end;
 // --  --
 procedure unaSpeexCoder.leave();
 begin
-  //f_lock.leave();
-  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+  releaseWO();
 end;
 
 // --  --
@@ -2777,11 +2773,8 @@ end;
 // --  --
 constructor unaSpeexDSP.create(const libName: wString);
 begin
-  //f_lock := unaInProcessGate.create();
-  //
   f_error := speex_loadDSPDLL(f_lib, libName);
-  if (0 <> error) then
-    abort();
+  f_libOK := (0 = error);
   //
   inherited create();
 end;
@@ -2790,8 +2783,6 @@ end;
 destructor unaSpeexDSP.Destroy();
 begin
   close();
-  //
-  //freeAndNil(f_lock);
   //
   inherited;
 end;
@@ -2904,7 +2895,7 @@ end;
 // --  --
 function unaSpeexDSP.lock(timeout: int): bool;
 begin
-  result := acquire(false, timeout); //f_lock.enter(timeout);
+  result := acquire(false, timeout, false {$IFDEF DEBUG }, '.lock()' {$ENDIF DEBUG });
 end;
 
 // --  --
@@ -3039,8 +3030,7 @@ end;
 // --  --
 procedure unaSpeexDSP.unlock();
 begin
-  //f_lock.leave();
-  release({$IFDEF DEBUG }false{$ENDIF DEBUG });
+  releaseWO();
 end;
 
 

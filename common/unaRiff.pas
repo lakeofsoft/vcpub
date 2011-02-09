@@ -137,11 +137,7 @@ implementation
 
 
 uses
-  unaUtils
-{$IFDEF __SYSUTILS_H_ }
-  , SysUtils
-{$ENDIF __SYSUTILS_H_ }
-  ;
+  unaUtils;
 
 { unaRIFFChunk }
 
@@ -160,20 +156,20 @@ begin
   f_maxSize64 := maxSize;
   //
   hdr := master.getPtr(offset, sizeOf(hdr^), subOfs);
-  if (nil = hdr) then
-    abort;
-  //
-  f_header := malloc(sizeOf(f_header^));
-  move(pArray(hdr)[subOfs], f_header^, sizeOf(f_header^));
-  master.releasePtr(hdr);
-  //
-  if (nil <> f_header) then begin
+  if (nil <> hdr) then begin
     //
-    f_isContainer := (isID('RIFF') or isID('LIST'));
-    if (isContainer) then begin
+    f_header := malloc(sizeOf(f_header^));
+    move(pArray(hdr)[subOfs], f_header^, sizeOf(f_header^));
+    master.releasePtr(hdr);
+    //
+    if (nil <> f_header) then begin
       //
-      f_subChunks := unaObjectList.create();
-      parse();
+      f_isContainer := (isID('RIFF') or isID('LIST'));
+      if (isContainer) then begin
+	//
+	f_subChunks := unaObjectList.create();
+	parse();
+      end;
     end;
   end;
 end;
@@ -237,12 +233,12 @@ begin
   if (0 < f_data64KBSize) then begin
     //
     data := master.getPtr(f_offset64 + 8, f_data64KBSize, subOfs);
-    if (nil = data) then
-      abort;
-    //
-    mrealloc(f_data64KB, f_data64KBSize);
-    move(pArray(data)[subOfs], f_data64KB^, f_data64KBSize);
-    master.releasePtr(data);
+    if (nil <> data) then begin
+      //
+      mrealloc(f_data64KB, f_data64KBSize);
+      move(pArray(data)[subOfs], f_data64KB^, f_data64KBSize);
+      master.releasePtr(data);
+    end;
   end
   else
     mrealloc(f_data64KB);
@@ -272,7 +268,11 @@ begin
 	chunk := unaRIFFChunk.create(f_master, self, maxSize - ofs, f_offset64 + ofs);
 	f_subChunks.add(chunk);
 	//
-	inc(ofs, min(chunk.f_header.r_size + 8, chunk.f_maxSize64));
+	if (nil <> chunk.f_header) then
+	  inc(ofs, min(chunk.f_header.r_size + 8, chunk.f_maxSize64))
+	else
+	  inc(ofs, min(8, chunk.f_maxSize64));
+	//
 	ofs := (ofs + 1) and $FFFFFFFFFFFFFFFE;	// align to word boundary
       except
 	//

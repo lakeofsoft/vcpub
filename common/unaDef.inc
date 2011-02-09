@@ -29,11 +29,6 @@
 
 {xx $DEFINE CONSOLE }	// defined automatically by compiler when building console application
 
-{xx $DEFINE __SYSUTILS_H_ }	// define if you are using SysUtils.pas (Forms.pas, VCL classes)
-				// defined automatically below when compiling to GUI target, unless NO_SU_AUTODEFINE symbol is defined (see below)
-
-{xx $DEFINE NO_SU_AUTODEFINE }	// disables auto-definition of __SYSUTILS_H_ symbol in GUI target (see below)
-
 {$DEFINE NO_ANSI_SUPPORT }	// undefine this symbol if you do need support for ANSI version of Windows API (Win9x)
 
 // -- VC 2.5 license type --
@@ -58,18 +53,6 @@
 
 
 // -- ============= --
-
-
-{$IFDEF CONSOLE }
-{$ELSE }
-  {$IFDEF NO_SU_AUTODEFINE }
-    // do not define __SYSUTILS_H_
-  {$ELSE }
-    // assume we linked with SysUtils.pas
-    {$DEFINE __SYSUTILS_H_ }
-  {$ENDIF NO_SU_AUTODEFINE }
-  //
-{$ENDIF CONSOLE }
 
 {$IFDEF FPC }
   {$MODE DELPHI }

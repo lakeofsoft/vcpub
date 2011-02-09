@@ -1103,6 +1103,7 @@ type
     f_api: tLibvorbisAPI;
     f_lastError: int;
     f_active: bool;
+    f_libOK: bool;
   protected
     function doOpen(): int; virtual; abstract;
     procedure doClose(); virtual; abstract;
@@ -1123,6 +1124,9 @@ type
     {*
     }
     property active: bool read f_active;
+    {*
+    }
+    property libOK: bool read f_libOK;
   end;
 
 
@@ -1143,11 +1147,7 @@ implementation
 
 
 uses
-  unaUtils
-{$IFDEF __SYSUTILS_H_ }
-  , SysUtils
-{$ENDIF __SYSUTILS_H_ }
-  ;
+  unaUtils;
 
 {$IFNDEF VC_LIBVORBIS_ONLY }
 
@@ -2697,8 +2697,7 @@ end;
 // --  --
 constructor unaLibvorbisCoder.create(const libname: wString);
 begin
-  if (0 <> loadLibvorbis(f_api, libname)) then
-    Abort();
+  f_libOK := (0 = loadLibvorbis(f_api, libname));
   //
   inherited create();
 end;
