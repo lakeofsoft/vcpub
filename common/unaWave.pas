@@ -40,7 +40,7 @@ interface
 
 
 uses
-  unaTypes;
+  Windows, unaTypes;
 
 type
   // --  --
@@ -87,7 +87,7 @@ type
     r_formatM: unaWaveFormat;	/// data format
     //
     r_driverMode: int32;		        /// custom driver mode
-    r_driverLib8: array[0..129] of AnsiChar;	/// library module name  (same size as "array [0..64] of WideChar" for backward compatibility)
+    r_driverLib8: array[0..129] of aChar;	/// library module name  (same size as "array [0..64] of WideChar" for backward compatibility)
   end;
 
 
@@ -151,7 +151,7 @@ function waveExtractChannel(buf, dest: pointer; samples: unsigned; bits: unsigne
   <BR />channel specifies which channel to replace (0, 1, 2... )
   <BR />Returns number of samples stored in dest buffer.
 }
-function waveReplaceChannel(buf, source: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned; assembler;
+function waveReplaceChannel(buf, source: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned;
 
 {*
   Reverses PCM samples in wave chunk.
@@ -160,7 +160,7 @@ function waveReplaceChannel(buf, source: pointer; samples: unsigned; bits: unsig
 
   @return number of samples processed.
 }
-function waveReverse(buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned): unsigned; assembler;
+function waveReverse(buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned): unsigned;
 
 {*
   Changes PCM stream characteristics.
@@ -253,8 +253,24 @@ implementation
 uses
   unaUtils;
 
+{$IFDEF CPU64 }
+
 // -- --
-procedure loadSample(); assembler;
+function loadSample(_BL: int; var buf: pointer): int32;
+begin
+  case (_BL) of
+     8: begin result := (pByte(buf)^ - $80) shl 24; inc( pByte(buf)); end;
+    16: begin result := pInt16(buf)^        shl 16; inc(pInt16(buf)); end;
+    32: begin result := pInt32(buf)^;             ; inc(pInt32(buf)); end;
+    else
+        result := 0;
+  end;
+end;
+
+{$ELSE }
+
+// -- --
+procedure loadSample();
 {
 	IN:	AL	- number of bits in sample (8, 16 or 32)
 		ESI	- memory buffer pointer
@@ -281,7 +297,7 @@ asm
 	jmp	@exit
 
   @load_A4:
-  	// not supported yet	
+  	// not supported yet
 	jmp	@exit
 
   @load_A8:
@@ -297,8 +313,23 @@ asm
   @exit:
 end;
 
+{$ENDIF CPU64 }
+
 // -- --
-procedure saveSample(); assembler;
+{$IFDEF CPU64 }
+
+procedure saveSample(_BL: int; sample: int32; var buf: pointer);
+begin
+  case (_BL) of
+     8: begin pByte(buf)^  := sample div (1 shl 24) + $80; inc( pByte(buf)); end;
+    16: begin pInt16(buf)^ := sample div (1 shl 16);       inc(pInt16(buf)); end;
+    32: begin pInt32(buf)^ := sample;                      inc(pInt32(buf)); end;
+  end;
+end;
+
+{$ELSE }
+
+procedure saveSample();
 {
 	IN:	BL	- 8, 16 or 32 bits in destination sample
 		EAX	- sample value to store (always 32 bit signed integer)
@@ -372,6 +403,39 @@ asm
 	pop	ebx
 end;
 
+{$ENDIF CPU64 }
+
+
+{$IFDEF CPU64 }
+
+function waveMix(buf1, buf2, buf3: pointer; samples: unsigned; bits1, bits2, bits3: unsigned; doAdd: bool; numChannels: unsigned): unsigned;
+var
+  s1, s2: int32;
+  cnt: unsigned;
+begin
+  result := 0;
+  cnt := samples * numChannels;
+  if ((nil <> buf1) and (nil <> buf2) and (nil <> buf3) and (0 < cnt) and (7 < bits1) and (7 < bits2) and (7 < bits3)) then begin
+    //
+    while (0 < cnt) do begin
+      //
+      s1 := loadSample(bits1, buf1);
+      s2 := loadSample(bits1, buf1);
+      if (doAdd) then
+        s1 := s1 + s2
+      else
+        s1 := s1 - s2;
+      //
+      saveSample(bits3, s1, buf3);
+      dec(cnt);
+      //
+      inc(result);
+    end;
+  end;
+end;
+
+{$ELSE }
+
 // --  --
 function waveMix(buf1, buf2, buf3: pointer; samples: unsigned; bits1, bits2, bits3: unsigned; doAdd: bool; numChannels: unsigned): unsigned;
 begin
@@ -436,13 +500,15 @@ begin
 	loop	@loop
 
 	// ------- loop ends here ------
-
   @exit:
 	pop	ebx
 	pop	edi
 	pop	esi
   end;
 end;
+
+{$ENDIF CPU64 }
+
 
 // --  --
 function waveMix(const chunk1, chunk2, chunk3: unaPCMChunk; doAdd: bool = true): unsigned;
@@ -458,6 +524,15 @@ begin
   else
     result := 0;
 end;
+
+{$IFDEF CPU64 }
+
+function waveGetVolume(buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned; channel: unsigned; deltaMethod: bool): unsigned;
+begin
+  result := 0;  // TODO
+end;
+
+{$ELSE }
 
 // --  --
 function waveGetVolume(buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned; channel: unsigned; deltaMethod: bool): unsigned;
@@ -551,8 +626,20 @@ begin
   end;
 end;
 
+{$ENDIF CPU64 }
+
+
+{$IFDEF CPU64 }
+
+function waveExtractChannel(buf, dest: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned;
+begin
+  result := 0;  // TODO
+end;
+
+{$ELSE }
+
 // --  --
-function waveExtractChannel(buf, dest: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned; assembler;
+function waveExtractChannel(buf, dest: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned;
 asm
 {
 	IN:	EAX = buf
@@ -626,8 +713,19 @@ asm
 	pop	esi
 end;
 
+{$ENDIF CPU64 }
+
+{$IFDEF CPU64 }
+
+function waveReplaceChannel(buf, source: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned;
+begin
+  result := 0;  // TODO
+end;
+
+{$ELSE }
+
 // --  --
-function waveReplaceChannel(buf, source: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned; assembler;
+function waveReplaceChannel(buf, source: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned;
 asm
 {
 	IN:	EAX = buf
@@ -701,8 +799,19 @@ asm
 	pop	esi
 end;
 
+{$ENDIF CPU64 }
+
+{$IFDEF CPU64 }
+
+function waveReverse(buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned): unsigned;
+begin
+  result := 0;  // TODO
+end;
+
+{$ELSE }
+
 // --  --
-function waveReverse(buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned): unsigned; assembler;
+function waveReverse(buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned): unsigned;
 asm
 {
 	IN:	EAX = buf
@@ -800,8 +909,19 @@ asm
 	pop	esi
 end;
 
+{$ENDIF CPU64 }
+
+{$IFDEF CPU64 }
+
+function waveGetLogVolume(volume: int): unsigned;
+begin
+  result := 0;  // TODO
+end;
+
+{$ELSE }
+
 // --  --
-function waveGetLogVolume(volume: int): unsigned; assembler;
+function waveGetLogVolume(volume: int): unsigned;
 asm
 	mov	ecx, volume	// ECX = volume level, from 0 to 32768
 
@@ -857,11 +977,51 @@ asm
   @done:
 end;
 
+{$ENDIF CPU64 }
+
 // --  --
 function waveGetLogVolume100(volume: int): unsigned;
 begin
   result := waveGetLogVolume(volume) div 3;
 end;
+
+{$IFDEF CPU64 }
+
+// --  --
+function waveResample(bufSrc, bufDst: pointer; samples, numChannelsSrc, numChannelsDst, bitsSrc, bitsDst, rateSrc, rateDst: unsigned): unsigned;
+begin
+  if ((nil = bufSrc) or
+      (nil = bufDst) or
+      (1 > bitsSrc) or
+      (1 > bitsDst) or
+      (1 > numChannelsSrc) or
+      (1 > numChannelsDst) or
+      (1 > samples) or
+      (1 > rateSrc) or
+      (1 > rateDst)) then
+    // invalid params
+    result := 0
+  else begin
+    //
+    if ((rateDst = rateSrc) and
+	(numChannelsSrc = numChannelsDst) and
+	(bitsSrc = bitsDst)
+       ) then begin
+      //
+      result := samples * numChannelsSrc * bitsSrc shr 3;
+      if ((bufSrc <> bufDst) and (0 < result)) then
+	move(bufSrc^, bufDst^, result);
+      //
+    end
+    else begin
+      //
+      // RESAMPLE: TODO
+      result := 0
+    end
+  end;
+end;
+
+{$ELSE }
 
 // --  --
 function waveResample(bufSrc, bufDst: pointer; samples, numChannelsSrc, numChannelsDst, bitsSrc, bitsDst, rateSrc, rateDst: unsigned): unsigned;
@@ -908,7 +1068,7 @@ begin
     //
     //dstChannelMul := 100;
     dstChannelStep := (numChannelsDst * const_dstChannelMul) div numChannelsSrc;
-
+    //
     asm
 	push	esi
 	push	edi
@@ -1040,6 +1200,8 @@ begin
   end;
 end;
 
+{$ENDIF CPU64 }
+
 // --  --
 function waveResample(const bufSrc: unaPCMChunk; var bufDst: unaPCMChunk): unsigned;
 var
@@ -1147,6 +1309,15 @@ begin
   result := d;
 end;
 
+{$IFDEF CPU64 }
+
+function waveModifyVolume100(volume: unsigned; buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned; channel: int): unsigned;
+begin
+  result := 0;  // TODO
+end;
+
+{$ELSE }
+
 // --  --
 function waveModifyVolume100(volume: unsigned; buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned; channel: int): unsigned;
 var
@@ -1213,6 +1384,8 @@ begin
     result := samples;
   end;
 end;
+
+{$ENDIF CPU64 }
 
 // --  --
 function waveModifyVolume100(volume: unsigned; const chunk: unaPCMChunk; channel: int): unsigned;

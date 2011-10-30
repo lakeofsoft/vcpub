@@ -64,8 +64,8 @@ type
     f_loopCount: int;
     f_done: bool;
     //
-    procedure myOnDA(sender: tObject; data: pointer; len: unsigned);
-    procedure myOnACD(sender: tObject; data: pointer; len: unsigned);
+    procedure myOnDA(sender: tObject; data: pointer; len: uint);
+    procedure myOnACD(sender: tObject; data: pointer; len: uint);
   public
     procedure BeforeDestruction(); override;
     //
@@ -145,7 +145,7 @@ begin
 end;
 
 //
-procedure wavOutClass.myOnACD(sender: tObject; data: pointer; len: unsigned);
+procedure wavOutClass.myOnACD(sender: tObject; data: pointer; len: uint);
 var
   size: int;
   feed: unsigned;
@@ -206,7 +206,7 @@ begin
 end;
 
 //
-procedure wavOutClass.myOnDA(sender: tObject; data: pointer; len: unsigned);
+procedure wavOutClass.myOnDA(sender: tObject; data: pointer; len: uint);
 var
   pos: int;
 begin

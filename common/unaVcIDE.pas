@@ -68,6 +68,7 @@ unit
 interface
 
 uses
+  Windows, unaTypes,
   unaClasses, Classes, 
   unaVC_pipe, unaVC_wave, unaVC_socks
 {$IFDEF UNAVCIDE_SCRIPT_COMPONENT }

@@ -253,61 +253,61 @@ begin
       //
       f_automat.dspl_obj_seti(obj, DSPL_PID or DSPL_P_TYPE or DSPL_EQ2B_BAND1, filterType);
       //
-      f := strToFloat(string(formatTemplate('%P1%', aString(filterParams), false)));	// FRQ
+      f := strToFloat(formatTemplate('%P1%', filterParams, false));	// FRQ
       f_automat.dspl_obj_setf(obj, DSPL_PID or DSPL_P_FRQ or DSPL_EQ2B_BAND1, f);
       //
-      f := strToFloat(string(formatTemplate('%P2%', aString(filterParams), false)));	// Q
+      f := strToFloat(formatTemplate('%P2%', filterParams, false));	// Q
       f_automat.dspl_obj_setf(obj, DSPL_PID or DSPL_P_Q or DSPL_EQ2B_BAND1, f);
       //
-      f := strToFloat(string(formatTemplate('%P3%', aString(filterParams), false)));	// GAIN
+      f := strToFloat(formatTemplate('%P3%', filterParams, false));	// GAIN
       f_automat.dspl_obj_setf(obj, DSPL_PID or DSPL_P_GAIN or DSPL_EQ2B_BAND1, db2v(f));
     end;
 
     DSPL_LD: begin
       //
-      f := strToFloat(string(formatTemplate('%P1%', aString(filterParams), false)));	// Attack
+      f := strToFloat(formatTemplate('%P1%', filterParams, false));	// Attack
       f_automat.dspl_obj_setf(obj, DSPL_PID or DSPL_P_ATTACK,  f);
       //
-      f := strToFloat(string(formatTemplate('%P2%', aString(filterParams), false)));	// Release
+      f := strToFloat(formatTemplate('%P2%', filterParams, false));	// Release
       f_automat.dspl_obj_setf(obj, DSPL_PID or DSPL_P_RELEASE, f);
     end;
 
     DSPL_DYNPROC: begin
       //
-      f := strToFloat(string(formatTemplate('%P1%', aString(filterParams), false)));	// Attack LD
+      f := strToFloat(formatTemplate('%P1%', filterParams, false));	// Attack LD
       f_automat.dspl_obj_setf(obj, DSPL_PID or DSPL_P_ATTACK or DSPL_LD,  f);
       //
-      f := strToFloat(string(formatTemplate('%P2%', aString(filterParams), false)));	// Release LD
+      f := strToFloat(formatTemplate('%P2%', filterParams, false));	// Release LD
       f_automat.dspl_obj_setf(obj, DSPL_PID or DSPL_P_RELEASE or DSPL_LD, f);
       //
-      f := strToFloat(string(formatTemplate('%P4%', aString(filterParams), false)));	// Attack
+      f := strToFloat(formatTemplate('%P4%', filterParams, false));	// Attack
       f_automat.dspl_obj_setf(obj, DSPL_PID or DSPL_P_ATTACK,  f);
       //
-      f := strToFloat(string(formatTemplate('%P5%', aString(filterParams), false)));	// Release
+      f := strToFloat(formatTemplate('%P5%', filterParams, false));	// Release
       f_automat.dspl_obj_setf(obj, DSPL_PID or DSPL_P_RELEASE, f);
     end;
 
     DSPL_SPEECHPROC: begin
       //
-      f := strToFloat(string(formatTemplate('%P1%', aString(filterParams), false)));	// Threshold
+      f := strToFloat(formatTemplate('%P1%', filterParams, false));	// Threshold
       f_automat.dspl_obj_setf(obj, DSPL_PID or DSPL_P_THRESHOLD, db2v(f));
     end;
 
     DSPL_ND: begin
       //
-      f := strToFloat(string(formatTemplate('%P1%', aString(filterParams), false)));	// Threshold
+      f := strToFloat(formatTemplate('%P1%', filterParams, false));	// Threshold
       f_automat.dspl_obj_setf(obj, DSPL_PID or DSPL_P_THRESHOLD, db2v(f));
     end;
 
     DSPL_EQMB: begin
       //
-      i := str2intInt(string(formatTemplate('%P1%', aString(filterParams), false)), 1);	// Num. bands
+      i := str2intInt(formatTemplate('%P1%', filterParams, false), 1);	// Num. bands
       f_automat.dspl_obj_seti(obj, DSPL_PID or DSPL_P_OTHER, i);
     end;
 
     DSPL_MBSP: begin
       //
-      i := str2intInt(string(formatTemplate('%P1%', aString(filterParams), false)), 1);	// Num. bands
+      i := str2intInt(formatTemplate('%P1%', filterParams, false), 1);	// Num. bands
       f_automat.dspl_obj_seti(obj, DSPL_PID or DSPL_P_OTHER, i);
     end;
 

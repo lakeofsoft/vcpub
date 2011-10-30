@@ -39,8 +39,8 @@ type
     c_label_mcsHost: TLabel;
     c_label_mcsPort: TLabel;
     c_label_mcsBindTo: TLabel;
-    c_edit_mcepGroup: TEdit;
-    c_edit_mcepPort: TEdit;
+    c_edit_group: TEdit;
+    c_edit_port: TEdit;
     c_button_mcepStart: TButton;
     c_button_mcepStop: TButton;
     c_cb_mcepBindTo: TComboBox;
@@ -156,11 +156,12 @@ end;
 // --  --
 procedure Tc_form_main.formCreate(sender: tObject);
 begin
-  unaSockets.startup();	// since we are not using unaSocks class here,
-			// we need to startup and shutdown the sockets explicitly
-  //
   f_config := unaIniFile.create();
   f_endPoint := unaMulticastSocket.create();
+  //
+  {$IFDEF __AFTER_D7__ }
+  doubleBuffered := True;
+  {$ENDIF __AFTER_D7__ }
   //
   codecOut.addConsumer(c_fft_main.fft);
 end;
@@ -174,8 +175,8 @@ begin
   loadControlPosition(self, f_config);
   //
   f_config.section := 'mc';
-  c_edit_mcepGroup.text := f_config.get('groupIP', '224.0.1.2');
-  c_edit_mcepPort.text := f_config.get('port', '18000');
+  c_edit_group.text := f_config.get('groupIP', '224.0.1.2');
+  c_edit_port.text := f_config.get('port', '18000');
   //
   c_cb_mcepBindTo.clear();
   c_cb_mcepBindTo.items.add('0.0.0.0');
@@ -209,8 +210,8 @@ begin
   codecOut.close();
   //
   f_config.section := 'mc';
-  f_config.setValue('groupIP', c_edit_mcepGroup.text);
-  f_config.setValue('port', c_edit_mcepPort.text);
+  f_config.setValue('groupIP', c_edit_group.text);
+  f_config.setValue('port', c_edit_port.text);
   //
   f_config.setValue('bindToIndex', c_cb_mcepBindTo.itemIndex);
   //
@@ -222,8 +223,6 @@ procedure Tc_form_main.formDestroy(sender: tObject);
 begin
   freeAndNil(f_endPoint);
   freeAndNil(f_config);
-  //
-  unaSockets.shutdown();
 end;
 
 
@@ -235,10 +234,10 @@ begin
     c_statusBar_main.panels[0].text := int2str(ams() shr 10, 10, 3) + ' KB';
     {$ENDIF DEBUG }
     //
-    c_button_mcepStart.enabled := not f_endPoint.isReady(false);
-    c_button_mcepStop.enabled := f_endPoint.isReady(false);
+    c_button_mcepStart.enabled := not f_endPoint.isConnected(1);
+    c_button_mcepStop.enabled := not c_button_mcepStart.enabled;
     //
-    c_label_status.caption := 'Status: ' + choice(f_endPoint.isReady(false), 'received ' + int2str(f_received shr 10, 10, 3) + ' KB',
+    c_label_status.caption := 'Status: ' + choice(f_endPoint.isConnected(0), 'received ' + int2str(f_received shr 10, 10, 3) + ' KB',
       choice(0 = f_socketErr, ' inactive.', 'socket error = ' + int2str(f_socketErr)));
     //
   end;
@@ -256,10 +255,10 @@ begin
   // start receiving
   f_received := 0;
   //
-  f_endPoint.setPort(c_edit_mcepPort.text);
   f_endPoint.bindToIP := c_cb_mcepBindTo.text;
+  f_endPoint.bindToPort := c_edit_port.text;
   //
-  f_socketErr := f_endPoint.recGroupJoin(c_edit_mcepGroup.text);
+  f_socketErr := f_endPoint.mjoin(c_edit_group.text, c_unaMC_receive);	// receive-only
   //
   if (0 = f_socketErr) then begin
     //

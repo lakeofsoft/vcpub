@@ -948,8 +948,8 @@ type
     procedure BeforeDestruction(); override;
     // IUnknown
     function QueryInterface(const IID: TGUID; out Obj): HRESULT; stdcall;
-    function _AddRef(): int; stdcall;
-    function _Release(): int; stdcall;
+    function _AddRef(): integer; stdcall;
+    function _Release(): integer; stdcall;
     // IMediaBuffer methods
     function SetLength(len: DWORD): HRESULT; stdcall;
     function GetMaxLength(out maxLen: DWORD): HRESULT; stdcall;
@@ -1227,13 +1227,13 @@ begin
 end;
 
 // --  --
-function tMediaBuffer._AddRef(): int;
+function tMediaBuffer._AddRef(): integer;
 begin
   result := InterlockedIncrement(f_refC);
 end;
 
 // --  --
-function tMediaBuffer._Release(): int;
+function tMediaBuffer._Release(): integer;
 begin
   result := InterlockedDecrement(f_refC);
   if (0 = result) then

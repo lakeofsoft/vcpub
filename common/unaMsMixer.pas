@@ -94,8 +94,8 @@ type
     //
     function getDetails(): pMixerControlDetails;
     procedure setDetails();
-    function getIsControl(index: int): bool;
-    function getIsControlClass(index: int): bool;
+    function getIsControl(index: integer): bool;
+    function getIsControlClass(index: integer): bool;
     function getControlID(): unsigned;
   public
     constructor create(master: unaMsMixerLine; caps: pMixerControlW);
@@ -170,7 +170,7 @@ type
     function getConnection(index: unsigned): unaMsMixerLine;
     function getControl(index: unsigned): unaMsMixerControl;
     function getCaps(isConnection: bool): pMixerLineW;
-    function getIsLineType(index: int): bool;
+    function getIsLineType(index: integer): bool;
   public
     constructor create(master: unaMsMixerDevice; destIndex: unsigned; isConnection: bool = false; sourceIndex: unsigned = 0);
     destructor Destroy(); override;
@@ -223,7 +223,7 @@ type
     procedure close();
     procedure enumLines();
     function getLineCount(): int;
-    function getID(): unsigned;
+    function getID(): UINT;
     function locateTargetLine(targetType: unsigned): unaMsMixerLine;
     function locateDestLine(destination: unsigned): unaMsMixerLine;
     function locateComponentLine(componentType: unsigned = MIXERLINE_COMPONENTTYPE_DST_WAVEIN): unaMsMixerLine;
@@ -576,10 +576,10 @@ begin
 end;
 
 // --  --
-function unaMsMixerControl.getIsControl(index: int): bool;
+function unaMsMixerControl.getIsControl(index: integer): bool;
 begin
   if (-1 = index) then
-    index := int(MIXERCONTROL_CONTROLF_DISABLED);
+    index := integer(MIXERCONTROL_CONTROLF_DISABLED);
   //
   result := (0 <> (f_caps.fdwControl and index));
   //
@@ -589,7 +589,7 @@ begin
 end;
 
 // --  --
-function unaMsMixerControl.getIsControlClass(index: int): bool;
+function unaMsMixerControl.getIsControlClass(index: integer): bool;
 begin
   result := (unsigned(index) = f_controlClass);
 end;
@@ -899,8 +899,8 @@ begin
 		str2arrayW(wString(controlA.szShortName),  szShortName);
 		str2arrayW(wString(controlA.szName), szName);
                 {$ELSE }
-		str2array(wString(controlA.szShortName),  szShortName);
-		str2array(wString(controlA.szName), szName);
+		str2arrayW(wString(controlA.szShortName),  szShortName);
+		str2arrayW(wString(controlA.szName), szName);
                 {$ENDIF __BEFORE_D6__ }
 		//
 		move(controlA.Bounds,  Bounds, sizeOf(Bounds));
@@ -961,8 +961,8 @@ begin
 	str2arrayW(wString(wString(capsA.szShortName)), szShortName);
 	str2arrayW(wString(wString(capsA.szName)), szName);
         {$ELSE }
-	str2array(wString(wString(capsA.szShortName)), szShortName);
-	str2array(wString(wString(capsA.szName)), szName);
+	str2arrayW(wString(wString(capsA.szShortName)), szShortName);
+	str2arrayW(wString(wString(capsA.szName)), szName);
         {$ENDIF __BEFORE_D6__ }
 	//
 	with Target do begin
@@ -975,7 +975,7 @@ begin
           {$IFDEF __BEFORE_D6__ }
 	  str2arrayW(wString(capsA.Target.szPname), szPname);
           {$ELSE }
-	  str2array(wString(capsA.Target.szPname), szPname);
+	  str2arrayW(wString(capsA.Target.szPname), szPname);
           {$ENDIF __BEFORE_D6__ }
 	end;
       end;
@@ -1028,10 +1028,10 @@ begin
 end;
 
 // --  --
-function unaMsMixerLine.getIsLineType(index: int): bool;
+function unaMsMixerLine.getIsLineType(index: integer): bool;
 begin
   if (-1 = index) then
-    index := int(MIXERLINE_LINEF_SOURCE);
+    index := integer(MIXERLINE_LINEF_SOURCE);
   //
   result := (0 <> (caps.fdwLine and index));
 end;
@@ -1157,7 +1157,7 @@ begin
         {$IFDEF __BEFORE_D6__ }
 	str2arrayW(wString(capsA.szPname), szPname);
         {$ELSE }
-	str2array(wString(capsA.szPname), szPname);
+	str2arrayW(wString(capsA.szPname), szPname);
         {$ENDIF __BEFORE_D6__ }
 	fdwSupport := capsA.fdwSupport;
 	cDestinations := capsA.cDestinations;
@@ -1175,7 +1175,7 @@ begin
 end;
 
 // --  --
-function unaMsMixerDevice.getID(): unsigned;
+function unaMsMixerDevice.getID(): UINT;
 begin
   checkError(mixerGetID(f_index, result, MIXER_OBJECTF_MIXER){$IFDEF DEBUG }, 'getID.mixerGetID'{$ENDIF DEBUG });
 end;
@@ -1604,7 +1604,7 @@ const
 // --  --
 function unaMsMixerSystem.getMixerId(deviceId: unsigned; isInDevice: bool): int;
 var
-  mixId: unsigned;
+  mixId: UINT;
   flags: unsigned;
 begin
   if (WAVE_MAPPER = deviceId) then begin
@@ -1621,9 +1621,9 @@ begin
       VER_PLATFORM_WIN32_NT: begin
 	// NT stuff
 	if (isInDevice) then
-	  waveInMessage(int(WAVE_MAPPER), DRVM_MAPPER_PREFERRED_GET, unsigned(@deviceId), unsigned(@flags))
+	  waveInMessage(int(WAVE_MAPPER), DRVM_MAPPER_PREFERRED_GET, UIntPtr(@deviceId), UIntPtr(@flags))
 	else
-	  waveOutMessage(int(WAVE_MAPPER), DRVM_MAPPER_PREFERRED_GET, unsigned(@deviceId), unsigned(@flags));
+	  waveOutMessage(int(WAVE_MAPPER), DRVM_MAPPER_PREFERRED_GET, UIntPtr(@deviceId), UIntPtr(@flags));
       end;
 
     end;
@@ -1639,7 +1639,7 @@ end;
 function unaMsMixerSystem.getMixerIndex(mixerId: unsigned): int;
 var
   i: int;
-  curId: unsigned;
+  curId: UINT;
 begin
   result := -1;
   // locate mixer with this ID

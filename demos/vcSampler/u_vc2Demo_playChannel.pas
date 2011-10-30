@@ -91,7 +91,7 @@ type
     //
     procedure reEnableControls();
     procedure setNewFile();
-    procedure myOnDA(sender: tObject; data: pointer; size: unsigned);
+    procedure myOnDA(sender: tObject; data: pointer; size: uint);
   public
     { Public declarations }
   end;
@@ -219,7 +219,7 @@ begin
 end;
 
 // --  --
-procedure Tc_form_playbackChannel.myOnDA(sender: tObject; data: pointer; size: unsigned);
+procedure Tc_form_playbackChannel.myOnDA(sender: tObject; data: pointer; size: uint);
 begin
   // put data from resampler to stream
   if (nil <> f_stream) then

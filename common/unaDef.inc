@@ -6,7 +6,7 @@
 	  compiler options and conditional defines
 
 	----------------------------------------------
-	  Copyright (c) 2001-2010 Lake of Soft
+	  Copyright (c) 2001-2011 Lake of Soft
 		     All rights reserved
 
 	  http://lakeofsoft.com/
@@ -21,15 +21,20 @@
 		Lake, Sep-Dec 2005
 		Lake, Dec 2007
 		Lake, Jan-Dec 2010
+		Lake, May 2011
 
 	----------------------------------------------
 *)
 
-{xx $DEFINE DEBUG }	// define for debug version
+{xx $DEFINE DEBUG }		// define for debug version
 
-{xx $DEFINE CONSOLE }	// defined automatically by compiler when building console application
+{xx $DEFINE UNA_SERVICE }	// define for service module
 
-{$DEFINE NO_ANSI_SUPPORT }	// undefine this symbol if you do need support for ANSI version of Windows API (Win9x)
+
+{$IFDEF UNA_NEED_ANSI }
+{$ELSE }
+  {$DEFINE NO_ANSI_SUPPORT }	// undefine this symbol if you do need support for ANSI version of Windows API (Win9x)
+{$ENDIF UNA_NEED_ANSI }
 
 // -- VC 2.5 license type --
 {$I unaVC25_license.inc }
@@ -37,13 +42,17 @@
 
 {$IFDEF VC25_ENTERPRISE }
   //
-  {$DEFINE VC25_OVERLAPPED }      // enable overlapped calls
-  {$DEFINE VC25_WINSOCK20 }       // enable WinSock 2.0 extensions
-  //
-  {$IFNDEF NO_ANSI_SUPPORT }
-  {$ELSE }
+  {$IFDEF NO_ANSI_SUPPORT }
     //
-    {$DEFINE VC25_IOCP }            // enable IOCP calls
+    {$DEFINE VC25_OVERLAPPED }      // enable overlapped calls
+    {$DEFINE VC25_WINSOCK20 }       // enable WinSock 2.0 extensions
+    //
+    {$IFDEF FPC }
+    {$ELSE }
+      {$IFDEF VC25_OVERLAPPED }
+	{$DEFINE VC25_IOCP }            // enable IOCP calls
+      {$ENDIF VC25_OVERLAPPED }
+    {$ENDIF FPC }
     //
   {$ENDIF NO_ANSI_SUPPORT }
   //
@@ -57,8 +66,12 @@
 {$IFDEF FPC }
   {$MODE DELPHI }
   {$ASMMODE Intel }
-  {$DEFINE VER180 }
-  {$DEFINE VER185 }
+  {$DEFINE VER170 }
+  {$DEFINE __STRANSI__ }
+  //
+  {$IFDEF CPU64 }
+    {$DEFINE FPC64 }
+  {$ENDIF CPU64 }
 {$ENDIF FPC }
 
 {$IFDEF VER90 }
@@ -75,6 +88,8 @@
   {$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
   {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
   {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+  {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+  {$DEFINE __STRANSI__ }
   //
   {$DEFINE __AFTER_D1__ }	// Delphi 2.0 or later
 {$ELSE }
@@ -91,6 +106,8 @@
     {$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
     {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
     {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+    {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+    {$DEFINE __STRANSI__ }
     //
     {$DEFINE __AFTER_D1__ }	// Delphi 2.0 or later
     {$DEFINE __AFTER_D2__ }	// Delphi 3.0 or later
@@ -108,7 +125,9 @@
       {$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
       {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
       {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
-    //
+      {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+      {$DEFINE __STRANSI__ }
+      //
       {$DEFINE __AFTER_D1__ }
       {$DEFINE __AFTER_D2__ }
     {$ELSE }
@@ -121,9 +140,11 @@
 	{$DEFINE __BEFORE_D9__ }
 	{$DEFINE __BEFORE_DA__ }
 	{$DEFINE __BEFORE_DB__ }
-        {$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
+	{$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
 	{$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
-        {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+	{$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+        {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+	{$DEFINE __STRANSI__ }
 	//
 	{$DEFINE __AFTER_D1__ }
 	{$DEFINE __AFTER_D2__ }
@@ -137,9 +158,11 @@
 	  {$DEFINE __BEFORE_D9__ }
 	  {$DEFINE __BEFORE_DA__ }
 	  {$DEFINE __BEFORE_DB__ }
-          {$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
+	  {$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
 	  {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
-          {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+	  {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+          {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+	  {$DEFINE __STRANSI__ }
 	  //
 	  {$DEFINE __AFTER_D1__ }
 	  {$DEFINE __AFTER_D2__ }
@@ -155,7 +178,9 @@
 	    {$DEFINE __BEFORE_DB__ }
 	    {$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
 	    {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
-            {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+	    {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+            {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+	    {$DEFINE __STRANSI__ }
 	    //
 	    {$DEFINE __AFTER_D1__ }
 	    {$DEFINE __AFTER_D2__ }
@@ -166,12 +191,14 @@
 	    {$IFDEF VER150 }
 	      // Delphi 7.0
 	      {$DEFINE __BEFORE_D8__ }
-              {$DEFINE __BEFORE_D9__ }
-              {$DEFINE __BEFORE_DA__ }
-              {$DEFINE __BEFORE_DB__ }
-              {$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
+	      {$DEFINE __BEFORE_D9__ }
+	      {$DEFINE __BEFORE_DA__ }
+	      {$DEFINE __BEFORE_DB__ }
+	      {$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
 	      {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
-              {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+	      {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+              {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+    	      {$DEFINE __STRANSI__ }
 	      //
 	      {$DEFINE __AFTER_D1__ }
 	      {$DEFINE __AFTER_D2__ }
@@ -187,7 +214,9 @@
 		{$DEFINE __BEFORE_DB__ }
 		{$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
 		{$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
-                {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+		{$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+                {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+		{$DEFINE __STRANSI__ }
 		//
 		{$DEFINE __AFTER_D1__ }
 		{$DEFINE __AFTER_D2__ }
@@ -204,7 +233,9 @@
 		  {$DEFINE __BEFORE_DB__ }
 		  {$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
 		  {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
-                  {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+		  {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+                  {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+		  {$DEFINE __STRANSI__ }
 		  //
 		  {$DEFINE __AFTER_D1__ }
 		  {$DEFINE __AFTER_D2__ }
@@ -219,7 +250,9 @@
 		    //
 		    {$DEFINE __BEFORE_DC__ }	// Not Delphi 2009 yet
 		    {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
-                    {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+		    {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+                    {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+		    {$DEFINE __STRANSI__ }
 		    //
 		    // Delphi 2006 (DA) or Delphi 2007 (DB),
 		    // fortunately we can use VER185 (see below)
@@ -239,6 +272,8 @@
 		      {$DEFINE __AFTER_DA__ }	// Delphi 2007 or later
 		    {$ELSE }
 		      {$DEFINE __BEFORE_DB__ }	// Not Delphi 2007 yet
+		      //
+		      {$DEFINE __STRANSI__ }
 		    {$ENDIF VER185 }
 		  {$ELSE }
 		    //
@@ -250,7 +285,8 @@
 			// Delphi 2009 (DC)
 			//
 			{$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
-                        {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+			{$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+                        {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
 			//
 			{$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
 			{$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
@@ -268,8 +304,9 @@
 			{$IFDEF VER210 }
 			  //
 			  // Delphi 2010 (DD)
-                          //
-                          {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+			  //
+			  {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
+                          {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
 			  //
 			  {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
 			  {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
@@ -284,28 +321,51 @@
 			  {$DEFINE __AFTER_DB__ }	// Delphi 2009 or later
 			  {$DEFINE __AFTER_DC__ }	// Delphi 2010 or later
 
-                        {$ELSE }
-                          {$IFDEF VER220 }
-                            //
-                            // Delphi XE (DE)
-                            {xx $DEFINE __BEFORE_DF__ }	// Not Delphi 2012(?) yet
-                            //
-                            {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
-                            {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
-                            {$DEFINE __AFTER_D3__ }  	// Delphi 4.0 or later
-                            {$DEFINE __AFTER_D4__ }  	// Delphi 5.0 or later
-                            {$DEFINE __AFTER_D5__ }  	// Delphi 6.0 or later
-                            {$DEFINE __AFTER_D6__ }  	// Delphi 7.0 or later
-                            {$DEFINE __AFTER_D7__ }  	// Delphi 8.0 or later
-                            {$DEFINE __AFTER_D8__ }  	// Delphi 2005 or later
-                            {$DEFINE __AFTER_D9__ }	// Delphi 2006 or later
-                            {$DEFINE __AFTER_DA__ }	// Delphi 2007 or later
-                            {$DEFINE __AFTER_DB__ }	// Delphi 2009 or later
-                            {$DEFINE __AFTER_DC__ }	// Delphi 2010 or later
+			{$ELSE }
+			  {$IFDEF VER220 }
+			    //
+			    // Delphi XE (DE)
+                            {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+			    //
+			    {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
+			    {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
+			    {$DEFINE __AFTER_D3__ }  	// Delphi 4.0 or later
+			    {$DEFINE __AFTER_D4__ }  	// Delphi 5.0 or later
+			    {$DEFINE __AFTER_D5__ }  	// Delphi 6.0 or later
+			    {$DEFINE __AFTER_D6__ }  	// Delphi 7.0 or later
+			    {$DEFINE __AFTER_D7__ }  	// Delphi 8.0 or later
+			    {$DEFINE __AFTER_D8__ }  	// Delphi 2005 or later
+			    {$DEFINE __AFTER_D9__ }	// Delphi 2006 or later
+			    {$DEFINE __AFTER_DA__ }	// Delphi 2007 or later
+			    {$DEFINE __AFTER_DB__ }	// Delphi 2009 or later
+			    {$DEFINE __AFTER_DC__ }	// Delphi 2010 or later
 			    {$DEFINE __AFTER_DD__ }	// Delphi XE or later
 
-                          {$ELSE }
-                             // ... after XE
+			  {$ELSE }
+			     //
+                            {$IFDEF VER230 }
+                              //
+                              // Delphi XE2 (DF)
+                              {$DEFINE __BEFORE_E0__ }	// Not Delphi XE3 yet
+                              //
+                              {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
+                              {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
+                              {$DEFINE __AFTER_D3__ }  	// Delphi 4.0 or later
+                              {$DEFINE __AFTER_D4__ }  	// Delphi 5.0 or later
+                              {$DEFINE __AFTER_D5__ }  	// Delphi 6.0 or later
+                              {$DEFINE __AFTER_D6__ }  	// Delphi 7.0 or later
+                              {$DEFINE __AFTER_D7__ }  	// Delphi 8.0 or later
+                              {$DEFINE __AFTER_D8__ }  	// Delphi 2005 or later
+                              {$DEFINE __AFTER_D9__ }	// Delphi 2006 or later
+                              {$DEFINE __AFTER_DA__ }	// Delphi 2007 or later
+                              {$DEFINE __AFTER_DB__ }	// Delphi 2009 or later
+                              {$DEFINE __AFTER_DC__ }	// Delphi 2010 or later
+                              {$DEFINE __AFTER_DD__ }	// Delphi XE or later
+                              {$DEFINE __AFTER_DE__ }	// Delphi XE2 or later
+
+                            {$ELSE }
+                               // ... after XE2
+                            {$ENDIF VER230 }
                           {$ENDIF VER210 }
 			{$ENDIF VER210 }
 		      {$ENDIF VER200 }
@@ -358,15 +418,12 @@
     //
   {$ENDIF VER90 }
 
+  {$DEBUGINFO ON }      // $D+ generation of debug info
 
-  {$DEBUGINFO ON }      // $D+
-			// generation of debug info
-
-  {$LOCALSYMBOLS ON }	// $L+
-			// generation of local symbol information
-
-  {$REFERENCEINFO ON }	// $Y+
-			// generation of symbol reference information
+  {$IFNDEF FPC }
+    {$LOCALSYMBOLS ON }	// $L+ generation of local symbol information
+    {$REFERENCEINFO ON }	// $Y+ generation of symbol reference information
+  {$ENDIF FPC }
 
   {$IFDEF FORCE_OPTIMIZATION }
     //
@@ -377,17 +434,11 @@
     {$RANGECHECKS OFF }
     {$STACKFRAMES OFF }
   {$ELSE}
-
-    {$IOCHECKS ON }		// $I+
-				// generation of checking I/O results code (affects binary code)
-    {$OPTIMIZATION OFF }	// $O-
-				// turn off optimization (affects binary code)
-    {$OVERFLOWCHECKS ON }	// $Q+
-				// generation of overflow checking code (affects binary code)
-    {$RANGECHECKS ON }		// $R+
-				// generation of range-checking code (affects binary code)
-    {$STACKFRAMES ON }		// $W+
-				// generation of stack frames for procedures and functions (affects binary code)
+    {$IOCHECKS ON }		// $I+ generation of checking I/O results code (affects binary code)
+    {$OPTIMIZATION OFF }	// $O- turn off optimization (affects binary code)
+    {$OVERFLOWCHECKS ON }	// $Q+ generation of overflow checking code (affects binary code)
+    {$RANGECHECKS ON }		// $R+ generation of range-checking code (affects binary code)
+    {$STACKFRAMES ON }		// $W+ generation of stack frames for procedures and functions (affects binary code)
   {$ENDIF FORCE_OPTIMIZATION }
 
 {$ELSE }
@@ -396,9 +447,7 @@
   // RELEASE OPTIONS
   //=================
 
-  {$IFDEF FPC }
-    {$DEFINE RELEASE }
-  {$ENDIF FPC }
+  {$DEFINE RELEASE }
 
   {$IFDEF VER90 }    // Delphi 2.0
   {$ELSE }
@@ -418,35 +467,19 @@
     {$ENDIF }
   {$ENDIF }
 
-{$IFNDEF FPC }
-  {$LOCALSYMBOLS OFF }	// $L-
-			// generation of local symbol information
-{$ENDIF FPC }
-
-  {$DEBUGINFO OFF }     // $D-
-			// do not allow debug info to be generated
-{$IFNDEF FPC }
-  {$REFERENCEINFO OFF }	// $Y-
-			// generation of symbol reference information
-{$ENDIF FPC }
-
-  {$OPTIMIZATION OFF }	// $O-
-			// turn on optimization (affects binary code)
-
-  {$IOCHECKS OFF }	// $I-
-			// generation of checking I/O results code (affects binary code)
-  {$OVERFLOWCHECKS OFF }// $Q-
-			// generation of overflow checking code (affects binary code)
-  {$RANGECHECKS OFF }	// $R-
-			// generation of range-checking code (affects binary code)
-  {$STACKFRAMES OFF }	// $W-
-			// generation of stack frames for procedures and functions (affects binary code)
-
-  {$IFDEF FPC }
-    {$DEFINE NO_UNA_DESCR }
+  {$IFNDEF FPC }
+    {$LOCALSYMBOLS OFF }	// $L- generation of local symbol information
+    {$REFERENCEINFO OFF }	// $Y- generation of symbol reference information
   {$ELSE }
+    {$DEFINE NO_UNA_DESCR }
   {$ENDIF FPC }
 
+  {$DEBUGINFO OFF }     // $D- no debug info
+  {$OPTIMIZATION ON }	// $O+ turn on optimization (affects binary code)
+  {$IOCHECKS OFF }	// $I- generation of checking I/O results code (affects binary code)
+  {$OVERFLOWCHECKS OFF }// $Q- generation of overflow checking code (affects binary code)
+  {$RANGECHECKS OFF }	// $R- generation of range-checking code (affects binary code)
+  {$STACKFRAMES OFF }	// $W- generation of stack frames for procedures and functions (affects binary code)
 {$ENDIF }
 
 
@@ -459,67 +492,48 @@
   {$K-}	// ?
   {$N-} // ?
 {$ENDIF FPC }
-  {$S-} // ?
+
+{$S-} // ?
 
 // -- common --
 
-{$IFDEF VER90}          // Delphi 2.0
+{$IFDEF VER90 }          // Delphi 2.0
 {$ELSE}
 
-{$IFDEF FPC }
-{$ELSE }
-  {$IMPORTEDDATA ON }	// $G+
-			// turn on creation of imported data references
+  {$IFDEF FPC }
+  {$ELSE }
+    {$IMPORTEDDATA ON }	// $G+ turn on creation of imported data references
 			// NOTE: C++ Builder ?.0 crashes when installing packages compiled with $G-
-{$ENDIF FPC }
+  {$ENDIF FPC }
 
   {$IFDEF VER100 }         // Delphi 3.0
   {$ELSE }
     {$IFDEF VER110 }         // CBuilder 3.0
     {$ELSE }
 
-{$IFDEF FPC }
-{$ELSE }
-      {$REALCOMPATIBILITY OFF }	//
-				// Real type is equivalent to Double
-{$ENDIF FPC }
+      {$IFDEF FPC }
+      {$ELSE }
+        {$REALCOMPATIBILITY OFF }	// Real type is equivalent to Double
+      {$ENDIF FPC }
 
-    {$ENDIF }
-  {$ENDIF }
-{$ENDIF }
+    {$ENDIF VER110 }
+  {$ENDIF VER100 }
+{$ENDIF VER90 }
 
-{$ALIGN ON }		// $A+
-			// align records to 8/16 boundaries (unless packed modifier is specified)
-
-{$BOOLEVAL OFF }        // $B-
-			// turn off full boolean evaluation
+{$A+ }		        // $A+ align records to 8/16 boundaries (unless packed modifier is specified)
+{$BOOLEVAL OFF }        // $B- turn off full boolean evaluation
 			// WARNING! turning is option on will introduce certain access violations
-
 {$IFDEF FPC }
-  {$LONGSTRINGS ON }	// $H+
-  			// turn on long string support
-{$ENDIF FPC }
-
-{$WRITEABLECONST OFF }	// $J-
-			// turn off writeable const
-
-{$TYPEINFO OFF }	// $M-
-			// turn off RTTI (when possible)
-
-{$TYPEDADDRESS ON }	// $T-
-			// turn off typed pointers
-
-{$IFDEF FPC }
+  {$LONGSTRINGS ON }	// $H+ turn on long string support
 {$ELSE }
-  {$SAFEDIVIDE OFF }	// $U-
-			// turn off guards against the flawed FDIV instruction exhibited by certain early Pentium processors
+  {$SAFEDIVIDE OFF }	// $U- turn off guards against the flawed FDIV instruction exhibited by certain early Pentium processors
 {$ENDIF FPC }
 
-{$EXTENDEDSYNTAX ON }   // $X+
-			// turn on extended syntax
-
-{$MINENUMSIZE 4 }	// $Z+ or $Z4
-			// set enum element size to 4 bytes
+{$WRITEABLECONST OFF }	// $J- turn off writeable const
+{$TYPEINFO OFF }	// $M- turn off RTTI (when possible)
+{$TYPEDADDRESS ON }	// $T+ turn on typed pointers
+{$EXTENDEDSYNTAX ON }   // $X+ turn on extended syntax
+{$MINENUMSIZE 4 }	// $Z+ or $Z4 set enum element size to 4 bytes
 
 {$P+}	// short string? who still needs them..
 {$V+}	// short string? who still needs them..
@@ -529,13 +543,13 @@
 {$ELSE }
   //
   {$IFDEF VCX_DEMO }
-    {$DESCRIPTION 'VC25EMAY10' }        // Evaluation version
+    {$DESCRIPTION 'VC25EOCT11' }        // Evaluation version
   {$ELSE }
     //
     {$IFDEF VC25_ENTERPRISE }
-      {$DESCRIPTION 'VC25XMAY10' }	// Enterprise
+      {$DESCRIPTION 'VC25XOCT11' }	// Enterprise
     {$ELSE }
-      {$DESCRIPTION 'VC25PMAY10' }      // Pro version
+      {$DESCRIPTION 'VC25POCT11' }      // Pro version
     {$ENDIF}
     //
   {$ENDIF VCX_DEMO }
@@ -548,4 +562,13 @@
     {$DEFINE UNA_OK_INLINE }	// inline is OK after Delphi 7, but it is bad for debugging
   {$ENDIF DEBUG }
 {$ENDIF __AFTER_D7__ }
+
+
+{$IFDEF CPUX64 }	// defined by dcc64 only
+  {$DEFINE CPU64 }
+{$ENDIF CPUX64 }
+
+{$IFDEF WIN64 }		// defined by dcc64 only
+  {$DEFINE CPU64 }
+{$ENDIF CPUX64 }
 

@@ -23,11 +23,13 @@
 		Lake, Mar-Dec 2007
 		Lake, Jan-Nov 2008
 		Lake, May 2010
+		Lake, Mar-Apr 2011
 
 	----------------------------------------------
 *)
 
 {$I unaDef.inc }
+{$I unaMSACMDef.inc }
 
 {$IFDEF DEBUG }
   {$DEFINE LOG_UNAVC_WAVE_INFOS }	// log informational messages
@@ -68,12 +70,17 @@ uses
 const
   {*
 	Default value for overNum property.
-	4 chunks of 1/50 second each.
+	6 chunks of 1/50 second each.
   }
-  defOverNumValue = 4;
+  defOverNumValue = 6;
 
 
 type
+  {*
+        ACM request event handler
+  }
+  tunaOnAcmReq = procedure (sender: tObject; req: uint; var acm: unaMsAcm) of object;
+
   //
   // -- unaInOutWavePipe --
   //
@@ -91,8 +98,8 @@ type
     f_driverLibrary: wString;
     //
     f_direct: bool;
-    f_realTime: bool;
-    f_applyFormatTagImmunable: bool;
+    f_realTime: boolean;
+    f_applyFormatTagImmunable: boolean;
     f_needApplyFormatOnCreate: bool;	// some devices already has format assigned after creation,
 					// and this flag should be set to true in that case
     //
@@ -103,10 +110,10 @@ type
     //
     f_overNum: unsigned;
     f_formatTag: unsigned;
-    f_loop: bool;
-    f_inputIsPcm: bool;
-    f_addSilence: bool;
-    f_calcVolume: bool;
+    f_loop: boolean;
+    f_inputIsPcm: boolean;
+    f_addSilence: boolean;
+    f_calcVolume: boolean;
     f_sdmCache: unaWaveInSDMethods;
     //
     f_pcmChannelMaskIsNotDefault: bool;
@@ -115,33 +122,35 @@ type
     //
     f_formatExt: PWAVEFORMATEXTENSIBLE;	//
     //
-    f_acm: unaMsAcm;
+    f_acm2: unaMsAcm;
     f_driver: unaMsAcmDriver;
     f_device: unaMsAcmStreamDevice;
+    f_onAcmReq: tunaOnAcmReq;
+    //
     f_sdo: bool;
     //
-    function getSamplingParam(index: int): unsigned;
+    function getSamplingParam(index: integer): unsigned;
     function getWaveErrorAsString(): string;
     function getMinActiveTime(): unsigned;
     function getMinVolLevel(): unsigned;
     //
-    procedure myOnDA(sender: tObject; data: pointer; len: unsigned);
+    procedure myOnDA(sender: tObject; data: pointer; len: cardinal);
     //
     procedure setMapped(value: bool);
     procedure setDirect(value: bool);
     procedure setOverNum(value: unsigned);
-    procedure setRealTime(value: bool);
-    procedure setInputIsPcm(value: bool);
-    procedure setCalcVolume(value: bool);
+    procedure setRealTime(value: boolean);
+    procedure setInputIsPcm(value: boolean);
+    procedure setCalcVolume(value: boolean);
     //
     procedure setDeviceId(value: int);
     procedure setFormatTag(value: unsigned);
     procedure setFormat(value: PWAVEFORMATEXTENSIBLE);
     procedure setDriver(value: unaMsAcmDriver);
-    procedure setSamplingParam(index: int; value: unsigned);
+    procedure setSamplingParam(index: integer; value: unsigned);
     //
-    procedure setAddSilence(value: bool);
-    procedure setLoop(value: bool);
+    procedure setAddSilence(value: boolean);
+    procedure setLoop(value: boolean);
     procedure setDriverMode(value: unaAcmCodecDriverMode);
     procedure setDriverLibrary(const value: wString);
     //
@@ -152,78 +161,37 @@ type
     procedure setSdm(value: unaWaveInSDMethods);
   protected
     {*
-      Sets new device ID and re-creates device object if needed.
-
-      @param value New device ID value.
+	Initializes the wave device.
     }
-    procedure doSetDeviceId(value: int); virtual;
-    {*
-      Sets new format tag and re-creates device and driver objects if needed.
-
-      @param value New format tag value.
-    }
-    procedure doSetFormatTag(value: unsigned); virtual;
-    procedure doSetFormat(value: PWAVEFORMATEXTENSIBLE); virtual;
-    procedure doSetDriver(value: unaMsAcmDriver); virtual;
-    procedure doSetSamplingParam(index: int; value: unsigned); virtual;
-    //
-    procedure doSetAddSilence(value: bool); virtual;
-    procedure doSetLoop(value: bool); virtual;
-    procedure doSetDriverMode(value: unaAcmCodecDriverMode); virtual;
-    procedure doSetDriverLibrary(const value: wString); virtual;
-    //
+    procedure Loaded(); override;
     {*
 	Returns current position in device.
 
 	@return Current position in data stream (if applicable).
     }
     function doGetPosition(): int64; override;
-    //
     {*
-    }
-    procedure initWaveParams(); virtual;
-    {*
-	Does all the job of device creation.
-	Should be overriten with actual implementation.
-	Should not be called directly.
-    }
-    procedure createNewDevice(); virtual;
-    {*
-	Called when new device is about to be created.
-    }
-    procedure destroyOldDevice(); virtual;
-    {*
-	Applies new data stream format for the wave device.
-	This implementation assumes device is descendand from unaWaveDevice.
+        If enableDataProcessing is True, writes data into the wave device using its write() method.
+        Otherwise passes data to onNewData() method (thus removing the component from data chain).
+        Does nothing if device is nil.
 
-	@param format New data format.
-	@param isSrc True if format specifies input data format, False for output.
-
-	@return True if successfull.
+        @param data Stream data.
+        @param len Size of data pointed by data.
+        @return Number of bytes passed to device.
     }
-    function applyDeviceFormat(format: PWAVEFORMATEXTENSIBLE; isSrc: bool = true): bool; virtual;
-    {*
-      If enableDataProcessing is True, writes data into the wave device using its write() method.
-      Otherwise passes data to onNewData() method (thus removing the component from data chain).
-      Does nothing if device is nil.
-
-      @param data Stream data.
-      @param len Size of data pointed by data.
-      @return Number of bytes passed to device.
-    }
-    function doWrite(data: pointer; len: unsigned; provider: pointer = nil): unsigned; override;
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
     {*
 	Reads data from the wave device.
 
       	@return Number of bytes read from device.
     }
-    function doRead(data: pointer; len: unsigned): unsigned; override;
+    function doRead(data: pointer; len: uint): uint; override;
     {*
 	Returns available data size.
 
 	@return Data size available to read from the wave device.
     }
-    function getAvailableDataLen(index: int): unsigned; override;
+    function getAvailableDataLen(index: integer): uint; override;
     {*
 	Creates and opens the wave device.
 
@@ -256,209 +224,256 @@ type
 
 	@return True if successfull.
     }
-    function applyFormat(data: pointer; len: unsigned; provider: unavclInOutPipe = nil; restoreActiveState: bool = false): bool; override;
+    function applyFormat(data: pointer; len: uint; provider: unavclInOutPipe = nil; restoreActiveState: bool = false): bool; override;
     {*
 	Fills format exchange data of the pipe stream.
 
 	@param data Data format. Must be deallocated by mrealloc().
-	
+
 	@return Size in bytes of data buffer.
     }
-    function getFormatExchangeData(out data: pointer): unsigned; override;
+    function getFormatExchangeData(out data: pointer): uint; override;
+    {*
+        Adds provider to the wave device.
+    }
+    function doAddProvider(provider: unavclInOutPipe): bool; override;
+    {*
+        Adds consumer to the wave device.
+    }
+    function doAddConsumer(consumer: unavclInOutPipe; forceNewFormat: bool = true): bool; override;
+    {*
+        Removes provider from the wave device.
+    }
+    procedure doRemoveProvider(provider: unavclInOutPipe); override;
+    {*
+        Sets new device ID and re-creates device object if needed.
+
+        @param value New device ID value.
+    }
+    procedure doSetDeviceId(value: int); virtual;
+    {*
+        Sets new format tag and re-creates device and driver objects if needed.
+
+        @param value New format tag value.
+    }
+    procedure doSetFormatTag(value: unsigned); virtual;
+    procedure doSetFormat(value: PWAVEFORMATEXTENSIBLE); virtual;
+    procedure doSetDriver(value: unaMsAcmDriver); virtual;
+    procedure doSetSamplingParam(index: int; value: unsigned); virtual;
+    //
+    procedure doSetAddSilence(value: boolean); virtual;
+    procedure doSetLoop(value: boolean); virtual;
+    procedure doSetDriverMode(value: unaAcmCodecDriverMode); virtual;
+    procedure doSetDriverLibrary(const value: wString); virtual;
     {*
 	Returns chunk size (in bytes).
 
 	@return Size of input data chunk in bytes.
     }
-    function getChunkSize(): unsigned; virtual;
+    function getChunkSize(): uint; virtual;
     {*
 	Some devices (like codecs) may have different sife of input and output chunks.
 
 	@return Size of output data chunk in bytes.
     }
-    function getDstChunkSize(): unsigned; virtual;
+    function getDstChunkSize(): uint; virtual;
     {*
 	Triggers when device driver has been changed.
     }
     procedure onDriverChanged(); virtual;
     {*
-	Initializes the wave device.
     }
-    procedure Loaded(); override;
+    procedure initWaveParams(); virtual;
+    {*
+	Does all the job of device creation.
+	Should be overriten with actual implementation.
+	Should not be called directly.
+    }
+    procedure createNewDevice(); virtual;
+    {*
+	Called when new device is about to be created.
+    }
+    procedure destroyOldDevice(); virtual;
+    {*
+	Applies new data stream format for the wave device.
+	This implementation assumes device is descendand from unaWaveDevice.
+
+	@param format New data format.
+	@param isSrc True if format specifies input data format, False for output.
+
+	@return True if successfull.
+    }
+    function applyDeviceFormat(format: PWAVEFORMATEXTENSIBLE; isSrc: bool = true): bool; virtual;
+    {*
+        ACM reqest.
+
+        Used mostly to disable default ACM enumeration.
+    }
+    procedure doAcmReq(req: uint; var acm: unaMsAcm);
+    //
+    // -- properties --
     //
     {*
-      Adds provider to the wave device.
-    }
-    function doAddProvider(provider: unavclInOutPipe): bool; override;
-    {*
-      Adds consumer to the wave device.
-    }
-    function doAddConsumer(consumer: unavclInOutPipe; forceNewFormat: bool = true): bool; override;
-    {*
-      Removes provider from the wave device.
-    }
-    procedure doRemoveProvider(provider: unavclInOutPipe); override;
-    //
-    {*
-      Internal.
+     	Internal.
     }
     property deviceWasCreated: bool read f_deviceWasCreated;
     {*
-      Specifies whether device should add silence when it runs out of audio data.
+        Specifies whether device should add silence when it runs out of audio data.
     }
-    property addSilence: bool read f_addSilence write setAddSilence default false;
+    property addSilence: boolean read f_addSilence write setAddSilence default false;
     {*
-      Specifies device ID for the wave device.
-      Ranges from 0 to number of wave devices - 1.
-      Default value is WAVE_MAPPER, which forces the component to use
-      default device assigned in Control Panel.
+        Specifies device ID for the wave device.
+        Ranges from 0 to number of wave devices - 1.
+        Default value is WAVE_MAPPER, which forces the component to use
+        default device assigned in Control Panel.
     }
-    property deviceId: int read f_deviceId write setDeviceId default int(WAVE_MAPPER);
+    property deviceId: int read f_deviceId write setDeviceId;
     {*
-      Specifies audio format tag for the wave device.
+        Specifies audio format tag for the wave device.
     }
     property formatTag: unsigned read f_formatTag write setFormatTag default WAVE_FORMAT_PCM;
     {*
-      Specifies the device is immunable for format tag changes (usually useful for codecs).
+        Specifies the device is immunable for format tag changes (usually useful for codecs).
     }
-    property formatTagImmunable: bool read f_applyFormatTagImmunable write f_applyFormatTagImmunable default false;
+    property formatTagImmunable: boolean read f_applyFormatTagImmunable write f_applyFormatTagImmunable default false;
     {*
-      Specifies whether wave device is mapped (obsolete).
+        Specifies whether wave device is mapped (obsolete).
     }
     property mapped: bool read f_mapped write setMapped default false;
     {*
-      Specifies whether wave device is direct (obsolete).
+        Specifies whether wave device is direct (obsolete).
     }
     property direct: bool read f_direct write setDirect default false;
     {*
-      Specifies whether device is working in real-time manner.
+        Specifies whether device is working in real-time manner.
     }
-    property realTime: bool read f_realTime write setRealTime default false;
+    property realTime: boolean read f_realTime write setRealTime default false;
     {*
-      Specifies whether wave stream should be looped from end to beginning.
+        Specifies whether wave stream should be looped from end to beginning.
     }
-    property loop: bool read f_loop write setLoop default false;
+    property loop: boolean read f_loop write setLoop default false;
     {*
-      Specifies whether format of input stream of the device is PCM.
+        Specifies whether format of input stream of the device is PCM.
     }
-    property inputIsPcm: bool read f_inputIsPcm write setInputIsPcm default true;
+    property inputIsPcm: boolean read f_inputIsPcm write setInputIsPcm default true;
     {*
-      Specifies driver mode for device.
+        Specifies driver mode for device.
     }
     property driverMode: unaAcmCodecDriverMode read f_driverMode write setDriverMode default unacdm_acm;
     {*
-      Specifies driver library for device.
+        Specifies driver library for device.
     }
     property driverLibrary: wString read f_driverLibrary write setDriverLibrary;
     {*
-      Specifies which method will be used to detect silence.
+        Specifies which method will be used to detect silence.
       <UL>
 	<LI>unasdm_none - no silence detection</LI>
 	<LI>unasdm_VC - "old" method, which uses minVolumeLevel and minActiveTime</LI>
 	<LI>unasdm_DSP - uses DSP library to filter silence</LI>
       <UL>
 
-      minActiveTime and minVolumeLevel properties control the silence detection behavior for unasdm_VC.
+        minActiveTime and minVolumeLevel properties control the silence detection behavior for unasdm_VC.
     }
     property silenceDetectionMode: unaWaveInSDMethods read f_sdmCache write setSdm default unasdm_none;
   public
     {*
-      Creates the wave device and assigns default values for properties.
+        Creates the wave device and assigns default values for properties.
     }
     procedure AfterConstruction(); override;
     {*
-      Destroys the wave device.
+        Destroys the wave device.
     }
     procedure BeforeDestruction(); override;
     {*
-      Destroys previuosly created wave device, then creates new one.
-      Assigns required callbacks for device.
+        Destroys previuosly created wave device, then creates new one.
+        Assigns required callbacks for device.
     }
     procedure createDevice();
     {*
-      Creates ACM or openH323plugin driver for device (if needed).
+        Creates ACM or openH323plugin driver for device (if needed).
     }
     procedure createDriver();
     //
     {*
-      Refreshes the device format.
+        Refreshes the device format.
     }
     procedure ensureFormat();
     {*
-      Returns current volume of audio signal passing "through" wave device.
-      Returned volume range from 0 (silence) to 32768. Scale is linear. Use getLogVolume() method to get volume in logarithmic scale.
+        Returns current volume of audio signal passing "through" wave device.
+        Returned volume range from 0 (silence) to 32768. Scale is linear. Use getLogVolume() method to get volume in logarithmic scale.
 
-      @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
+        @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
     }
-    function getVolume(channel: unsigned = $FFFFFFFF): unsigned;
+    function getVolume(channel: uint = $FFFFFFFF): unsigned;
     {*
-      Returns unchenaged volume of audio signal passing "through" wave device.
-      Returned volume range from 0 (silence) to 32768. Scale is linear. Use getLogVolume() method to get volume in logarithmic scale.
+        Returns unchenaged volume of audio signal passing "through" wave device.
+        Returned volume range from 0 (silence) to 32768. Scale is linear. Use getLogVolume() method to get volume in logarithmic scale.
 
-      @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
+        @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
     }
-    function getUnVolume(channel: unsigned = $FFFFFFFF): unsigned;
+    function getUnVolume(channel: uint = $FFFFFFFF): unsigned;
     {*
-      Returns current volume of audio signal passing "through" wave device.
-      Returned volume range from 0 (silence) to 100. Scale is logarithmic. Use getVolume() method to get volume in linear scale.
+        Returns current volume of audio signal passing "through" wave device.
+        Returned volume range from 0 (silence) to 100. Scale is logarithmic. Use getVolume() method to get volume in linear scale.
 
-      @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
+        @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
     }
-    function getLogVolume(channel: unsigned = $FFFFFFFF): unsigned;
+    function getLogVolume(channel: uint = $FFFFFFFF): unsigned;
     {*
-      Changes the volume of specified channel.
+        Changes the volume of specified channel.
 
-      @param volume 100 means no volume change (100%); 50 = 50%; 200 = 200% and so on.
-      @param channel Default value of -1 means this volume will be applied on all channels.
+        @param volume 100 means no volume change (100%); 50 = 50%; 200 = 200% and so on.
+        @param channel Default value of -1 means this volume will be applied on all channels.
     }
     procedure setVolume100(volume: unsigned = 100; channel: int = -1);
     {*
-      Flushes any data panding.
+        Flushes any data panding.
     }
-    //
     procedure flush();
     //
+    // -- properties --
+    //
     {*
-      ACM manager for the device (if any).
+        ACM manager for the device (if any).
     }
-    property acm: unaMsAcm read f_acm;
+    property acm2: unaMsAcm read f_acm2;
     {*
-      Device driver.
+        Device driver.
     }
     property driver: unaMsAcmDriver read f_driver write setDriver;
     {*
-      Wave device associated with the pipe.
+        Wave device associated with the pipe.
     }
     property device: unaMsAcmStreamDevice read f_device;
     {*
-      PCM format of the wave device.
+        PCM format of the wave device.
     }
     property pcmFormatExt: PWAVEFORMATEXTENSIBLE read f_formatExt write setFormat;
     {*
 	Input chunk size.
     }
-    property chunkSize: unsigned read getChunkSize;
+    property chunkSize: uint read getChunkSize;
     {*
 	Output chunk size.
     }
-    property dstChunkSize: unsigned read getDstChunkSize;
+    property dstChunkSize: uint read getDstChunkSize;
     {*
 	Last wave error.
     }
     property waveError: int read f_waveError;
     {*
-	Last wave error as AnsiString.
+	Last wave error as string.
     }
     property waveErrorAsString: string read getWaveErrorAsString;
     //
     {*
-      When True tells the component to calculate audio volume of a data stream
-      coming into or from the component.
-      Use the getVolume() method to get the current volume level.
+        When True tells the component to calculate audio volume of a data stream
+        coming into or from the component.
+        Use the getVolume() method to get the current volume level.
 
-      <P>This property must be also set to True if silenceDetectionMode is set to unasdm_VC.
+        This property must be also set to True if silenceDetectionMode is set to unasdm_VC.
     }
-    property calcVolume: bool read f_calcVolume write setCalcVolume default false;
+    property calcVolume: boolean read f_calcVolume write setCalcVolume default false;
     {*
 	Specifies whether device should be "started" after open.
 	Default is True.
@@ -467,45 +482,49 @@ type
     }
     property startDeviceOnOpen: bool read f_sdo write f_sdo default true;
     {*
-      Specifies channel mask for multi-channel data streams.
+        Specifies channel mask for multi-channel data streams.
     }
     property pcm_channelMask: unsigned index 3 read getSamplingParam write setSamplingParam default c_defSamplingChannelMask;
     {*
-      Minimum volume level for recording.
+        Minimum volume level for recording.
     }
     property minVolumeLevel: unsigned read getMinVolLevel write setMinVolLevel default 0;
     {*
-      Minimum active time for recording.
+        Minimum active time for recording.
     }
     property minActiveTime: unsigned read getMinActiveTime write setMinActiveTime default 0;
     {*
-      This event is fired when current level of signal is crossing the "silence" mark.
+        Fired when current level of signal has crossed the "silence" mark.
     }
     property onThreshold: unaWaveOnThresholdEvent read f_onThreshold write setOnThreshold;
   published
     {*
-      Specifies how many chunks of data (every chunk can hold 1/50 second of audio)
-      component can store in the input or output buffer, if data cannot be processed immediately.
+        Specifies how many chunks of data (every chunk can hold 1/50 second of audio)
+        component can store in the input or output buffer, if data cannot be processed immediately.
 
-      <P>Set this property to 0 to disable the buffer overflow checking
-      (this could lead to uncontrolled memory usage grow).
+        Set this property to 0 to disable the buffer overflow checking
+        (this could lead to uncontrolled memory usage grow).
     }
     property overNum: unsigned read f_overNum write setOverNum default defOverNumValue;
     {*
-      Specifies number of samples per second for wave device.
-      Common values are 44100, 22050, 11025 and 8000.
+        Specifies number of samples per second for wave device.
+        Common values are 44100, 22050, 11025 and 8000.
     }
     property pcm_samplesPerSec: unsigned index 0 read getSamplingParam write setSamplingParam default c_defSamplingSamplesPerSec;
     {*
-      Specifies number of bits per sample for wave device.
-      Common values are 8 and 16.
+        Specifies number of bits per sample for wave device.
+        Common values are 8 and 16.
     }
     property pcm_bitsPerSample: unsigned index 1 read getSamplingParam write setSamplingParam default c_defSamplingBitsPerSample;
     {*
-      Specifies number of channels per sample for wave device.
-      Common values are 1 (mono) and 2 (stereo).
+        Specifies number of channels per sample for wave device.
+        Common values are 1 (mono) and 2 (stereo).
     }
     property pcm_numChannels: unsigned index 2 read getSamplingParam write setSamplingParam default c_defSamplingNumChannels;
+    {*
+        Specifies whether device should not utilize ACM
+    }
+    property onAcmReq: tunaOnAcmReq read f_onAcmReq write f_onAcmReq;
   end;
 
 
@@ -546,8 +565,6 @@ type
   published
     //
     property deviceId;
-    //property mapped;
-    //property direct;
     property calcVolume;
     //
     {*
@@ -570,7 +587,6 @@ type
   //
   // -- unavclWaveOutDevice --
   //
-
   {*
     Real time PCM audio stream playback using the sound card or other hardware device.
 
@@ -591,8 +607,8 @@ type
     f_onFD: unavclPipeDataEvent;
     //
     function getWaveOutDevice(): unaWaveOutDevice;
-    procedure myOnACF(sender: tObject; data: pointer; size: unsigned);
-    procedure myOnACD(sender: tObject; data: pointer; size: unsigned);
+    procedure myOnACF(sender: tObject; data: pointer; size: cardinal);
+    procedure myOnACD(sender: tObject; data: pointer; size: cardinal);
   protected
     {*
       Creates wave Out (playback) device.
@@ -602,6 +618,10 @@ type
       Since waveOut device is output device, and output format is PCM, we should specify input format as not PCM.
     }
     property inputIsPcm default false;
+    {*
+	Sets enableDataProcessing value.
+    }
+    procedure doSetEnableDP(value: boolean); override;
   public
     {*
     }
@@ -615,8 +635,6 @@ type
     property waveOutDevice: unaWaveOutDevice read getWaveOutDevice;
   published
     property deviceId;
-    //property mapped;
-    //property direct;
     property calcVolume;
     {*
       Specifies whether the component would playback any data.
@@ -705,7 +723,7 @@ type
     {*
       Returns format exchange data of the codec.
     }
-    function getFormatExchangeData(out data: pointer): unsigned; override;
+    function getFormatExchangeData(out data: pointer): uint; override;
   public
     {*
     }
@@ -787,20 +805,20 @@ type
   }
   unavclWaveRiff = class(unavclInOutWavePipe)
   private
-    f_isInput: bool;
+    f_isInput: boolean;
     f_fileName: wString;
-    f_acod: bool;
+    f_acod: boolean;
     f_onStreamIsDone: unaOnRiffStreamIsDone;
     f_tmpToKill: wString;
     //
     function getRiff(): unaRiffStream;
     //
     procedure setFileName(const value: wString);
-    procedure setIsInput(value: bool);
+    procedure setIsInput(value: boolean);
     //
     procedure riffOnStreamIsDone(sender: tObject);
   protected
-    procedure doSetLoop(value: bool); override;
+    procedure doSetLoop(value: boolean); override;
     //
     {*
       Creates Riff wave device.
@@ -813,7 +831,7 @@ type
     function applyDeviceFormat(format: PWAVEFORMATEXTENSIBLE; isSrc: bool = true): bool; override;
     {*
     }
-    function getFormatExchangeData(out data: pointer): unsigned; override;
+    function getFormatExchangeData(out data: pointer): uint; override;
   public
     {*
       Creates Riff wave device.
@@ -844,7 +862,7 @@ type
       Use the following code to verify if writing is complete: <CODE>if (waveStream.getDataAvailable(true) > chunkSize) then ...</CODE>
       <BR>This function sets realTime and isInput properties to false.
     }
-    function saveToFile(const fileName: wString; data: pointer; size: unsigned; asynchronous: bool = false): bool;
+    function saveToFile(const fileName: wString; data: pointer; size: uint; asynchronous: bool = false): bool;
     //
     {*
       Returns Riff wave device.
@@ -873,7 +891,7 @@ type
     {*
       Specifies whether Riff wave device is used for reading or writing the audio.
     }
-    property isInput: bool read f_isInput write setIsInput default true;
+    property isInput: boolean read f_isInput write setIsInput default true;
     {*
       Specifies file to use with Riff wave device.
     }
@@ -881,7 +899,7 @@ type
     {*
       When true, closes the device automatically when reading from file is complete.
     }
-    property autoCloseOnDone: bool read f_acod write f_acod default true;
+    property autoCloseOnDone: boolean read f_acod write f_acod default true;
     {*
       Specifies whether the component would produce or accept any data.
     }
@@ -928,12 +946,12 @@ type
     procedure setStream(provider: unavclInOutPipe; stream: unaAbstractStream);
     //
   protected
-    procedure doSetAddSilence(value: bool); override;
+    procedure doSetAddSilence(value: boolean); override;
     //
     {*
       Writes data into mixer.
     }
-    function doWrite(data: pointer; len: unsigned; provider: pointer = nil): unsigned; override;
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
     {*
       Creates PCM wave mixer device.
     }
@@ -994,13 +1012,13 @@ type
   unavclWaveResampler = class(unavclInOutWavePipe)
   private
     f_dstFormatExt: PWAVEFORMATEXTENSIBLE;
-    f_uspeexdsp: bool;
+    f_uspeexdsp: boolean;
     //
     function getResampler(): unaWaveResampler;
-    function getDstSamplingParam(index: int): unsigned;
-    procedure setDstSamplingParam(index: int; value: unsigned);
+    function getDstSamplingParam(index: integer): unsigned;
+    procedure setDstSamplingParam(index: integer; value: unsigned);
     procedure setDstFormat(value: PWAVEFORMATEXTENSIBLE);
-    procedure setUspeexdsp(value: bool);
+    procedure setUspeexdsp(value: boolean);
   protected
     {*
       Creates PCM wave resampler device.
@@ -1011,7 +1029,7 @@ type
     }
     function applyDeviceFormat(format: PWAVEFORMATEXTENSIBLE; isSrc: bool = true): bool; override;
     {}
-    function getFormatExchangeData(out data: pointer): unsigned; override;
+    function getFormatExchangeData(out data: pointer): uint; override;
   public
     procedure BeforeDestruction(); override;
     {*
@@ -1045,7 +1063,7 @@ type
     property dst_NumChannels: unsigned index 2 read getDstSamplingParam write setDstSamplingParam default c_defSamplingNumChannels;
     {*
     }
-    property useSpeexDSP: bool read f_uspeexdsp write setUspeexdsp default false;
+    property useSpeexDSP: boolean read f_uspeexdsp write setUspeexdsp default false;
     {*
       Specifies whether the component would perform any data modifications.
     }
@@ -1055,7 +1073,6 @@ type
     property minActiveTime;
     property onThreshold;
   end;
-
 
 
 
@@ -1072,10 +1089,10 @@ uses
 var
   g_unavclACM: unaMsAcm;	/// global ACM object
   g_unavclACMNeedEnum: bool = false;	/// True if ACM drivers enumeration was not performed yet.
-  g_unavclACMEnumFlags: unsigned;	/// ACM drivers enumeration flags.
+  g_unavclACMEnumFlags: uint;	/// ACM drivers enumeration flags.
 
 // --  --
-function setAcm(value: unaMsAcm = nil; flags: unsigned = 0): unaMsAcm;
+function setAcm(value: unaMsAcm = nil; flags: uint = 0): unaMsAcm;
 begin
   if (nil <> value) then
     freeAndNil(g_unavclACM);
@@ -1124,7 +1141,7 @@ begin
 end;
 
 // --  --
-function unavclInOutWavePipe.applyFormat(data: pointer; len: unsigned; provider: unavclInOutPipe; restoreActiveState: bool): bool;
+function unavclInOutWavePipe.applyFormat(data: pointer; len: uint; provider: unavclInOutPipe; restoreActiveState: bool): bool;
 var
   allowFC: bool;
   format: punavclWavePipeFormatExchange;
@@ -1230,15 +1247,15 @@ begin
 
       unacdm_acm: begin	// use ACM to locate a driver by formatTag
 	//
-	if ((nil <> acm) and (3 < opt)) then begin
+	if ((nil <> acm2) and (3 < opt)) then begin
 	  //
 	  if (g_unavclACMNeedEnum) then begin
 	    //
-	    acm.enumDrivers(g_unavclACMEnumFlags);
+	    acm2.enumDrivers(g_unavclACMEnumFlags);
 	    g_unavclACMNeedEnum := false;
 	  end;
 	  //
-	  driver := acm.getDriverByFormatTag(f_formatTag);
+	  driver := acm2.getDriverByFormatTag(f_formatTag);
 	end;
 	//
 	f_needToUnloadDriver := false;
@@ -1246,7 +1263,9 @@ begin
 
       unacdm_installable: begin	// use installable driver specified by driverLibrary
 	//
-	driver := acm.openDriver(driverLibrary);
+        if (nil <> acm2) then
+          driver := acm2.openDriver(driverLibrary);
+        //
 	f_needToUnloadDriver := true;
       end;
 
@@ -1287,6 +1306,25 @@ end;
 procedure unavclInOutWavePipe.destroyOldDevice();
 begin
   freeAndNil(f_device);
+end;
+
+// --  --
+procedure unavclInOutWavePipe.doAcmReq(req: uint; var acm: unaMsAcm);
+begin
+  if (Assigned(f_onAcmReq)) then begin
+    //
+    // transfer resposibility to handler
+    f_onAcmReq(self, req, acm);
+  end
+  else begin
+    //
+    // default behavior
+    case (req) of
+
+      1: acm := setAcm();       // create
+
+    end;
+  end;
 end;
 
 // --  --
@@ -1344,11 +1382,11 @@ begin
     {$ENDIF LOG_UNAVC_WAVE_ERRORS }
   end
   else
-    result := false;
+    result := f_deviceWasCreated;
 end;
 
 // --  --
-function unavclInOutWavePipe.doRead(data: pointer; len: unsigned): unsigned;
+function unavclInOutWavePipe.doRead(data: pointer; len: uint): uint;
 begin
   if (nil <> device) then
     result := device.read(data, len)
@@ -1366,7 +1404,7 @@ begin
 end;
 
 // --  --
-procedure unavclInOutWavePipe.doSetAddSilence(value: bool);
+procedure unavclInOutWavePipe.doSetAddSilence(value: boolean);
 begin
   f_addSilence := value;
 end;
@@ -1388,9 +1426,9 @@ procedure unavclInOutWavePipe.doSetDriver(value: unaMsAcmDriver);
 begin
   if (f_driver <> value) then begin
     //
-    if (f_needToUnloadDriver and (nil <> acm)) then begin
+    if (f_needToUnloadDriver and (nil <> acm2)) then begin
       //
-      acm.closeDriver(f_driver);
+      acm2.closeDriver(f_driver);
       f_needToUnloadDriver := false;
     end;
     //
@@ -1459,7 +1497,7 @@ begin
 end;
 
 // --  --
-procedure unavclInOutWavePipe.doSetLoop(value: bool);
+procedure unavclInOutWavePipe.doSetLoop(value: boolean);
 begin
   f_loop := value;
 end;
@@ -1509,7 +1547,7 @@ begin
       0,
       choice(1 = index, value, E.format.wBitsPerSample),
       choice(2 = index, value, E.format.nChannels),
-      choice(3 = index, value, choice(f_pcmChannelMaskIsNotDefault, E.dwChannelMask, SPEAKER_DEFAULT))
+      choice(3 = index, value, choice(f_pcmChannelMaskIsNotDefault, E.dwChannelMask, unsigned(SPEAKER_DEFAULT)))
     );
     //
     applyDeviceFormat(pcmFormatExt, inputIsPcm);
@@ -1520,7 +1558,7 @@ begin
 end;
 
 // --  --
-function unavclInOutWavePipe.doWrite(data: pointer; len: unsigned; provider: pointer): unsigned;
+function unavclInOutWavePipe.doWrite(data: pointer; len: uint; provider: pointer): uint;
 begin
   if (nil <> device) then begin
     //
@@ -1559,7 +1597,7 @@ begin
 end;
 
 // --  --
-function unavclInOutWavePipe.getAvailableDataLen(index: int): unsigned;
+function unavclInOutWavePipe.getAvailableDataLen(index: integer): uint;
 begin
   if (nil <> device) then
     result := device.getDataAvailable(0 = index)
@@ -1568,7 +1606,7 @@ begin
 end;
 
 // --  --
-function unavclInOutWavePipe.getChunkSize(): unsigned;
+function unavclInOutWavePipe.getChunkSize(): uint;
 begin
   if (nil <> device) then
     result := device.chunkSize
@@ -1577,13 +1615,13 @@ begin
 end;
 
 // --  --
-function unavclInOutWavePipe.getDstChunkSize(): unsigned;
+function unavclInOutWavePipe.getDstChunkSize(): uint;
 begin
   result := chunkSize;	// true for all devices, except codecs
 end;
 
 // --  --
-function unavclInOutWavePipe.getFormatExchangeData(out data: pointer): unsigned;
+function unavclInOutWavePipe.getFormatExchangeData(out data: pointer): uint;
 begin
   result := sizeOf(unaWaveFormat);	// by default allocate data for r_format only
   data := malloc(result, true, 0);
@@ -1599,7 +1637,7 @@ begin
 end;
 
 // --  --
-function unavclInOutWavePipe.getLogVolume(channel: unsigned): unsigned;
+function unavclInOutWavePipe.getLogVolume(channel: uint): unsigned;
 begin
   result := unaWave.waveGetLogVolume100(getVolume(channel));
 end;
@@ -1623,7 +1661,7 @@ begin
 end;
 
 // --  --
-function unavclInOutWavePipe.getSamplingParam(index: int): unsigned;
+function unavclInOutWavePipe.getSamplingParam(index: integer): unsigned;
 begin
   if (nil <> f_formatExt) then begin
     //
@@ -1653,7 +1691,7 @@ begin
   end;
 end;
 
-function unavclInOutWavePipe.getUnVolume(channel: unsigned): unsigned;
+function unavclInOutWavePipe.getUnVolume(channel: uint): unsigned;
 begin
   if (nil <> device) then begin
     //
@@ -1667,7 +1705,7 @@ begin
 end;
 
 // --  --
-function unavclInOutWavePipe.getVolume(channel: unsigned): unsigned;
+function unavclInOutWavePipe.getVolume(channel: uint): unsigned;
 begin
   if (nil <> device) then begin
     //
@@ -1708,8 +1746,9 @@ begin
   f_calcVolume := false;
   f_sdmCache := unasdm_none;
   //
-  f_acm := setAcm();
   f_applyFormatTagImmunable := false;
+  //
+  doAcmReq(1, f_acm2);
   //
   fillPCMFormatExt(f_formatExt);
   //
@@ -1738,7 +1777,7 @@ begin
 end;
 
 // --  --
-procedure unavclInOutWavePipe.myOnDA(sender: tObject; data: pointer; len: unsigned);
+procedure unavclInOutWavePipe.myOnDA(sender: tObject; data: pointer; len: cardinal);
 begin
   if (enableDataProcessing) then
     onNewData(data, len, self);
@@ -1751,13 +1790,13 @@ begin
 end;
 
 // --  --
-procedure unavclInOutWavePipe.setAddSilence(value: bool);
+procedure unavclInOutWavePipe.setAddSilence(value: boolean);
 begin
   doSetAddSilence(value);
 end;
 
 // --  --
-procedure unavclInOutWavePipe.setCalcVolume(value: bool);
+procedure unavclInOutWavePipe.setCalcVolume(value: boolean);
 begin
   f_calcVolume := value;
   //
@@ -1811,7 +1850,7 @@ begin
 end;
 
 // --  --
-procedure unavclInOutWavePipe.setInputIsPcm(value: bool);
+procedure unavclInOutWavePipe.setInputIsPcm(value: boolean);
 begin
   if (f_inputIsPcm <> value) then begin
     //
@@ -1822,7 +1861,7 @@ begin
   end;
 end;
 
-procedure unavclInOutWavePipe.setLoop(value: bool);
+procedure unavclInOutWavePipe.setLoop(value: boolean);
 begin
   doSetLoop(value);
 end;
@@ -1882,7 +1921,7 @@ begin
 end;
 
 // --  --
-procedure unavclInOutWavePipe.setRealTime(value: bool);
+procedure unavclInOutWavePipe.setRealTime(value: boolean);
 begin
   if (f_realTime <> value) then
     close();
@@ -1894,7 +1933,7 @@ begin
 end;
 
 // --  --
-procedure unavclInOutWavePipe.setSamplingParam(index: int; value: unsigned);
+procedure unavclInOutWavePipe.setSamplingParam(index: integer; value: unsigned);
 begin
   doSetSamplingParam(index, value);
 end;
@@ -1935,7 +1974,7 @@ end;
 // --  --
 procedure unavclWaveInDevice.createNewDevice();
 begin
-  f_device := unaWaveInDevice.create(unsigned(deviceId), mapped, direct, overNum);
+  f_device := unaWaveInDevice.create(uint(deviceId), mapped, direct, overNum);
   f_device.assignStream(false, nil);
   //
   inherited;
@@ -1961,7 +2000,7 @@ end;
 // --  --
 procedure unavclWaveOutDevice.createNewDevice();
 begin
-  f_device := unaWaveOutDevice.create(unsigned(deviceId), mapped, direct, overNum);
+  f_device := unaWaveOutDevice.create(uint(deviceId), mapped, direct, overNum);
   //
   inherited;
   //
@@ -1972,6 +2011,25 @@ begin
   end;
 end;
 
+type
+  myWaveOutDev = class(unaWaveOutDevice)
+  end;
+
+// --  --
+procedure unavclWaveOutDevice.doSetEnableDP(value: boolean);
+begin
+  inherited;
+  //
+  if (not value and (nil <> getWaveOutDevice())) then begin
+    //
+    myWaveOutDev(getWaveOutDevice()).flush2(false);
+    //
+{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+    myWaveOutDev(getWaveOutDevice()).paused := true;
+{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+  end;
+end;
+
 // --  --
 function unavclWaveOutDevice.getWaveOutDevice(): unaWaveOutDevice;
 begin
@@ -1979,14 +2037,14 @@ begin
 end;
 
 // --  --
-procedure unavclWaveOutDevice.myOnACD(sender: tObject; data: pointer; size: unsigned);
+procedure unavclWaveOutDevice.myOnACD(sender: tObject; data: pointer; size: cardinal);
 begin
   if (assigned(f_onFD)) then
     f_onFD(self, data, size);
 end;
 
 // --  --
-procedure unavclWaveOutDevice.myOnACF(sender: tObject; data: pointer; size: unsigned);
+procedure unavclWaveOutDevice.myOnACF(sender: tObject; data: pointer; size: cardinal);
 begin
   if (assigned(f_onFC)) then
     f_onFC(self, data, size);
@@ -2079,7 +2137,7 @@ begin
 end;
 
 // --  --
-function unavclWaveCodecDevice.getFormatExchangeData(out data: pointer): unsigned;
+function unavclWaveCodecDevice.getFormatExchangeData(out data: pointer): uint;
 begin
   result := sizeOf(unavclWavePipeFormatExchange);	// allocate full data
   data := malloc(result, true, 0);
@@ -2096,7 +2154,7 @@ begin
   with (punavclWavePipeFormatExchange(data)^) do begin
     //
     punavclWavePipeFormatExchange(data).r_driverMode := ord(driverMode);
-    str2array(utf162utf8(extractFileName(driverLibrary)), punavclWavePipeFormatExchange(data).r_driverLib8);
+    str2arrayA(utf162utf8(extractFileName(driverLibrary)), punavclWavePipeFormatExchange(data).r_driverLib8);
   end;
 end;
 
@@ -2242,20 +2300,20 @@ var
   fmt: pWAVEFORMATEX;
 begin
   // drivers must be enumerated before ACM is passed to waveRIFF
-  if (g_unavclACMNeedEnum) then begin
+  if (g_unavclACMNeedEnum and (nil <> acm2)) then begin
     //
-    acm.enumDrivers(g_unavclACMEnumFlags);
+    acm2.enumDrivers(g_unavclACMEnumFlags);
     g_unavclACMNeedEnum := false;
   end;
   //
   if (isInput) then
-    f_device := unaRiffStream.create(fileName, realTime, loop, acm)
+    f_device := unaRiffStream.create(fileName, realTime, loop, acm2)
   else begin
     //
     fmt := nil;
     try
       if (waveExt2wave(pcmFormatExt, fmt)) then
-	f_device := unaRiffStream.createNew(fileName, fmt^, formatTag, acm);
+	f_device := unaRiffStream.createNew(fileName, fmt^, formatTag, acm2);
       //	
     finally
       mrealloc(fmt);
@@ -2273,7 +2331,7 @@ begin
 end;
 
 // --  --
-procedure unavclWaveRiff.doSetLoop(value: bool);
+procedure unavclWaveRiff.doSetLoop(value: boolean);
 begin
   inherited;
   //
@@ -2282,7 +2340,7 @@ begin
 end;
 
 // --  --
-function unavclWaveRiff.getFormatExchangeData(out data: pointer): unsigned;
+function unavclWaveRiff.getFormatExchangeData(out data: pointer): uint;
 begin
   result := inherited getFormatExchangeData(data);
   //
@@ -2366,7 +2424,7 @@ begin
 end;
 
 // --  --
-function unavclWaveRiff.saveToFile(const fileName: wString; data: pointer; size: unsigned; asynchronous: bool): bool;
+function unavclWaveRiff.saveToFile(const fileName: wString; data: pointer; size: uint; asynchronous: bool): bool;
 begin
   if ((nil <> data) and (0 < size)) then begin
     //
@@ -2439,7 +2497,7 @@ begin
 end;
 
 // --  --
-procedure unavclWaveRiff.setIsInput(value: bool);
+procedure unavclWaveRiff.setIsInput(value: boolean);
 begin
   if (f_isInput <> value) then begin
     //
@@ -2519,7 +2577,7 @@ begin
 end;
 
 // --  --
-function unavclWaveMixer.doWrite(data: pointer; len: unsigned; provider: pointer): unsigned;
+function unavclWaveMixer.doWrite(data: pointer; len: uint; provider: pointer): uint;
 var
   stream: unaAbstractStream;
 begin
@@ -2559,7 +2617,7 @@ begin
 end;
 
 // --  --
-procedure unavclWaveMixer.doSetAddSilence(value: bool);
+procedure unavclWaveMixer.doSetAddSilence(value: boolean);
 begin
   inherited;
   //
@@ -2627,7 +2685,7 @@ begin
 end;
 
 // --  --
-function unavclWaveResampler.getDstSamplingParam(index: int): unsigned;
+function unavclWaveResampler.getDstSamplingParam(index: integer): unsigned;
 begin
   if (nil <> resampler) then
     // ensure we are in synch with resampler format
@@ -2649,7 +2707,7 @@ begin
 end;
 
 // --  --
-function unavclWaveResampler.getFormatExchangeData(out data: pointer): unsigned;
+function unavclWaveResampler.getFormatExchangeData(out data: pointer): uint;
 begin
   result := inherited getFormatExchangeData(data);
   //
@@ -2678,7 +2736,7 @@ begin
 end;
 
 // --  --
-procedure unavclWaveResampler.setDstSamplingParam(index: int; value: unsigned);
+procedure unavclWaveResampler.setDstSamplingParam(index: integer; value: unsigned);
 begin
   case (index) of
 
@@ -2693,7 +2751,7 @@ begin
 end;
 
 // --  --
-procedure unavclWaveResampler.setUspeexdsp(value: bool);
+procedure unavclWaveResampler.setUspeexdsp(value: boolean);
 begin
   f_uspeexdsp := value;
   //

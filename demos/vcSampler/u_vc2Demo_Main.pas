@@ -128,7 +128,7 @@ type
     procedure updateVolume(device: unaWaveDevice);
     procedure reEnable(device: unaWaveDevice);
     //
-    procedure myOnDA(sender: tObject; data: pointer; size: unsigned);
+    procedure myOnDA(sender: tObject; data: pointer; size: uint);
   public
     { Public declarations }
     property mixer: unaWaveMixerDevice read f_mixer;
@@ -187,7 +187,8 @@ begin
   //
   // OUT
   for i := -1 to unaWaveOutDevice.getDeviceCount() - 1 do begin
-    unaWaveOutDevice.getCaps(unsigned(i), capsOut);
+    //
+    unaWaveOutDevice.getCaps(uint(i), capsOut);
     c_comboBox_playbackDevice.items.addObject(capsOut.szPname, pointer(i + 10));
   end;
   if (WAVE_MAPPER = f_waveOutDeviceId) then
@@ -197,7 +198,8 @@ begin
   //
   // IN
   for i := -1 to unaWaveInDevice.getDeviceCount() - 1 do begin
-    unaWaveInDevice.getCaps(unsigned(i), capsIn);
+    //
+    unaWaveInDevice.getCaps(uint(i), capsIn);
     c_comboBox_recordingDevice.items.addObject(capsIn.szPname, pointer(i + 10));
   end;
   if (WAVE_MAPPER = f_waveInDeviceId) then
@@ -568,7 +570,7 @@ begin
 end;
 
 // --  --
-procedure Tc_form_vc2DemoMain.myOnDA(sender: tObject; data: pointer; size: unsigned);
+procedure Tc_form_vc2DemoMain.myOnDA(sender: tObject; data: pointer; size: uint);
 begin
   // put data from resampler to stream
   if (nil <> f_inOutStream) then

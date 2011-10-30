@@ -1229,6 +1229,7 @@ type
     property onApplySampling: mpglibApplySamplingEvent read f_onApplySampling write f_onApplySampling;
   end;
 
+
   {*
 	OnFormatChange prototype
 
@@ -1418,7 +1419,8 @@ begin
   if (1 > proto.r_refCount) then begin
     //
     proto.r_libName := choice('' = trimS(libName), c_def_libName, libName);
-{$IFNDEF NO_ANSI_SUPPORT }
+{$IFDEF NO_ANSI_SUPPORT }
+{$ELSE }
     if (g_wideApiSupported) then begin
 {$ENDIF NO_ANSI_SUPPORT }
       proto.r_module := LoadLibraryW(pwChar(proto.r_libName));
@@ -1704,9 +1706,6 @@ begin
   result := mpglib_error_OK;
 end;
 
-
-//var
-  //g_globalLock: unaInProcessGate;
 
 { unaMpgLibDecoder }
 
@@ -2063,7 +2062,7 @@ end;
 // --  --
 procedure unaLibmpg123Decoder.close();
 begin
-  if (nil <> f_mh) then begin
+  if (libOK and (nil <> f_mh)) then begin
     //
     f_proto.r_mpg123_close(f_mh);
     //
@@ -2091,46 +2090,49 @@ procedure unaLibmpg123Decoder.doOnFC(forced: bool);
 var
   rate, channels, bits, encoding: intp;
 begin
-  if (MPG123_OK <> f_proto.r_mpg123_getformat(f_mh, rate, channels, encoding)) then begin
+  if (libOK) then begin
     //
-    rate := 44100;
-    channels := MPG123_STEREO;
-    encoding := MPG123_ENC_SIGNED_16;
-  end;
-  //
-  if ((0 < rate) and (0 < channels)) then begin
-    //
-    formatChange(rate, channels, encoding);
-    //
-    if (assigned(f_onFC)) then begin
+    if (MPG123_OK <> f_proto.r_mpg123_getformat(f_mh, rate, channels, encoding)) then begin
       //
-      if (MPG123_STEREO = channels) then
-        channels := 2
-      else
-        channels := 1;
+      rate := 44100;
+      channels := MPG123_STEREO;
+      encoding := MPG123_ENC_SIGNED_16;
+    end;
+    //
+    if ((0 < rate) and (0 < channels)) then begin
       //
-      case (encoding) of
-
-        MPG123_ENC_SIGNED_16,
-        MPG123_ENC_UNSIGNED_16: 	bits := 16;
+      formatChange(rate, channels, encoding);
+      //
+      if (assigned(f_onFC)) then begin
         //
-        MPG123_ENC_UNSIGNED_8,
-        MPG123_ENC_SIGNED_8,
-        MPG123_ENC_ULAW_8,
-        MPG123_ENC_ALAW_8:	bits := 8;
-        //
-        MPG123_ENC_SIGNED_32,
-        MPG123_ENC_UNSIGNED_32,
-        MPG123_ENC_FLOAT_32:	bits := 32;
-        //
-        MPG123_ENC_FLOAT_64:	bits := 64;
-
+        if (MPG123_STEREO = channels) then
+          channels := 2
         else
-          bits := 16;	// default
+          channels := 1;
+        //
+        case (encoding) of
 
+          MPG123_ENC_SIGNED_16,
+          MPG123_ENC_UNSIGNED_16: 	bits := 16;
+          //
+          MPG123_ENC_UNSIGNED_8,
+          MPG123_ENC_SIGNED_8,
+          MPG123_ENC_ULAW_8,
+          MPG123_ENC_ALAW_8:	bits := 8;
+          //
+          MPG123_ENC_SIGNED_32,
+          MPG123_ENC_UNSIGNED_32,
+          MPG123_ENC_FLOAT_32:	bits := 32;
+          //
+          MPG123_ENC_FLOAT_64:	bits := 64;
+
+          else
+            bits := 16;	// default
+
+        end;
+        //
+        f_onFC(self, rate, channels, bits, encoding);
       end;
-      //
-      f_onFC(self, rate, channels, bits, encoding);
     end;
   end;
 end;
@@ -2138,7 +2140,10 @@ end;
 // --  --
 function unaLibmpg123Decoder.feed(data: pointer; size: unsigned): iresult;
 begin
-  result := f_proto.r_mpg123_feed(f_mh, data, size);
+  if (libOK) then
+    result := f_proto.r_mpg123_feed(f_mh, data, size)
+  else
+    result := -1;
 end;
 
 // --  --
@@ -2158,10 +2163,15 @@ function unaLibmpg123Decoder.getDecoderNames(supportedOnly: bool; list: unaStrin
 var
   p: paChar;
 begin
-  if (supportedOnly) then
-    result := f_proto.r_mpg123_supported_decoders()
+  if (libOK) then begin
+    //
+    if (supportedOnly) then
+      result := f_proto.r_mpg123_supported_decoders()
+    else
+      result := f_proto.r_mpg123_decoders();
+  end
   else
-    result := f_proto.r_mpg123_decoders();
+    result := nil;
   //
   if ((nil <> list) and (nil <> result)) then begin
     //
@@ -2188,11 +2198,16 @@ var
 begin
   close();	// just in case
   //
-  // assign default decoder
-  f_mh := f_proto.r_mpg123_new(nil, @err);
-  //
-  // create stream feeding
-  result := f_proto.r_mpg123_open_feed(f_mh);
+  if (libOK) then begin
+    //
+    // assign default decoder
+    f_mh := f_proto.r_mpg123_new(nil, @err);
+    //
+    // create stream feeding
+    result := f_proto.r_mpg123_open_feed(f_mh);
+  end
+  else
+    result := -1;
 end;
 
 // --  --
@@ -2212,22 +2227,28 @@ end;
 // --  --
 function unaLibmpg123Decoder.read(outdata: pointer; var outsize: unsigned): iresult;
 var
-  done: unsigned;
+  done: uintp;
 begin
-  result := f_proto.r_mpg123_read(f_mh, outdata, outsize, done);
-  outsize := done;
-  //
-  if ((MPG123_NEW_FORMAT = result) or f_noFC) then begin
+  if (libOK) then begin
     //
-    f_noFC := false;
-    doOnFC(f_noFC);
-  end;
+    result := f_proto.r_mpg123_read(f_mh, outdata, outsize, done);
+    outsize := done;
+    //
+    if ((MPG123_NEW_FORMAT = result) or f_noFC) then begin
+      //
+      f_noFC := false;
+      doOnFC(f_noFC);
+    end;
+  end
+  else
+    result := -1;
 end;
 
 // --  --
 procedure unaLibmpg123Decoder.setDecoder(const value: string);
 begin
-  f_proto.r_mpg123_decoder(f_mh, paChar(aString(value)));
+  if (f_libOK) then
+    f_proto.r_mpg123_decoder(f_mh, paChar(aString(value)));
 end;
 
 

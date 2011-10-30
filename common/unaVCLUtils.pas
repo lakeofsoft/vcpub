@@ -111,45 +111,41 @@ var
   isForm: bool;
   _name: string;
 begin
-  if (ini.enter(section)) then
-    try
-      if (nil <> control) then begin
+  if ((nil <> ini) and (nil <> control) and ini.enter(section)) then try
+    //
+    isForm := (control is tCustomForm);
+    with (control) do begin
+      //
+      _name := name;
+      //
+      if (isForm and allowFormOptions) then begin
 	//
-	isForm := (control is tCustomForm);
-	//
-	with (control) do begin
+	with (control as tCustomForm) do begin
 	  //
-          _name := name;
-          //
-	  if (isForm and allowFormOptions) then begin
-	    //
-	    with (control as tCustomForm) do begin
-	      //
-	      ini.setValue(_name + '.windowState', ord(windowState));
-	      windowState := wsNormal;
-	    end;
-	  end;
-	  //
-	  with (ini) do begin
-	    //
-	    setValue(_name + '.left', Left);
-	    setValue(_name + '.top', Top);
-	    setValue(_name + '.width', Width);
-	    setValue(_name + '.height', Height);
-	    setValue(_name + '.enabled', Enabled);
-	    setValue(_name + '.docked', HostDockSite <> nil);
-	    setValue(_name + '.dockOrnt', ord(dockOrientation));
-	    //
-	    if (not isForm) then
-	      setValue(_name + '.visible', Visible);
-	  end;
+	  ini.setValue(_name + '.windowState', ord(windowState));
+	  windowState := wsNormal;
 	end;
       end;
       //
-      result := true;
-    finally
-      ini.leave();
-    end
+      with (ini) do begin
+	//
+	setValue(_name + '.left', Left);
+	setValue(_name + '.top', Top);
+	setValue(_name + '.width', Width);
+	setValue(_name + '.height', Height);
+	setValue(_name + '.enabled', Enabled);
+	setValue(_name + '.docked', HostDockSite <> nil);
+	setValue(_name + '.dockOrnt', ord(dockOrientation));
+	//
+	if (not isForm) then
+	  setValue(_name + '.visible', Visible);
+      end;
+    end;
+    //
+    result := true;
+  finally
+    ini.leave();
+  end
   else
     result := false;
 end;
@@ -178,7 +174,7 @@ begin
 	    // skip empty entrie
 	  else begin
             //
-	    list.add(string(strUnescape(aString(s))));
+	    list.add(strUnescape(s));
 	    inc(result);
 	  end;
 	  //
@@ -210,7 +206,7 @@ begin
 	    // do not save empty entries
 	  else begin
             //
-	    ini.setValue('list.item' + int2str(result), strEscape(aString(s)));
+	    ini.setValue('list.item' + int2str(result), strEscape(s));
 	    inc(result);
 	  end;
 	  //

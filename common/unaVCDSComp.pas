@@ -68,10 +68,10 @@ type
     //
     f_appHandle: tHandle;	// application handle
     //
-    f_enAEC: bool;		// enable AEC
-    f_enVAD: bool;
-    f_enNS: bool;
-    f_enAGC: bool;
+    f_enAEC: boolean;		// enable AEC
+    f_enVAD: boolean;
+    f_enNS: boolean;
+    f_enAGC: boolean;
     //
     f_devIdCap: int;
     f_devIdRen: int;
@@ -120,8 +120,8 @@ type
     procedure initDS();
     procedure releaseDS();
   protected
-    function doWrite(data: pointer; len: unsigned; provider: pointer = nil): unsigned; override;
-    function getAvailableDataLen(index: int): unsigned; override;
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
+    function getAvailableDataLen(index: integer): uint; override;
     function doOpen(): bool; override;
     procedure doClose(); override;
     function  isActive(): bool; override;
@@ -169,19 +169,19 @@ type
     {*
 	True if AEC should be enabled.
     }
-    property enableAEC: bool read f_enAEC write f_enAEC default false;
+    property enableAEC: boolean read f_enAEC write f_enAEC default false;
     {*
 	True if AGC should be enabled (Vista/Win7 only).
     }
-    property enableAGC: bool read f_enAGC write f_enAGC default true;
+    property enableAGC: boolean read f_enAGC write f_enAGC default true;
     {*
 	True if NS should be enabled (Vista/Win7 only).
     }
-    property enableNS: bool read f_enNS write f_enNS default true;
+    property enableNS: boolean read f_enNS write f_enNS default true;
     {*
 	True if VAD should be enabled (Vista/Win7 only).
     }
-    property enableVAD: bool read f_enVAD write f_enVAD default false;
+    property enableVAD: boolean read f_enVAD write f_enVAD default false;
     {*
     	Another rendering chunk is done.
     }
@@ -555,7 +555,7 @@ begin
 end;
 
 // --  --
-function TunavclDX_FullDuplex.doWrite(data: pointer; len: unsigned; provider: pointer): unsigned;
+function TunavclDX_FullDuplex.doWrite(data: pointer; len: uint; provider: pointer): uint;
 var
   res: int;
   //
@@ -833,7 +833,7 @@ begin
 end;
 
 // --  --
-function TunavclDX_FullDuplex.getAvailableDataLen(index: int): unsigned;
+function TunavclDX_FullDuplex.getAvailableDataLen(index: integer): uint;
 begin
   result := 0;
 end;
@@ -881,7 +881,8 @@ var
   capBuf: DSCBUFFERDESC;
   renBuf: DSBUFFERDESC;
   lpDsNotify: IDIRECTSOUNDNOTIFY8;
-  i, ofs: int;
+  i: integer;
+  ofs: int;
   rgdsbpn: array[0..c_unaDSFD_cps - 1] of DSBPOSITIONNOTIFY;
   //
   play, write: DWORD;

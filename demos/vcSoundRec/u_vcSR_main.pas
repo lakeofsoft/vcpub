@@ -151,6 +151,10 @@ begin
   f_memBlockIns := unaMemoryStream.create();
   f_caption := caption;
   //
+  {$IFDEF __AFTER_D7__ }
+  doubleBuffered := True;
+  {$ENDIF __AFTER_D7__ }
+  //
   waveIn.addConsumer(c_fftBand_left.fft);
   waveIn.addConsumer(c_fftBand_right.fft);
   //
@@ -313,7 +317,7 @@ begin
       move(f_memBlock[f_insertPos], f_memBlock[f_memOffs], sz);
 
     // 2. insert data
-    sz := min(maxSize - f_insertPos, f_memBlockIns.getAvailableSize());
+    sz := min(maxSize - int(f_insertPos), f_memBlockIns.getAvailableSize());
     while (0 < sz) do begin
       //
       sb := min(sizeOf(f_buff), sz);

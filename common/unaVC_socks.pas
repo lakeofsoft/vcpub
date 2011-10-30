@@ -23,6 +23,7 @@
 		Lake, Mar-Dec 2007
 		Lake, Jan-Nov 2008
 		Lake, Jan-May 2009
+		Lake, Apr 2011
 
 	----------------------------------------------
 *)
@@ -139,10 +140,10 @@ type
   tunaSendResult = (unasr_OK, unasr_fail);
 
 
-  tunavclTextDataEvent = procedure (sender: tObject; connId: unsigned; const data: string) of object;	/// OnText event
-  tunavclUserDataEvent = procedure (sender: tObject; connId: unsigned; data: pointer; len: unsigned) of object;	/// OnUserData event
-  tunavclPacketEvent = procedure (sender: tObject; connId: unsigned; cmd: unsigned; data: pointer; len: unsigned) of object;	/// OnPacket event
-  tunavclSocketEvent = procedure (sender: tObject; connId: unsigned; event: unaSocketEvent; data: pointer; len: unsigned) of object;	/// OnSocketEvent event
+  tunavclTextDataEvent = procedure (sender: tObject; connId: tConID; const data: string) of object;	/// OnText event
+  tunavclUserDataEvent = procedure (sender: tObject; connId: tConID; data: pointer; len: uint) of object;	/// OnUserData event
+  tunavclPacketEvent = procedure (sender: tObject; connId: tConID; cmd: uint; data: pointer; len: uint) of object;	/// OnPacket event
+  tunavclSocketEvent = procedure (sender: tObject; connId: tConID; event: unaSocketEvent; data: pointer; len: uint) of object;	/// OnSocketEvent event
 
   {*
 	<A href="http://lakeofsoft.com/vcx/automatic-byte-order-detection.html">Byte order</A> for RAW streaming.
@@ -172,8 +173,8 @@ type
   }
   unavclInOutIpPipe = class(unavclInOutPipe)
   private
-    f_socksId: unsigned;
-    f_errorCode: unsigned;
+    f_socksId: tConID;
+    f_errorCode: int;
     f_host: string;
     f_port: string;
     f_proto: tunavclProtoType;
@@ -224,9 +225,9 @@ type
     f_onSocketEvent: tunavclSocketEvent;
     f_onDataSent: tunavclUserDataEvent;
     //
-    function getPacketData(len: unsigned): int;
+    function getPacketData(len: uint): int;
     //
-    function getProto(): unsigned;
+    function getProto(): uint;
     procedure adjustSocketOption(socket: tSocket; isMainSocket: bool);
     //
     procedure analyzeByteOrder(isInput: bool; data: pointer; len: int; out outLen: int);
@@ -239,16 +240,16 @@ type
     {*
       Sends a packet to remote side.
     }
-    function doSendPacket(connId: unsigned; cmd: unsigned; out asynch: bool; data: pointer = nil; len: unsigned = 0; timeout: unsigned = 79): tunaSendResult; virtual; abstract;
+    function doSendPacket(connId: tConID; cmd: uint; out asynch: bool; data: pointer = nil; len: uint = 0; timeout: tTimeout = 79): tunaSendResult; virtual; abstract;
     {*
       //
     }
-    function sendPacketToSocket(connId, seqNum, cmd: unsigned; out asynch: bool; data: pointer = nil; len: unsigned = 0; timeout: unsigned = 78): tunaSendResult;
+    function sendPacketToSocket(connId: tConID; seqNum, cmd: uint; out asynch: bool; data: pointer = nil; len: uint = 0; timeout: tTimeout = 78): tunaSendResult;
     {*
       Fired by underlying socket provider.
       See also handleSocketEvent().
     }
-    procedure doOnSocketEvent(sender: tObject; event: unaSocketEvent; id, connId: unsigned; data: pointer; len: unsigned); virtual;
+    procedure doOnSocketEvent(sender: tObject; event: unaSocketEvent; id, connId: tConID; data: pointer; len: uint); virtual;
     {*
       Returns active state of the TCP/IP stream.
     }
@@ -256,25 +257,25 @@ type
     {*
       Should write data into the TCP/IP stream.
     }
-    function doWrite(data: pointer; len: unsigned; provider: pointer = nil): unsigned; override;
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
     {*
       You cannot read from a socket.
       <BR />Use onDataAvailable event or override the onNewData() method to be notified when new data arrives.
       <P />This method always returns 0.
     }
-    function doRead(data: pointer; len: unsigned): unsigned; override;
+    function doRead(data: pointer; len: uint): uint; override;
     {*
       <P />This method always returns 0.
     }
-    function getAvailableDataLen(index: int): unsigned; override;
+    function getAvailableDataLen(index: integer): uint; override;
     {*
       Sends goodbye command to all underlying connections.
     }
-    procedure sendGoodbye(connId: unsigned); virtual; abstract;
+    procedure sendGoodbye(connId: tConID); virtual; abstract;
     {*
 	Sends local format (if specified) to remote side.
     }
-    procedure sendFormat(connId: unsigned);
+    procedure sendFormat(connId: tConID);
     {*
       Opens the TCP/IP stream.
     }
@@ -285,27 +286,27 @@ type
     procedure doClose(); override;
     {*
     }
-    function getFormatExchangeData(out data: pointer): unsigned; override;
+    function getFormatExchangeData(out data: pointer): uint; override;
     {*
       Triggers when new packet is available for the TCP/IP stream.
     }
-    function onNewPacketData(dataType: int; data: pointer; len: unsigned): bool; virtual;
-    function onNewPacket(cmd: unsigned; data: pointer; len: unsigned; connId, worker: unsigned): bool; virtual;
-    procedure onPacketsLost(connId: unsigned; lostCount: int; worker: unsigned); virtual;
+    function onNewPacketData(dataType: int; data: pointer; len: uint): bool; virtual;
+    function onNewPacket(cmd: uint; data: pointer; len: uint; connId: tConID; worker: uint): bool; virtual;
+    procedure onPacketsLost(connId: tConID; lostCount: int; worker: uint); virtual;
     {*
       Initializes the TCP/IP stream socket.
     }
-    function initSocksThread(): unsigned; virtual; abstract;
+    function initSocksThread(): tConID; virtual; abstract;
     {*
       Handles socket event.
     }
-    function handleSocketEvent(event: unaSocketEvent; id, connId: unsigned; data: pointer; len: unsigned): bool; virtual;
+    function handleSocketEvent(event: unaSocketEvent; id, connId: tConID; data: pointer; len: uint): bool; virtual;
     //
     {*
       Since IP components sends and receives format from remote side, we should not bother local consumers,
       as it is done in parent's applyFormat(), unless we had received a remote format
     }
-    function applyFormat(data: pointer; len: unsigned; provider: unavclInOutPipe = nil; restoreActiveState: bool = false): bool; override;
+    function applyFormat(data: pointer; len: uint; provider: unavclInOutPipe = nil; restoreActiveState: bool = false): bool; override;
     {*
       Specifies host name (or IP address) for the client TCP/IP socket.
     }
@@ -324,23 +325,23 @@ type
       Returns client connection object.
       NOTE! Connection's release() method must be called when connection object is no longer needed.
     }
-    function getHostAddr(connId: unsigned = $FFFFFFFF): pSockAddrIn;
-    function getHostInfo(out ip, port: string; connId: unsigned = $FFFFFFFF): bool; overload;
+    function getHostAddr(connId: tConID = $FFFFFFFF): pSockAddrIn;
+    function getHostInfo(out ip, port: string; connId: tConID = $FFFFFFFF): bool; overload;
     {*
     }
-    function getErrorCode(): unsigned;
+    function getErrorCode(): int;
     {*
       Sends a packet into the IP stream.
     }
-    function sendPacket(connId: unsigned; cmd: unsigned; data: pointer = nil; len: unsigned = 0; timeout: unsigned = 80): tunaSendResult;
+    function sendPacket(connId: tConID; cmd: uint; data: pointer = nil; len: uint = 0; timeout: tTimeout = 80): tunaSendResult;
     {*
       Sends a text into the IP stream.
     }
-    function sendText(connId: unsigned; const data: aString): tunaSendResult;
+    function sendText(connId: tConID; const data: aString): tunaSendResult;
     {*
       Sends user data into the IP stream.
     }
-    function sendData(connId: unsigned; data: pointer; len: unsigned): tunaSendResult;
+    function sendData(connId: tConID; data: pointer; len: uint): tunaSendResult;
     {*
       Returns number of packets received.
     }
@@ -358,7 +359,7 @@ type
     property bytesSent: int64 read f_bytesSent;
     property bytesReceived: int64 read f_bytesReceived;
     //
-    property socksId: unsigned read f_socksId;
+    property socksId: tConID read f_socksId;
     {$IFDEF VC25_IOCP }
     {*
     }
@@ -436,7 +437,7 @@ type
 
 
   //
-  tunavclConnectEvent = procedure (sender: tObject; connId: unsigned; connected: bool) of object;
+  tunavclConnectEvent = procedure (sender: tObject; connId: tConID; connected: bool) of object;
 
 
   //
@@ -455,7 +456,7 @@ type
   unavclIPClient = class(unavclInOutIpPipe)
   private
     f_clientPacketStack: unaThread;	// client packet processor
-    f_connId: unsigned;			// client connection Id
+    f_connId: tConID;			// client connection Id
     //
     f_isConnected: bool;	// client is connected
     //
@@ -463,29 +464,29 @@ type
     f_onClientDisconnect: tunavclConnectEvent;
     //
     f_pingMark: uint64;
-    f_pingInterval: unsigned;
+    f_pingInterval: uint;
   protected
     {*
       Writes data into the TCP/IP stream to be sent to server.
     }
-    function doWrite(data: pointer; len: unsigned; provider: pointer = nil): unsigned; override;
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
     {*
       Sends a packet to server.
     }
-    function doSendPacket(connId: unsigned; cmd: unsigned; out asynch: bool; data: pointer = nil; len: unsigned = 0; timeout: unsigned = 81): tunaSendResult; override;
+    function doSendPacket(connId: tConID; cmd: uint; out asynch: bool; data: pointer = nil; len: uint = 0; timeout: tTimeout = 81): tunaSendResult; override;
     {*
       Sends goodbye packet to the server.
     }
-    procedure sendGoodbye(connId: unsigned); override;
+    procedure sendGoodbye(connId: tConID); override;
     {*
     }
-    function initSocksThread(): unsigned; override;
+    function initSocksThread(): tConID; override;
     {*
     }
-    function handleSocketEvent(event: unaSocketEvent; id, connId: unsigned; data: pointer; len: unsigned): bool; override;
+    function handleSocketEvent(event: unaSocketEvent; id, connId: tConID; data: pointer; len: uint): bool; override;
     {*
     }
-    function onNewPacket(cmd: unsigned; data: pointer; len: unsigned; connId, worker: unsigned): bool; override;
+    function onNewPacket(cmd: uint; data: pointer; len: uint; connId: tConID; worker: uint): bool; override;
     {*
       Returns active state of IP Client.
     }
@@ -497,7 +498,7 @@ type
     {*
       Client socket connection Id.
     }
-    property clientConnId: unsigned read f_connId;
+    property clientConnId: tConID read f_connId;
     {*
       Returns true if client socket is connected to remote host
     }
@@ -527,7 +528,7 @@ type
 	the client due to timeout.
 	Default value is 0, means ping is disabled.
     }
-    property pingInterval: unsigned read f_pingInterval write f_pingInterval default 0;
+    property pingInterval: uint read f_pingInterval write f_pingInterval default 0;
   end;
 
 
@@ -540,7 +541,7 @@ type
 			      );
 
   // --  --
-  tunavclAcceptClient = procedure (sender: tObject; connId: unsigned; var accept: bool) of object;
+  tunavclAcceptClient = procedure (sender: tObject; connId: tConID; var accept: bool) of object;
 
 {$IFDEF VCX_DEMO }
 
@@ -588,7 +589,7 @@ type
 {$IFDEF VCX_DEMO_LIMIT_CLIENTS }
     f_clients: array[0..unavcide_maxDemoClients - 1] of unaThread;
     f_clientCount: unsigned;
-    f_clientsLock: unaInProcessGate;
+    f_clientsLock: unaObject;
 {$ELSE }
     f_clients: unaIdList;	// stack of connected clients
 {$ENDIF VCX_DEMO_LIMIT_CLIENTS }
@@ -597,27 +598,27 @@ type
     f_deadSockets: unaList;
     //
     f_maxClients: int;
-    f_udpTimeout: unsigned;
+    f_udpTimeout: tTimeout;
     f_tryingToRemoveClient: bool;
     //
     f_onAcceptClient: tunavclAcceptClient;
     f_onServerNewClient: tunavclConnectEvent;
     f_onServerClientDisconnect: tunavclConnectEvent;
     //
-    function addNewClient(connId: unsigned): bool;
-    procedure removeClient(connId: unsigned);
+    function addNewClient(connId: tConID): bool;
+    procedure removeClient(connId: tConID);
     //
     function getClientCount(): unsigned;
     procedure setMaxClients(value: int);
-    function getPSbyConnId(connId: unsigned): unaThread;
+    function getPSbyConnId(connId: tConID): unaThread;
     //
-    function lockClients(allowEmpty: bool = false; timeout: unsigned = 102): bool;
+    function lockClients(allowEmpty: bool = false; timeout: tTimeout = 102): bool;
     procedure unlockClients();
   protected
     {*
       Writes data into the TCP/IP stream to be sent to client(s).
     }
-    function doWrite(data: pointer; len: unsigned; provider: pointer = nil): unsigned; override;
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
     {*
       Closes the IP server.
     }
@@ -625,37 +626,37 @@ type
     {*
       Sends a packet to specified client.
     }
-    function doSendPacket(connId: unsigned; cmd: unsigned; out asynch: bool; data: pointer = nil; len: unsigned = 0; timeout: unsigned = 82): tunaSendResult; override;
+    function doSendPacket(connId: tConID; cmd: uint; out asynch: bool; data: pointer = nil; len: uint = 0; timeout: tTimeout = 82): tunaSendResult; override;
     {*
       Sends goodbye command to all active clients.
     }
-    procedure sendGoodbye(connId: unsigned); override;
+    procedure sendGoodbye(connId: tConID); override;
     {*
     	Initializates sockets thread to be used with server.
     }
-    function initSocksThread(): unsigned; override;
+    function initSocksThread(): tConID; override;
     {*
 	Handles specific events reveived from server component.
     }
-    function handleSocketEvent(event: unaSocketEvent; id, connId: unsigned; data: pointer; len: unsigned): bool; override;
+    function handleSocketEvent(event: unaSocketEvent; id, connId: tConID; data: pointer; len: uint): bool; override;
     {*
 	Handles "hello" and "bye" commands.
     }
-    function onNewPacket(cmd: unsigned; data: pointer; len: unsigned; connId, worker: unsigned): bool; override;
+    function onNewPacket(cmd: uint; data: pointer; len: uint; connId: tConID; worker: uint): bool; override;
     {*
 	Fires onAcceptClient event handler (if assigned).
     }
-    procedure doAcceptClient(connId: unsigned; var accept: bool); virtual;
+    procedure doAcceptClient(connId: tConID; var accept: bool); virtual;
     {*
 	Fires onServerNewClient or onServerClientDisconnect event handlers (if assigned).
     }
-    procedure doServerClientConnection(connId: unsigned; isConnected: bool); virtual;
+    procedure doServerClientConnection(connId: tConID; isConnected: bool); virtual;
     {*
 	Marks specified connection as "dead", so server will no longer attempt to communicate over it.
 
 	@param connId Connection to be marked as "dead".
     }
-    procedure addDeadSocket(connId: unsigned);
+    procedure addDeadSocket(connId: tConID);
   public
     {*
 	Initializates server component.
@@ -671,19 +672,19 @@ type
 
       @param clientIndex Index of client connection (from 0 to clientCount - 1).
     }
-    function getClientConnId(clientIndex: unsigned): unsigned;
+    function getClientConnId(clientIndex: int): tConID;
     {*
       Sets new flags for a client.
 
       @param clientIndex Index of client connection (from 0 to clientCount - 1).
     }
-    procedure setClientOptions(clientIndex: unsigned; options: unsigned = c_unaIPServer_co_default);
+    procedure setClientOptions(clientIndex: int; options: uint = c_unaIPServer_co_default);
     {*
       Returns flags assigned for a client.
 
       @param clientIndex Index of client connection (from 0 to clientCount - 1).
     }
-    function getClientOptions(clientIndex: unsigned): unsigned;
+    function getClientOptions(clientIndex: int): uint;
     {*
       Number of clients currently connected to server.
     }
@@ -693,7 +694,7 @@ type
 
       @param clientIndex Index of client connection (from 0 to clientCount - 1).
     }
-    property clientOptions[clientIndex: unsigned]: unsigned read getClientOptions write setClientOptions;
+    property clientOptions[clientIndex: int]: uint read getClientOptions write setClientOptions;
     {*
     	Enable internal thread for packets' processing. Default is False.
     }
@@ -724,7 +725,7 @@ type
     {*
       Timeout for clients "connected" to UDP server. 0 means no timeout.
     }
-    property udpTimeout: unsigned read f_udpTimeout write f_udpTimeout default c_defUdpConnTimeout;
+    property udpTimeout: tTimeout read f_udpTimeout write f_udpTimeout default c_defUdpConnTimeout;
     {*
       Fired when new client is connected. Leave accept true for client to be connected.
     }
@@ -925,22 +926,22 @@ type
     f_packet: punavclIPBroadcastPacketSelector;
     f_packetSize: unsigned;
     //
-    procedure setwaveParam(index: int; value: unsigned);
+    procedure setwaveParam(index: integer; value: unsigned);
     procedure setPort(const value: string);
     function getPort: string;
     // -- packet --
-    function allocPacket(selector: byte; dataLen: unsigned = 0): unsigned;
-    function calcPacketRawSize(dataLen: unsigned = 0): unsigned; overload;
-    function calcPacketRawSize(selector: byte; dataLen: unsigned): unsigned; overload;
+    function allocPacket(selector: byte; dataLen: uint = 0): uint;
+    function calcPacketRawSize(dataLen: uint = 0): uint; overload;
+    function calcPacketRawSize(selector: byte; dataLen: uint): uint; overload;
   protected
     {*
       Reads data from pipe.
     }
-    function doRead(data: pointer; len: unsigned): unsigned; override;
+    function doRead(data: pointer; len: uint): uint; override;
     {*
       Returns 0.
     }
-    function getAvailableDataLen(index: int): unsigned; override;
+    function getAvailableDataLen(index: integer): uint; override;
     {*
       Opens a pipe.
     }
@@ -956,11 +957,11 @@ type
     {*
       Returns format exchange packet.
     }
-    function getFormatExchangeData(out data: pointer): unsigned; override;
+    function getFormatExchangeData(out data: pointer): uint; override;
     {*
       Applies format on a pipe.
     }
-    function applyFormat(data: pointer; len: unsigned; provider: unavclInOutPipe = nil; restoreActiveState: bool = false): bool; override;
+    function applyFormat(data: pointer; len: uint; provider: unavclInOutPipe = nil; restoreActiveState: bool = false): bool; override;
     {*
       Binds socket on a port (client) or broadcast address (server).
     }
@@ -981,7 +982,7 @@ type
     {*
       Sets the specific broadcast address.
     }
-    procedure setBroadcastAddr(addr: unsigned = unsigned(INADDR_BROADCAST));
+    procedure setBroadcastAddr(addr: TIP4 = TIP4(INADDR_BROADCAST));
     //
     {*
       Specifies format tag of pipe audio stream.
@@ -1031,21 +1032,21 @@ type
     f_formatIndexCountdown: unsigned;
     f_packetsSent: unsigned;
     //
-    function sendRawData(data: pointer; len: unsigned): tunaSendResult;
-    function sendPacket(rawSize: unsigned = 0; len: unsigned = 0; calcCRC: bool = true): tunaSendResult;
+    function sendRawData(data: pointer; len: uint): tunaSendResult;
+    function sendPacket(rawSize: uint = 0; len: uint = 0; calcCRC: bool = true): tunaSendResult;
   protected
     procedure bindSocket(); override;
     {*
       Writes data into broadcast stream.
     }
-    function doWrite(data: pointer; len: unsigned; provider: pointer = nil): unsigned; override;
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
   public
     function doOpen(): bool; override;
     {*
       Sends a specified media packet. Only audio packets are currently supported.
       Returns 0 if data was sent successfully, or socket error otherwise.
     }
-    function sendStreamData(channelMedia: byte; data: pointer = nil; len: unsigned = 0; isNewChunk: bool = true): tunaSendResult;
+    function sendStreamData(channelMedia: byte; data: pointer = nil; len: uint = 0; isNewChunk: bool = true): tunaSendResult;
     {*
       Sends an audio stream format to client(s).
     }
@@ -1053,11 +1054,11 @@ type
     {*
       Sends stream synchronization (not implemented yet).
     }
-    function sendStreamSync(sync: unsigned): tunaSendResult;
+    function sendStreamSync(sync: uint): tunaSendResult;
     {*
       Sends custom data over a pipe.
     }
-    function sendCustomData(customType: byte; data: pointer; len: unsigned): tunaSendResult;
+    function sendCustomData(customType: byte; data: pointer; len: uint): tunaSendResult;
     //
     {*
       Returns number of total packets being sent.
@@ -1089,20 +1090,20 @@ type
     f_formatIndex: unsigned;
     f_packetsReceived: unsigned;
     f_packetsLost: unsigned;
-    f_remoteHost: unsigned;
+    f_remoteHost: TIP4;
     f_remotePort: uint16;
     //
     f_subData: unaMemoryStream;
     f_subDataBuf: pointer;
-    f_subDataBufSize: unsigned;
+    f_subDataBufSize: uint;
     //
-    f_chunkSize: unsigned;
+    f_chunkSize: uint;
     //
-    procedure onNewBroadPacket(data: pointer; size: unsigned; const addr: WinSock.sockAddr_In);
+    procedure onNewBroadPacket(data: pointer; size: uint; const addr: WinSock.sockAddr_In);
   protected
     procedure doClose(); override;
     function doOpen(): bool; override;
-    function doWrite(data: pointer; len: unsigned; provider: pointer = nil): unsigned; override;
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
     //
     procedure bindSocket(); override;
     procedure doSetPort(const value: string); override;
@@ -1111,24 +1112,24 @@ type
     procedure BeforeDestruction(); override;
     //
     {*
-      Returns total number of packets being lost.
+        Returns total number of packets being lost.
     }
     property packetsLost: unsigned read f_packetsLost;
     {*
-      Returns number of received packets.
+        Returns number of received packets.
     }
     property packetsReceived: unsigned read f_packetsReceived;
     {*
-      Remote host.
+        Remote host.
     }
-    property remoteHost: unsigned read f_remoteHost;
+    property remoteHost: TIP4 read f_remoteHost;
     {*
-      Remote port.
+        Remote port.
     }
     property remotePort: uint16 read f_remotePort;
   published
     {*
-      Broadcast client is usually a format provider - so this property value was changed to be true by default.
+        Broadcast client is usually a format provider - so this property value was changed to be true by default.
     }
     property isFormatProvider default true;
   end;
@@ -1148,7 +1149,7 @@ type
   //
   unavclIpPacketsStack = class(unaThread)
   private
-    f_connId: unsigned;	// master should know the connId
+    f_connId: tConID;	// master should know the connId
     f_formatSent: bool;
     f_formatReceived: bool;
     //
@@ -1159,7 +1160,7 @@ type
     f_lastSubIndex: unsigned;
     f_lastSubIndexReceived: bool;
     f_packetDataBuf: pointer;
-    f_packetDataBufSize: unsigned;
+    f_packetDataBufSize: uint;
     //
     f_seqNum: int;
     //
@@ -1175,11 +1176,11 @@ type
     f_master: unavclInOutIpPipe;
     f_savedDataStream: unaMemoryStream;
     // server clients only
-    f_clientOptions: unsigned;
+    f_clientOptions: uint;
     //
     procedure cleanupSubPackets();
-    function parseSocketData(data: pArray; len: unsigned): bool;
-    function doSendPacket(cmd: unsigned; out asynch: bool; data: pointer = nil; len: unsigned = 0; timeout: unsigned = 83): tunaSendResult;
+    function parseSocketData(data: pArray; len: uint): bool;
+    function doSendPacket(cmd: uint; out asynch: bool; data: pointer = nil; len: uint = 0; timeout: tTimeout = 83): tunaSendResult;
   protected
     function execute(globalIndex: unsigned): int; override;
     //
@@ -1187,9 +1188,9 @@ type
     //
     procedure startIn(); override;
     //
-    function psNewSocketData(data: pointer; len: unsigned; worker: unsigned): bool;
+    function psNewSocketData(data: pointer; len: uint; worker: uint): bool;
   public
-    constructor create(master: unavclInOutIpPipe; connId: unsigned);
+    constructor create(master: unavclInOutIpPipe; connId: tConID);
     procedure AfterConstruction(); override;
     procedure BeforeDestruction(); override;
     {*
@@ -1237,7 +1238,7 @@ end;
 // --  --
 procedure unavclIpPacketsStack.cleanupSubPackets();
 var
-  i: unsigned;
+  i: uint;
 begin
   // cleanup the whole f_subPackets array
   for i := low(f_subPackets) to high(f_subPackets) do begin
@@ -1251,7 +1252,7 @@ begin
 end;
 
 // --  --
-constructor unavclIpPacketsStack.create(master: unavclInOutIpPipe; connId: unsigned);
+constructor unavclIpPacketsStack.create(master: unavclInOutIpPipe; connId: tConID);
 begin
   f_master := master;
   f_connId := connId;
@@ -1260,7 +1261,7 @@ begin
 end;
 
 // --  --
-function unavclIpPacketsStack.doSendPacket(cmd: unsigned; out asynch: bool; data: pointer; len: unsigned; timeout: unsigned): tunaSendResult;
+function unavclIpPacketsStack.doSendPacket(cmd: uint; out asynch: bool; data: pointer; len: uint; timeout: tTimeout): tunaSendResult;
 begin
   result := unasr_OK;
   //
@@ -1364,11 +1365,7 @@ end;
 // --  --
 function unavclIpPacketsStack.getNextSeqNum(): unsigned;
 begin
-{$IFDEF __BEFORE_D6__ }
-  result := unsigned(InterlockedExchangeAdd(@f_seqNum, 1));
-{$ELSE }
   result := unsigned(InterlockedExchangeAdd(f_seqNum, 1));
-{$ENDIF __BEFORE_D6__ }
   if ($7FFFFFFF = result) then begin
     //
     f_seqNum := 0;
@@ -1377,10 +1374,10 @@ begin
 end;
 
 // --  --
-function unavclIpPacketsStack.parseSocketData(data: pArray; len: unsigned): bool;
+function unavclIpPacketsStack.parseSocketData(data: pArray; len: uint): bool;
 var
   packet: punavclInOutIPPacket;
-  crc32u: unsigned;
+  crc32u: uint;
   curIndex: unsigned;
   i: unsigned;
   totalDataSize: unsigned;
@@ -1658,11 +1655,11 @@ begin
 end;
 
 // --  --
-function unavclIpPacketsStack.psNewSocketData(data: pointer; len, worker: unsigned): bool;
+function unavclIpPacketsStack.psNewSocketData(data: pointer; len, worker: uint): bool;
 var
   ok: bool;
   packet: punavclInOutIPPacket;
-  sz: unsigned;
+  sz: uint;
   lost: int;
   sq: int;
 begin
@@ -1699,11 +1696,7 @@ begin
 	    //
 	    //logMessage('GOT SEQ: ' + int2str(packet.r_seqNum) + ' (' + int2str(f_expectedSeqNum) + ')');
 	    //
-{$IFDEF __BEFORE_D6__ }
-            sq := InterlockedExchangeAdd(@f_expectedSeqNum, 1);
-{$ELSE }
 	    sq := InterlockedExchangeAdd(f_expectedSeqNum, 1);
-{$ENDIF __BEFORE_D6__ }
 	    if (sq <> packet.r_seqNum) then begin
 	      //
 	      lost := 0;
@@ -1783,7 +1776,7 @@ type
   private
     f_clients: unaVcIdeSocksClients;
   protected
-    procedure event(event: unaSocketEvent; id, connId: unsigned; data: pointer = nil; size: unsigned = 0); override;
+    procedure event(event: unaSocketEvent; id, connId: tConID; data: pointer = nil; size: uint = 0); override;
   public
     procedure AfterConstruction(); override;
     procedure BeforeDestruction(); override;
@@ -1822,7 +1815,7 @@ begin
 end;
 
 // --  --
-procedure unaVcIdeSocks.event(event: unaSocketEvent; id, connId: unsigned; data: pointer; size: unsigned);
+procedure unaVcIdeSocks.event(event: unaSocketEvent; id, connId: tConID; data: pointer; size: uint);
 var
   client: unavclInOutIpPipe;
 begin
@@ -1944,6 +1937,14 @@ procedure unavclInOutIpPipe.analyzeByteOrder(isInput: bool; data: pointer; len: 
   // --  --
   procedure doSwapBuf(buf: pointer; len: int);
   begin
+    {$IFDEF CPU64 }
+    while (1 < len) do begin
+      //
+      pUint16(buf)^ := swap16(pUint16(buf)^);
+      inc(pUint16(buf));
+      dec(len, 2);
+    end;
+    {$ELSE }
     asm
 	push	ecx
 	push	esi
@@ -1968,12 +1969,13 @@ procedure unavclInOutIpPipe.analyzeByteOrder(isInput: bool; data: pointer; len: 
 	pop	esi
 	pop	ecx
     end;
+    {$ENDIF CPU64 }
   end;
 
   // --  --
-  function sw(i: smallInt): smallInt; assembler;
-  asm
-	xchg	al, ah
+  function sw(i: smallInt): smallInt;
+  begin
+    result := swap16(i);
   end;
 
 var
@@ -1986,7 +1988,7 @@ var
   outDataPointsToSubBuf: bool;
   outLenD: int;
   //
-  i: int;
+  i: integer;
   sum: array[0..3] of int64;
   sumMinIndex: int;
   swapBufIndex: int;
@@ -2180,7 +2182,7 @@ begin
 end;
 
 // --  --
-function unavclInOutIpPipe.applyFormat(data: pointer; len: unsigned; provider: unavclInOutPipe; restoreActiveState: bool): bool;
+function unavclInOutIpPipe.applyFormat(data: pointer; len: uint; provider: unavclInOutPipe; restoreActiveState: bool): bool;
 var
   allowFC: bool;
 begin
@@ -2217,7 +2219,7 @@ end;
 // --  --
 procedure unavclInOutIpPipe.BeforeDestruction();
 var
-  i: int;
+  i: integer;
 begin
   doClose();
   //
@@ -2301,7 +2303,7 @@ begin
 end;
 
 // --  --
-procedure unavclInOutIpPipe.doOnSocketEvent(sender: tObject; event: unaSocketEvent; id, connId: unsigned; data: pointer; len: unsigned);
+procedure unavclInOutIpPipe.doOnSocketEvent(sender: tObject; event: unaSocketEvent; id, connId: tConID; data: pointer; len: uint);
 begin
   InterlockedIncrement(f_insideOnPacket);
   try
@@ -2384,25 +2386,25 @@ begin
 end;
 
 // --  --
-function unavclInOutIpPipe.doRead(data: pointer; len: unsigned): unsigned;
+function unavclInOutIpPipe.doRead(data: pointer; len: uint): uint;
 begin
   result := 0;
 end;
 
 // --  --
-function unavclInOutIpPipe.doWrite(data: pointer; len: unsigned; provider: pointer): unsigned;
+function unavclInOutIpPipe.doWrite(data: pointer; len: uint; provider: pointer): uint;
 begin
   result := 0;
 end;
 
 // --  --
-function unavclInOutIpPipe.getAvailableDataLen(index: int): unsigned;
+function unavclInOutIpPipe.getAvailableDataLen(index: integer): uint;
 begin
   result := 0;
 end;
 
 // --  --
-function unavclInOutIpPipe.getErrorCode(): unsigned;
+function unavclInOutIpPipe.getErrorCode(): int;
 begin
   if ((0 = f_errorCode) and (0 < f_socksId)) then
     result := f_socks.getSocketError(f_socksId)
@@ -2411,7 +2413,7 @@ begin
 end;
 
 // --  --
-function unavclInOutIpPipe.getFormatExchangeData(out data: pointer): unsigned;
+function unavclInOutIpPipe.getFormatExchangeData(out data: pointer): uint;
 begin
   if (false and (0 < f_localFormatSize)) then begin
     //
@@ -2425,7 +2427,7 @@ begin
 end;
 
 // --  --
-function unavclInOutIpPipe.getHostAddr(connId: unsigned): pSockAddrIn;
+function unavclInOutIpPipe.getHostAddr(connId: tConID): pSockAddrIn;
 begin
   if (nil <> f_socks) then
     result := f_socks.getRemoteHostAddr(socksId, connId)
@@ -2434,7 +2436,7 @@ begin
 end;
 
 // --  --
-function unavclInOutIpPipe.getHostInfo(out ip, port: string; connId: unsigned): bool;
+function unavclInOutIpPipe.getHostInfo(out ip, port: string; connId: tConID): bool;
 begin
   if (nil <> f_socks) then
     result := f_socks.getRemoteHostInfo(socksId, connId, ip, port)
@@ -2454,7 +2456,7 @@ end;
 {$ENDIF VC25_IOCP }
 
 // --  --
-function unavclInOutIpPipe.getPacketData(len: unsigned): int;
+function unavclInOutIpPipe.getPacketData(len: uint): int;
 var
   i: int;
 begin
@@ -2462,11 +2464,7 @@ begin
   //
   for i := low(f_packetsToSendData) to high(f_packetsToSendData) do begin
     //
-{$IFDEF __BEFORE_D6__ }
-    if (0 = InterlockedExchangeAdd(@f_packetsToSendAcquire[i], 1)) then begin
-{$ELSE }
     if (0 = InterlockedExchangeAdd(f_packetsToSendAcquire[i], 1)) then begin
-{$ENDIF __BEFORE_D6__ }
       //
       if (1 > f_packetsToSendSize[i]) then begin
 	//
@@ -2497,15 +2495,15 @@ begin
 end;
 
 // --  --
-function unavclInOutIpPipe.getProto(): unsigned;
+function unavclInOutIpPipe.getProto(): uint;
 const
-  tproto: array[tunavclProtoType] of unsigned = (IPPROTO_TCP, IPPROTO_UDP);
+  tproto: array[tunavclProtoType] of uint = (IPPROTO_TCP, IPPROTO_UDP);
 begin
   result := tproto[proto];
 end;
 
 // --  --
-function unavclInOutIpPipe.handleSocketEvent(event: unaSocketEvent; id, connId: unsigned; data: pointer; len: unsigned): bool;
+function unavclInOutIpPipe.handleSocketEvent(event: unaSocketEvent; id, connId: tConID; data: pointer; len: uint): bool;
 begin
   result := true;	// not much here
 end;
@@ -2517,7 +2515,7 @@ begin
 end;
 
 // --  --
-function unavclInOutIpPipe.onNewPacket(cmd: unsigned; data: pointer; len: unsigned; connId, worker: unsigned): bool;
+function unavclInOutIpPipe.onNewPacket(cmd: uint; data: pointer; len: uint; connId: tConID; worker: uint): bool;
 var
   text: aString;
 begin
@@ -2593,7 +2591,7 @@ begin
 end;
 
 // --  --
-function unavclInOutIpPipe.onNewPacketData(dataType: int; data: pointer; len: unsigned): bool;
+function unavclInOutIpPipe.onNewPacketData(dataType: int; data: pointer; len: uint): bool;
 var
   outLen: int;
 begin
@@ -2612,13 +2610,13 @@ begin
 end;
 
 // --  --
-procedure unavclInOutIpPipe.onPacketsLost(connId: unsigned; lostCount: int; worker: unsigned);
+procedure unavclInOutIpPipe.onPacketsLost(connId: tConID; lostCount: int; worker: uint);
 begin
   //
 end;
 
 // --  --
-function unavclInOutIpPipe.sendData(connId: unsigned; data: pointer; len: unsigned): tunaSendResult;
+function unavclInOutIpPipe.sendData(connId: tConID; data: pointer; len: uint): tunaSendResult;
 begin
   if ((nil <> data) and (0 < len)) then
     result := sendPacket(connId, cmd_inOutIPPacket_userData, data, len)
@@ -2627,14 +2625,14 @@ begin
 end;
 
 // --  --
-procedure unavclInOutIpPipe.sendFormat(connId: unsigned);
+procedure unavclInOutIpPipe.sendFormat(connId: tConID);
 begin
   if (nil <> f_localFormat) then
     sendPacket(connId, cmd_inOutIPPacket_formatAudio, f_localFormat, f_localFormatSize);
 end;
 
 // --  --
-function unavclInOutIpPipe.sendPacket(connId: unsigned; cmd: unsigned; data: pointer; len, timeout: unsigned): tunaSendResult;
+function unavclInOutIpPipe.sendPacket(connId: tConID; cmd: uint; data: pointer; len: uint; timeout: tTimeout): tunaSendResult;
 var
   asynch: bool;
 begin
@@ -2642,11 +2640,11 @@ begin
 end;
 
 // --  --
-function unavclInOutIpPipe.sendPacketToSocket(connId, seqNum, cmd: unsigned; out asynch: bool; data: pointer; len: unsigned; timeout: unsigned): tunaSendResult;
+function unavclInOutIpPipe.sendPacketToSocket(connId, seqNum, cmd: uint; out asynch: bool; data: pointer; len: uint; timeout: tTimeout): tunaSendResult;
 var
   packetIndex: int;
   packetSize: unsigned;
-  crc32u: unsigned;
+  crc32u: uint;
   total: unsigned;
   curSize: unsigned;
   maxSize: unsigned;
@@ -2815,7 +2813,7 @@ begin
 end;
 
 // --  --
-function unavclInOutIpPipe.sendText(connId: unsigned; const data: aString): tunaSendResult;
+function unavclInOutIpPipe.sendText(connId: tConID; const data: aString): tunaSendResult;
 begin
   if ('' <> data) then
     result := sendPacket(connId, cmd_inOutIPPacket_text, @data[1], length(data))
@@ -2881,7 +2879,7 @@ begin
 end;
 
 // --  --
-function unavclIPClient.doSendPacket(connId, cmd: unsigned; out asynch: bool; data: pointer; len, timeout: unsigned): tunaSendResult;
+function unavclIPClient.doSendPacket(connId, cmd: uint; out asynch: bool; data: pointer; len: uint; timeout: tTimeout): tunaSendResult;
 begin
   if (isConnected and (nil <> f_clientPacketStack)) then
     result := unavclIpPacketsStack(f_clientPacketStack).doSendPacket(cmd, asynch, data, len, timeout)
@@ -2890,7 +2888,7 @@ begin
 end;
 
 // --  --
-function unavclIPClient.doWrite(data: pointer; len: unsigned; provider: pointer): unsigned;
+function unavclIPClient.doWrite(data: pointer; len: uint; provider: pointer): uint;
 var
   res: tunaSendResult;
   outLen: int;
@@ -2911,7 +2909,7 @@ begin
 end;
 
 // --  --
-function unavclIPClient.handleSocketEvent(event: unaSocketEvent; id, connId: unsigned; data: pointer; len: unsigned): bool;
+function unavclIPClient.handleSocketEvent(event: unaSocketEvent; id, connId: tConID; data: pointer; len: uint): bool;
 begin
   result := inherited handleSocketEvent(event, id, connId, data, len);
   //
@@ -3000,9 +2998,9 @@ begin
 end;
 
 // --  --
-function unavclIPClient.initSocksThread(): unsigned;
+function unavclIPClient.initSocksThread(): tConID;
 begin
-  result := f_socks.createConnection(host, port, getProto(), false, bindTo, bindToPort{$IFDEF VC25_OVERLAPPED }, useIOCPSocketsModel{$ENDIF });
+  result := f_socks.createConnection(host, port, getProto(), false, bindTo, bindToPort{$IFDEF VC25_OVERLAPPED }, useIOCPSocketsModel{$ENDIF VC25_OVERLAPPED });
   unavclIpPacketsStack(f_clientPacketStack).startIn();
 end;
 
@@ -3013,7 +3011,7 @@ begin
 end;
 
 // --  --
-function unavclIPClient.onNewPacket(cmd: unsigned; data: pointer; len: unsigned; connId, worker: unsigned): bool;
+function unavclIPClient.onNewPacket(cmd: uint; data: pointer; len: uint; connId: tConID; worker: uint): bool;
 begin
   result := inherited onNewPacket(cmd, data, len, connId, worker);
   //
@@ -3038,7 +3036,7 @@ begin
 end;
 
 // --  --
-procedure unavclIPClient.sendGoodbye(connId: unsigned);
+procedure unavclIPClient.sendGoodbye(connId: tConID);
 begin
   if (0 = connId) then
     connId := f_connId;
@@ -3155,13 +3153,13 @@ end;
 { unavclIPServer }
 
 // --  --
-procedure unavclIPServer.addDeadSocket(connId: unsigned);
+procedure unavclIPServer.addDeadSocket(connId: tConID);
 begin
   f_deadSockets.add(connId);
 end;
 
 // --  --
-function unavclIPServer.addNewClient(connId: unsigned): bool;
+function unavclIPServer.addNewClient(connId: tConID): bool;
 var
   packetStack: unavclIpPacketsStack;
 begin
@@ -3212,7 +3210,7 @@ begin
   inherited;
   //
 {$IFDEF VCX_DEMO_LIMIT_CLIENTS }
-  f_clientsLock := unaInProcessGate.create();
+  f_clientsLock := unaObject.create();
 {$ELSE }
   f_clients := unavcPsIdList.create(uldt_obj);
 {$ENDIF VCX_DEMO_LIMIT_CLIENTS }
@@ -3263,7 +3261,7 @@ begin
 end;
 
 // --  --
-function unavclIPServer.doSendPacket(connId, cmd: unsigned; out asynch: bool; data: pointer; len, timeout: unsigned): tunaSendResult;
+function unavclIPServer.doSendPacket(connId: tConID; cmd: uint; out asynch: bool; data: pointer; len: uint; timeout: tTimeout): tunaSendResult;
 var
   c: unsigned;
   packetStack: unavclIpPacketsStack;
@@ -3322,7 +3320,7 @@ begin
 end;
 
 // --  --
-function unavclIPServer.doWrite(data: pointer; len: unsigned; provider: pointer): unsigned;
+function unavclIPServer.doWrite(data: pointer; len: uint; provider: pointer): uint;
 var
   res: tunaSendResult;
   asynch: bool;
@@ -3337,16 +3335,16 @@ begin
 end;
 
 // --  --
-function unavclIPServer.getClientConnId(clientIndex: unsigned): unsigned;
+function unavclIPServer.getClientConnId(clientIndex: int): tConID;
 begin
-  if (clientIndex < clientCount) then
+  if ((0 <= clientIndex) and (unsigned(clientIndex) < clientCount)) then
     result := unavclIpPacketsStack(f_clients[clientIndex]).f_connId
   else
     result := 0;
 end;
 
 // --  --
-function unavclIPServer.getClientOptions(clientIndex: unsigned): unsigned;
+function unavclIPServer.getClientOptions(clientIndex: int): uint;
 var
   packetStack: unavclIpPacketsStack;
 begin
@@ -3370,7 +3368,7 @@ begin
 end;
 
 // --  --
-function unavclIPServer.getPSbyConnId(connId: unsigned): unaThread;
+function unavclIPServer.getPSbyConnId(connId: tConID): unaThread;
 {$IFDEF VCX_DEMO_LIMIT_CLIENTS }
 var
   i: unsigned;
@@ -3397,7 +3395,7 @@ begin
 end;
 
 // --  --
-function unavclIPServer.handleSocketEvent(event: unaSocketEvent; id, connId: unsigned; data: pointer; len: unsigned): bool;
+function unavclIPServer.handleSocketEvent(event: unaSocketEvent; id, connId: tConID; data: pointer; len: uint): bool;
 var
   accept: bool;
   asynch: bool;
@@ -3479,12 +3477,12 @@ begin
 end;
 
 // --  --
-function unavclIPServer.initSocksThread(): unsigned;
+function unavclIPServer.initSocksThread(): tConID;
 var
   bl: int;
 begin
   bl := min(maxClients, 8);	// do not wait for more than 8/maxClients connections by default
-  result := f_socks.createServer(port, getProto(), false, bl, f_udpTimeout, bindTo{$IFDEF VC25_OVERLAPPED }, useIOCPSocketsModel{$ENDIF });
+  result := f_socks.createServer(port, getProto(), false, bl, f_udpTimeout, bindTo{$IFDEF VC25_OVERLAPPED }, useIOCPSocketsModel{$ENDIF VC25_OVERLAPPED });
   //
 {$IFDEF PACKET_DEBUG }
   infoMessage(name + '.initSocksThread() = ' + int2str(result));
@@ -3492,11 +3490,11 @@ begin
 end;
 
 // --  --
-function unavclIPServer.lockClients(allowEmpty: bool; timeout: unsigned): bool;
+function unavclIPServer.lockClients(allowEmpty: bool; timeout: tTimeout): bool;
 begin
 {$IFDEF VCX_DEMO_LIMIT_CLIENTS }
   if (allowEmpty or (0 < f_clientCount)) then
-    result := (f_clientsLock.enter(timeout))
+    result := (f_clientsLock.acquire(false, timeout))
   else
     result := false;
 {$ELSE }
@@ -3508,7 +3506,7 @@ begin
 end;
 
 // --  --
-function unavclIPServer.onNewPacket(cmd: unsigned; data: pointer; len: unsigned; connId, worker: unsigned): bool;
+function unavclIPServer.onNewPacket(cmd: uint; data: pointer; len: uint; connId: tConID; worker: uint): bool;
 begin
   result := inherited onNewPacket(cmd, data, len, connId, worker);
 
@@ -3540,14 +3538,14 @@ begin
 end;
 
 // --  --
-procedure unavclIPServer.doAcceptClient(connId: unsigned; var accept: bool);
+procedure unavclIPServer.doAcceptClient(connId: tConID; var accept: bool);
 begin
   if (assigned(f_onAcceptClient)) then
     f_onAcceptClient(self, connId, accept);
 end;
 
 // --  --
-procedure unavclIPServer.doServerClientConnection(connId: unsigned; isConnected: bool);
+procedure unavclIPServer.doServerClientConnection(connId: tConID; isConnected: bool);
 begin
   if (isConnected) then begin
     //
@@ -3563,7 +3561,7 @@ begin
 end;
 
 // --  --
-procedure unavclIPServer.removeClient(connId: unsigned);
+procedure unavclIPServer.removeClient(connId: tConID);
 {$IFDEF VCX_DEMO_LIMIT_CLIENTS }
 var
   i: unsigned;
@@ -3622,7 +3620,7 @@ begin
 end;
 
 // --  --
-procedure unavclIPServer.sendGoodbye(connId: unsigned);
+procedure unavclIPServer.sendGoodbye(connId: tConID);
 var
   asynch: bool;
 begin
@@ -3631,7 +3629,7 @@ begin
 end;
 
 // --  --
-procedure unavclIPServer.setClientOptions(clientIndex, options: unsigned);
+procedure unavclIPServer.setClientOptions(clientIndex: int; options: uint);
 var
   packetStack: unavclIpPacketsStack;
 begin
@@ -3665,7 +3663,7 @@ end;
 procedure unavclIPServer.unlockClients();
 begin
 {$IFDEF VCX_DEMO_LIMIT_CLIENTS }
-  f_clientsLock.leave();
+  f_clientsLock.releaseWO();
 {$ELSE }
   unlockListWO(f_clients);
 {$ENDIF VCX_DEMO_LIMIT_CLIENTS }
@@ -3696,7 +3694,7 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastPipe.allocPacket(selector: byte; dataLen: unsigned): unsigned;
+function unavclIPBroadcastPipe.allocPacket(selector: byte; dataLen: uint): uint;
 var
   size: unsigned;
 begin
@@ -3712,7 +3710,7 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastPipe.applyFormat(data: pointer; len: unsigned; provider: unavclInOutPipe; restoreActiveState: bool): bool;
+function unavclIPBroadcastPipe.applyFormat(data: pointer; len: uint; provider: unavclInOutPipe; restoreActiveState: bool): bool;
 var
   allowFC: bool;
 begin
@@ -3755,7 +3753,7 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastPipe.calcPacketRawSize(selector: byte; dataLen: unsigned): unsigned;
+function unavclIPBroadcastPipe.calcPacketRawSize(selector: byte; dataLen: uint): uint;
 begin
   case (selector) of
     //
@@ -3777,7 +3775,7 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastPipe.calcPacketRawSize(dataLen: unsigned): unsigned;
+function unavclIPBroadcastPipe.calcPacketRawSize(dataLen: uint): uint;
 var
   selector: unsigned;
 begin
@@ -3807,7 +3805,7 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastPipe.doRead(data: pointer; len: unsigned): unsigned;
+function unavclIPBroadcastPipe.doRead(data: pointer; len: uint): uint;
 begin
   // abstract: inherited;
   result := 0;
@@ -3820,13 +3818,13 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastPipe.getAvailableDataLen(index: int): unsigned;
+function unavclIPBroadcastPipe.getAvailableDataLen(index: integer): uint;
 begin
   result := 0;
 end;
 
 // --  --
-function unavclIPBroadcastPipe.getFormatExchangeData(out data: pointer): unsigned;
+function unavclIPBroadcastPipe.getFormatExchangeData(out data: pointer): uint;
 begin
   result := sizeOf(unavclWavePipeFormatExchange);
   data := malloc(result, true, 0);
@@ -3855,9 +3853,9 @@ begin
 end;
 
 // --  --
-procedure unavclIPBroadcastPipe.setBroadcastAddr(addr: unsigned);
+procedure unavclIPBroadcastPipe.setBroadcastAddr(addr: TIP4);
 begin
-  f_addr.sin_addr.s_addr := htonl(int(addr));
+  f_addr.sin_addr.s_addr := htonl(u_long(addr));
 end;
 
 // --  --
@@ -3868,7 +3866,7 @@ begin
 end;
 
 // --  --
-procedure unavclIPBroadcastPipe.setwaveParam(index: int; value: unsigned);
+procedure unavclIPBroadcastPipe.setwaveParam(index: integer; value: unsigned);
 begin
   case (index) of
 
@@ -3927,7 +3925,7 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastServer.doWrite(data: pointer; len: unsigned; provider: pointer): unsigned;
+function unavclIPBroadcastServer.doWrite(data: pointer; len: uint; provider: pointer): uint;
 var
   subSize: unsigned;
   sentTotal: unsigned;
@@ -4004,7 +4002,7 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastServer.sendCustomData(customType: byte; data: pointer; len: unsigned): tunaSendResult;
+function unavclIPBroadcastServer.sendCustomData(customType: byte; data: pointer; len: uint): tunaSendResult;
 var
   rawSize: unsigned;
 begin
@@ -4032,7 +4030,7 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastServer.sendPacket(rawSize: unsigned; len: unsigned; calcCRC: bool): tunaSendResult;
+function unavclIPBroadcastServer.sendPacket(rawSize: uint; len: uint; calcCRC: bool): tunaSendResult;
 var
   packetRawSize: unsigned;
 begin
@@ -4054,7 +4052,7 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastServer.sendRawData(data: pointer; len: unsigned): tunaSendResult;
+function unavclIPBroadcastServer.sendRawData(data: pointer; len: uint): tunaSendResult;
 begin
   if (0 = f_socket.sendto(f_addr, data, len, true)) then	// select() for a connectionless broadcast socket returns false for writing,
 								// so we have to always skip this check
@@ -4067,7 +4065,7 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastServer.sendStreamData(channelMedia: byte; data: pointer; len: unsigned; isNewChunk: bool): tunaSendResult;
+function unavclIPBroadcastServer.sendStreamData(channelMedia: byte; data: pointer; len: uint; isNewChunk: bool): tunaSendResult;
 var
   rawSize: unsigned;
 begin
@@ -4117,7 +4115,7 @@ begin
 end;
 
 // -- --
-function unavclIPBroadcastServer.sendStreamSync(sync: unsigned): tunaSendResult;
+function unavclIPBroadcastServer.sendStreamSync(sync: uint): tunaSendResult;
 var
   rawSize: unsigned;
 begin
@@ -4172,7 +4170,7 @@ function unavclBroadcastClientThread.execute(globalIndex: unsigned): int;
 var
   addr: WinSock.sockAddr_In;
   data: pointer;
-  mtu: unsigned;
+  mtu: uint;
   sz: int;
 begin
   mtu := f_master.f_socket.getMTU();
@@ -4291,14 +4289,14 @@ begin
 end;
 
 // --  --
-function unavclIPBroadcastClient.doWrite(data: pointer; len: unsigned; provider: pointer): unsigned;
+function unavclIPBroadcastClient.doWrite(data: pointer; len: uint; provider: pointer): uint;
 begin
   // does nothing, makes compiler happy
   result := 0;
 end;
 
 // --  --
-procedure unavclIPBroadcastClient.onNewBroadPacket(data: pointer; size: unsigned; const addr: WinSock.sockAddr_In);
+procedure unavclIPBroadcastClient.onNewBroadPacket(data: pointer; size: uint; const addr: WinSock.sockAddr_In);
 var
   dataLen: unsigned;
   selector: unsigned;
@@ -4312,7 +4310,7 @@ var
 begin
   if ((nil <> data) and (2 < size)) then begin
     //
-    f_remoteHost := unsigned(ntohl(addr.sin_addr.s_addr));
+    f_remoteHost := uint32(ntohl(addr.sin_addr.s_addr));
     f_remotePort := ntohs(addr.sin_port);
     //
     f_packet := data;

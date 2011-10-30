@@ -104,7 +104,7 @@ type
     function getWaveFormat(): PWAVEFORMATEXTENSIBLE;
     function getWaveOut(): unaWaveOutDevice;
     //
-    procedure onWaveDataAvailable(sender: tObject; data: pointer; len: unsigned);
+    procedure onWaveDataAvailable(sender: tObject; data: pointer; len: cardinal);
   protected
     procedure startIn(); override;
     procedure startOut(); override;
@@ -203,7 +203,7 @@ begin
 end;
 
 // --  --
-procedure unaAudioFeedbackClass.onWaveDataAvailable(sender: tObject; data: pointer; len: unsigned);
+procedure unaAudioFeedbackClass.onWaveDataAvailable(sender: tObject; data: pointer; len: cardinal);
 var
   header: myWaveHeader;
   res: MMRESULT;

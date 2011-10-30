@@ -25,6 +25,7 @@
 		Lake, Jan-Dec 2008
 		Lake, Jan-May 2009
 		Lake, Feb-Jul 2010
+		Lake, Feb-Apr 2011
 
 	----------------------------------------------
 *)
@@ -72,6 +73,11 @@ const
   SD_BOTH        	= 2;	/// missing in Delphi 5 or earlier
 {$ENDIF __BEFORE_D6__ }
 
+{$IFDEF FPC }
+  SD_BOTH        	= 2;	/// missing in Delphi 5 or earlier
+{$ENDIF FPC }
+
+
   {$EXTERNALSYM SO_MAX_MSG_SIZE }
   SO_MAX_MSG_SIZE	= $2003;		/// maximum message size
   //
@@ -82,13 +88,9 @@ var
   c_maxThreadPoolSize: unsigned	= 256;			/// maximum number of threads in pool
 
 type
-  //psockaddr = ^sockaddr;
-  sockaddr = packed record
-    r_family: uint16;
-    r_port: uint16;
-    r_addr: uint32;
-    r_zero: array [0..7] of aChar;
-  end;
+  pTIP4         = ^TIP4;
+  TIP4          = uint32;
+
 
   //
   // -- unaWSA --
@@ -100,7 +102,6 @@ type
   private
     f_data: tWSAData;
     f_status: int;
-    //f_gate: unaInProcessGate;
   public
     {*
 	Creates and initializes internal structures. If active = true (default) startups the Windows Sockets as well.
@@ -159,17 +160,19 @@ type
     f_bound: bool;
     //
     f_MTUValid: bool;
-    f_MTU: unsigned;
+    f_MTU: uint;
     //
     f_port: protoEnt;
     //
     function socket(): int;
-    function check_read(timeout: uint32 = 0): bool;
-    function check_write(timeout: uint32 = 0): bool;
+    function check_read(timeout: tTimeout = 0): bool;
+    function check_write(timeout: tTimeout = 0): bool;
     //
     function getIsActive(): bool;
-    function getBufSize(index: int): unsigned;
-    procedure setBufSize(index: int; value: unsigned);
+    function getBufSizeSnd(): uint;
+    procedure setBufSizeSnd(value: uint);
+    function getBufSizeRcv(): uint;
+    procedure setBufSizeRcv(value: uint);
     //
     procedure setBindToPort(const value: string);
     function getBindToPort(): string;
@@ -181,14 +184,6 @@ type
     }
     function closeSocket(): int; virtual;
     {*
-	Binds a socket to local address.
-
-	@param addr Local address to bind to.
-
-	@return 0 if successfull, or specific WSA error.
-    }
-    function bind(addr: pSockAddrIn = nil): int; virtual;
-    {*
 	Issues an IOCTL command on a socket.
 
 	@param command IOCTL command.
@@ -196,7 +191,7 @@ type
 
 	@return 0 if successfull, or specific WSA error.
     }
-    function ioctl(command: unsigned; var param: int): int; virtual;
+    function ioctl(command: uint; var param: int32): int; virtual;
   public
     {*
       Initializes the socket.
@@ -279,7 +274,7 @@ type
 
 	@return New connected client socket, or nil if timeout or error occur.
     }
-    function accept(out socket: tSocket; timeout: unsigned = Windows.INFINITE): unaSocket;
+    function accept(out socket: tSocket; timeout: tTimeout = tTimeout(INFINITE)): unaSocket;
     {*
 	Shuts down the socket.
 	Call close() to clean up the socket before reusing it again.
@@ -296,7 +291,7 @@ type
 
 	@return True if socket is connected to remote host, and there was no error.
     }
-    function isConnected(timeout: unsigned = 0): bool;
+    function isConnected(timeout: tTimeout = 0): bool;
     {*
 	Checks if socket is listening.
 
@@ -313,7 +308,7 @@ type
 
 	@return True if there are some chances data could be read now.
     }
-    function okToRead(timeout: unsigned = 0; noCheckState: bool = false): bool;
+    function okToRead(timeout: tTimeout = 0; noCheckState: bool = false): bool;
     {*
 	Checks if it is OK to write data into socket now.
 
@@ -322,7 +317,7 @@ type
 
 	@return True if there are some chances data could be send now.
     }
-    function okToWrite(timeout: unsigned = 0; noCheckState: bool = false): bool;
+    function okToWrite(timeout: tTimeout = 0; noCheckState: bool = false): bool;
     {*
 	Checks if there is some error with socket.
 
@@ -330,7 +325,7 @@ type
 
 	@return True if there are some error.
     }
-    function check_error(timeout: uint32 = 0): bool;
+    function check_error(timeout: tTimeout = 0): bool;
     //
     {*
 	Reads data from socket.
@@ -344,7 +339,7 @@ type
 	@return 0, if data was read, and size specifies actual amount of data read.
 	@return Otherwise returns some specific WSA error.
     }
-    function read(const buf: pointer; var size: unsigned; timeout: unsigned = Windows.INFINITE; noCheck: bool = false): int;
+    function read(const buf: pointer; var size: uint; timeout: tTimeout = tTimeout(INFINITE); noCheck: bool = false): int;
     {*
 	Reads a string from socket.
     }
@@ -352,11 +347,11 @@ type
     {*
 	Waits until data will be available to read from socket or timeout expire.
     }
-    function waitForData(timeout: unsigned = Windows.INFINITE; noCheckState: bool = false): bool;
+    function waitForData(timeout: tTimeout = tTimeout(INFINITE); noCheckState: bool = false): bool;
     {*
 	Returns number of bytes available to read from socket.
     }
-    function getPendingDataSize(noCheckState: bool = false): unsigned;
+    function getPendingDataSize(noCheckState: bool = false): uint;
     {*
 	Sends data over socket.
 
@@ -367,7 +362,7 @@ type
 	@return -1 if socket cannot send now, -2 if number of bytes send is different from len,
 	@return 0 if sent operation was OK, or specific WSA error.
     }
-    function send(buf: pointer; size: unsigned; noCheck: bool = false): int; overload;
+    function send(buf: pointer; size: uint; noCheck: bool = false): int; overload;
     {*
 	Sends string of bytes over socket.
 
@@ -419,11 +414,11 @@ type
       Returns maximum transmission unit (MTU) size.
       <BR /><STRONG>NOTE</STRONG>: this value should not be used as real MTU size, but only as an estimation for most cases.
     }
-    class function getGeneralMTU(): unsigned;
+    class function getGeneralMTU(): uint;
     {*
       Returns maximum transmission unit (MTU) size for connected socket.
     }
-    function getMTU(): unsigned;
+    function getMTU(): uint;
     {*
       Binds the socket to specified port.
       If port value is -1 (default), this function uses the bindToPort property as a port number to bind to.
@@ -432,6 +427,14 @@ type
 	@return 0 if successfull (or socket is not connected/listening), or specific WSA error.
     }
     function bindSocketToPort(port: int = -1): int;
+    {*
+	Binds a socket to local address.
+
+	@param addr Local address to bind to.
+
+	@return 0 if successfull, or specific WSA error.
+    }
+    function bind(addr: pSockAddrIn = nil): int; virtual;
     //
     // -- properties --
     //
@@ -488,11 +491,11 @@ type
     {*
       Size of sending buffer.
     }
-    property sndBufSize: unsigned index 0 read getBufSize write setBufSize;
+    property sndBufSize: uint read getBufSizeSnd write setBufSizeSnd;
     {*
       Size of receiving buffer.
     }
-    property rcvBufSize: unsigned index 1 read getBufSize write setBufSize;
+    property rcvBufSize: uint read getBufSizeRcv write setBufSizeRcv;
   end;
 
 
@@ -509,10 +512,6 @@ type
       Creates TCP socket.
     }
     constructor create({$IFDEF VC25_OVERLAPPED }overlapped: bool = true{$ENDIF });
-    {*
-      Binds a socket to specified in bindToIP and bindToPort interface and port (or default, if not specified).
-    }
-    function doBind(addr: pSockAddrIn = nil): int;
   end;
 
 
@@ -526,53 +525,54 @@ type
   private
   public
     {*
-      Creates UDP socket.
+	Creates UDP socket.
     }
     constructor create({$IFDEF VC25_OVERLAPPED }overlapped: bool = true{$ENDIF VC25_OVERLAPPED });
     //
     {*
-      Receives data from remote host. Flags could be 0, MSG_PEEK or MSG_OOB.
-      <BR />Returns 0 if data was received successfully, in which case from parameter will contain remote address data was sent from.
-      <BR />Returns specific WSA error otherwise.
-    }
-    function recvfrom(out from: sockaddr_in; var data: aString; noCheck: bool = true; flags: unsigned = 0; timeout: unsigned = 3000): int; overload;
-    {*
-      Receives data from remote host. Flags could be 0, MSG_PEEK or MSG_OOB.
-      <BR />NOTE: Memory block pointed by data must be large enough to receive up to MTU bytes.
-      <BR />Returns size of data if it was received successfully, in which case from parameter will contain remote address data was sent from.
-      <BR />Returns 0 if the connection has been gracefully closed.
-      <BR />Returns SOCKET_ERROR if some error ocurred, or -2 if no data can be read at this time.
-    }
-    function recvfrom(out from: sockaddr_in; data: pointer; dataLen: unsigned; noCheck: bool = true; flags: unsigned = 0; timeout: unsigned = 3000): int; overload;
-    {*
-      Sends string of data to remote host. Flags could be 0, MSG_DONTROUTE or MSG_OOB.
-      <BR />Returns 0 if data was sent successfully, or specific WSA error otherwise.
-    }
-    function sendto(var addr: sockaddr_in; const data: aString; flags: unsigned = 0; timeout: unsigned = 3000): unsigned; overload;
-    {*
-      Sends string of data to remote host. Flags could be 0, MSG_DONTROUTE or MSG_OOB.
-      <BR />If noCheck parameter is true it will not check the socket state before sending the data. This could be used to avoid unnecessary delays.
-      <BR />Returns 0 if data was sent successfully, or specific WSA error otherwise.
-    }
-    function sendto(var addr: sockaddr_in; const data: aString; noCheck: bool = true; flags: unsigned = 0): unsigned; overload;
-    {*
-      Sends block of data to remote host. Flags could be 0, MSG_DONTROUTE or MSG_OOB.
-      <BR />If noCheck parameter is true it will not check the socket state before sending the data. This could be used to avoid unnecessary delays.
-      <BR />Returns 0 if data was sent successfully, or specific WSA error otherwise.
-    }
-    function sendto(var addr: sockaddr_in; data: pointer; size: unsigned; flags: unsigned = 0; timeout: unsigned = 3000; noCheck: bool = false): unsigned; overload;
-    {*
-      Sends block of data to remote host. Flags could be 0, MSG_DONTROUTE or MSG_OOB.
-      <BR />If noCheck parameter is true it will not check the socket state before sending the data. This could be used to avoid unnecessary delays.
-      <BR />Returns 0 if data was sent successfully, or specific WSA error otherwise.
-    }
-    function sendto(var addr: sockaddr_in; data: pointer; size: unsigned; noCheck: bool = true; flags: unsigned = 0): unsigned; overload;
-    {*
-	Binds a socket to specified in bindToIP and bindToPort interface and port (or default, if not specified).
+	Receives data from remote host. Flags could be 0, MSG_PEEK or MSG_OOB.
 
-	@return 0 if successfull, or specific WSA error.
+	@return 0 if data was received successfully, in which case from parameter will contain remote address data was sent from.
+	@return specific WSA error otherwise.
     }
-    function doBind(addr: pSockAddrIn = nil): int;
+    function recvfrom(out from: sockaddr_in; var data: aString; noCheck: bool = true; flags: uint = 0; timeout: tTimeout = 3000): int; overload;
+    {*
+	Receives data from remote host. Flags could be 0, MSG_PEEK or MSG_OOB.
+
+	@return size of data if it was received successfully, in which case from parameter will contain remote address data was sent from.
+	@return 0 if the connection has been gracefully closed.
+	@return SOCKET_ERROR if some error ocurred, or -2 if no data can be read at this time.
+    }
+    function recvfrom(out from: sockaddr_in; data: pointer; dataLen: uint; noCheck: bool = true; flags: uint = 0; timeout: tTimeout = 3000): int; overload;
+    {*
+	Sends string to remote host. Flags could be 0, MSG_DONTROUTE or MSG_OOB.
+
+	@return 0 if data was sent successfully, or specific WSA error otherwise.
+    }
+    function sendto(var addr: sockaddr_in; const data: aString; flags: uint = 0; timeout: tTimeout = 3000): uint; overload;
+    {*
+	Sends string to remote host. Flags could be 0, MSG_DONTROUTE or MSG_OOB.
+	If noCheck parameter is true it will not check the socket state before sending the data. This could be used to avoid unnecessary delays.
+
+	@return 0 if data was sent successfully, or specific WSA error otherwise.
+    }
+    function sendto(var addr: sockaddr_in; const data: aString; noCheck: bool = true; flags: uint = 0): uint; overload;
+    {*
+	Sends block of data to remote host. Flags could be 0, MSG_DONTROUTE or MSG_OOB.
+
+	If noCheck parameter is true it will not check the socket state before sending the data. This could be used to avoid unnecessary delays.
+
+	@return 0 if data was sent successfully, or specific WSA error otherwise.
+    }
+    function sendto(var addr: sockaddr_in; data: pointer; size: uint; flags: uint = 0; timeout: tTimeout = 3000; noCheck: bool = false): uint; overload;
+    {*
+	Sends block of data to remote host. Flags could be 0, MSG_DONTROUTE or MSG_OOB.
+
+	If noCheck parameter is true it will not check the socket state before sending the data. This could be used to avoid unnecessary delays.
+
+	@return 0 if data was sent successfully, or specific WSA error otherwise.
+    }
+    function sendto(var addr: sockaddr_in; data: pointer; size: uint; noCheck: bool = true; flags: uint = 0): uint; overload;
   end;
 
 
@@ -613,6 +613,12 @@ const
   IP_DEFAULT_MULTICAST_LOOP	= 1;
   IP_MAX_MEMBERSHIPS		= 20;
 
+
+  // I/O flags
+  c_unaMC_receive	 = 1;
+  c_unaMC_send		 = 2;
+
+
 type
   //
   // -- ip_mreq --
@@ -629,50 +635,76 @@ type
   //
   unaMulticastSocket = class(unaUdpSocket)
   private
-    f_loopDisableForce: bool;
-    f_isReadySender: bool;
-    f_isReadyReceiver: bool;
+    f_senderAddr: sockaddr_in;	// cache for fast sending
     //
-    f_senderAddr: sockaddr_in;	// cache for faster sending
+    f_lastGroup: string;
+    f_ttl: DWORD;
     //
-    f_recLastGroup: string;
-    f_recGroupCount: int;
-    //
-  protected
-    function closeSocket(): int; override;
+    function prepareMultiaddr(const group: string; var maddr: ip_mreq): bool;
+    procedure prepareSenderAddr(const groupAddr: string);
+    procedure setTTL(value: DWORD);
   public
-    {*
-      Creates a mulicast sender with specified parameters.
-      If noBind is false (default) it also binds a socket to interface specified
-      in bindToIP property (or to default interface if bindToIP is '0.0.0.0').
-      Returns 0 for success, or socket-specific error code otherwise.
-    }
-    function senderCreate(ttl: DWORD = IP_DEFAULT_MULTICAST_TTL; enableLoop: DWORD = 0; noBind: bool = true): int;
-    {*
-      Sends a multicast packet to a grop specified by host and port properties.
-      Returns 0 for success, or socket-specific error code otherwise.
-    }
-    function senderSend(data: pointer; len: int; noCheck: bool = false): int; overload;
-    function senderSend(const data: aString; noCheck: bool = false): int; overload;
     //
     {*
-      Joins the specified group.
-      Also binds a socket to port and interface specified by port and bindToIP property
-      (or default interface if bindToIP = '0.0.0.0').
-      Use recvfrom() to receive multicast packets from a group(s).
-      Returns 0 for success, or socket-specific error code otherwise.
+	Joins the specified group.
+	Also binds a socket to port and interface specified by bindToPort and bindToIP property
+	(or default interface/port if bindToIP = '0.0.0.0'/Port = 0).
+
+	Use recvfrom() to receive multicast packets from a group(s).
+	User sendData() to send multicast packets.
+
+	@param groupAddr multicast group address
+	@param ioFlags any combination of c_unaMC_receive and c_unaMC_send
+	@param ttl TTL or -1 to leave default
+	@param disableLoop Disable local loop
+
+	@return 0 for success, or socket-specific error code otherwise.
     }
-    function recGroupJoin(const groupAddr: string): int;
+    function mjoin(const groupAddr: string; ioFlags: int = c_unaMC_receive or c_unaMC_send; ttl: int = IP_DEFAULT_MULTICAST_TTL; disableLoop: bool = false): int;
     {*
-      Leaves the specified group (or a group it joined in a previous successfull call to recGroupJoin() if groupAddr = '').
-      Returns 0 for success, or socket-specific error code otherwise.
+	Leaves the specified group (or a group it joined in a previous successfull call to recGroupJoin() if groupAddr = '').
+
+	@param groupAddr multicast group address to leave, or '' to leave group socket is currently joined.
+	@return 0 for success, or socket-specific error code otherwise.
     }
-    function recGroupDrop(const groupAddr: string = ''): int;
-    //
-    function isReady(sender: bool = true): bool;
+    function mleave(const groupAddr: string = ''): int;
+    {*
+	Assigns new IF to be used with the socket.
+	Socket must be created.
+
+	@param intf Interface to use
+	@return 0 if successfull or specific WSA error otherwise.
+    }
+    function setIF(const intf: string): int;
+    {*
+	Enables/disbale local loopback.
+	Socket must be created.
+
+	@param enable True to enable loopback
+	@return 0 if successul, WSA error otherwise
+    }
+    function setLoopEnable(enable: bool): int;
+    {*
+	Sends a multicast packet into the group.
+
+	@return 0 for success, or socket-specific error code otherwise.
+    }
+    function sendData(data: pointer; len: int; noCheck: bool = false): int; overload;
+    {*
+	Sends a multicast packet into the group.
+
+	@return 0 for success, or socket-specific error code otherwise.
+    }
+    function sendData(const data: aString; noCheck: bool = false): int; overload;
+    {*
+	TTL
+    }
+    property TTL: DWORD read f_ttl write setTTL;
   end;
 
 
+  //
+  tConID        = cardinal;
 
   //
   // -- unaSocksConnection --
@@ -687,7 +719,7 @@ type
     f_thread: unaSocksThread;
     f_threadSocket: unaSocket;
     f_addr: sockaddr_in;
-    f_connId: unsigned;
+    f_connId: tConID;
     f_destroying: bool;
     //
     //f_gate: unaInProcessGate;
@@ -695,16 +727,16 @@ type
     //
     function getAddr(): pSockAddrIn;
   protected
-    function acquire(timeout: unsigned): bool;
+    function acquire(timeout: tTimeout): bool;
     procedure resetTimeout();
-    function getTimeout(): unsigned;
+    function getTimeout(): tTimeout;
     //
     property destroying: bool read f_destroying;
     property threadSocket: unaSocket read f_threadSocket;
   public
     {*
     }
-    constructor create(thread: unaSocksThread; connId: unsigned; socket: unaSocket; addr: pSockAddrIn = nil; len: int = 0);
+    constructor create(thread: unaSocksThread; connId: tConID; socket: unaSocket; addr: pSockAddrIn = nil; len: int = 0);
     {*
     }
     procedure BeforeDestruction(); override;
@@ -713,11 +745,11 @@ type
       Sends data to remote socket.
       <BR />Returns 0 if data was sent successfully, or specific WSA error otherwise.
     }
-    function send(data: pointer; size: unsigned; noCheck: bool = false): unsigned;
+    function send(data: pointer; size: uint; noCheck: bool = false): uint;
     {*
       Returns true if there are some chances data could be sent right now..
     }
-    function okToWrite(timeout: unsigned = 100; noCheckState: bool = false): bool;
+    function okToWrite(timeout: tTimeout = 100; noCheckState: bool = false): bool;
     {*
       Compares given address with address of local socket.
       <BR />Returns true if given address belongs to local socket.
@@ -737,7 +769,7 @@ type
     {*
       id of this connection.
     }
-    property connId: unsigned read f_connId;
+    property connId: tConID read f_connId;
   end;
 
 
@@ -749,7 +781,7 @@ type
   protected
     function getId(item: pointer): int64; override;
   public
-    function get_connection(connId: unsigned; timeout: unsigned = 2000): unaSocksConnection;
+    function get_connection(connId: tConID; timeout: tTimeout = 2000): unaSocksConnection;
   end;
 
 
@@ -765,8 +797,8 @@ type
   }
   unaSocksThread = class(unaThread)
   private
-    f_id: unsigned;
-    f_udpConnectionTimeout: unsigned;
+    f_id: tConID;
+    f_udpConnectionTimeout: tTimeout;
     f_backlog: int;
     f_isServer: bool;
     f_lastConnectionIdInt: int;
@@ -778,28 +810,29 @@ type
     f_connections: unaSocketsConnections;
     f_psThread: unaThread;
     //
-    procedure onConnectionRemove(connId: unsigned);
+    procedure onConnectionRemove(connId: tConID);
   protected
     function execute(globalIndex: unsigned): int; override;
+    //
     function getConnectionByAddr(const addr: sockaddr_in; needAcquire: bool): unaSocksConnection;
     function checkSocketError(errorCode: integer; addr: pSockAddrIn = nil; allowThreadStop: bool = true): bool;
-    function newConnId(initialValue_delta: int = -1): unsigned;
+    function newConnId(initialValue_delta: int = -1): tConID;
     procedure releaseSocket();
     //
-    function sendDataTo(connId: unsigned; data: pointer; len: unsigned; out asynch: bool; timeout: unsigned = 500): int; virtual;
-    function doGetRemoteHostAddr(connId: unsigned): pSockAddrIn; virtual;
+    function sendDataTo(connId: tConID; data: pointer; len: uint; out asynch: bool; timeout: tTimeout = 500): int; virtual;
+    function doGetRemoteHostAddr(connId: tConID): pSockAddrIn; virtual;
   public
-    constructor create(socks: unaSocks; id: unsigned);
+    constructor create(socks: unaSocks; id: tConID);
     procedure BeforeDestruction(); override;
     destructor Destroy(); override;
     {*
       Returns sockets connection for specified connection id.
     }
-    function getConnection(connId: unsigned; timeout: unsigned = 2000): unaSocksConnection;
-    function getRemoteHostAddr(connId: unsigned): pSockAddrIn;
+    function getConnection(connId: tConID; timeout: tTimeout = 2000): unaSocksConnection;
+    function getRemoteHostAddr(connId: tConID): pSockAddrIn;
     //
-    property id: unsigned read f_id;
-    property udpConnectionTimeout: unsigned read f_udpConnectionTimeout;
+    property id: tConID read f_id;
+    property udpConnectionTimeout: tTimeout read f_udpConnectionTimeout;
     property backLog: int read f_backLog;
     property threadSocket: unaSocket read f_socket;
     property socketError: integer read f_socketError;
@@ -858,7 +891,7 @@ type
   );
 
   /// Socks event handler type
-  unaSocksOnEventEvent = procedure(sender: tObject; event: unaSocketEvent; id, connId: unsigned; data: pointer; size: unsigned) of object;
+  unaSocksOnEventEvent = procedure(sender: tObject; event: unaSocketEvent; id, connId: tConID; data: pointer; size: uint) of object;
 
   {*
     This class is used to create server and client sockets and manage the connections.
@@ -879,7 +912,7 @@ type
     f_onEvent: unaSocksOnEventEvent;
     //
     function createSocket(protocol: int {$IFDEF VC25_OVERLAPPED }; overlapped: bool = true{$ENDIF }): unaSocket;
-    function getThreadByIndex(index: unsigned): unaSocksThread;
+    function getThreadByIndex(index: int): unaSocksThread;
     function getThreadFromPool(allowGrowUp: bool = true): unaSocksThread;
     //
     {$IFDEF VC25_IOCP }
@@ -898,7 +931,7 @@ type
 	@param data Data block available from client or server.
 	@param size Size of data.
     }
-    procedure event(event: unaSocketEvent; id, connId: unsigned; data: pointer = nil; size: unsigned = 0); virtual;
+    procedure event(event: unaSocketEvent; id, connId: tConID; data: pointer = nil; size: uint = 0); virtual;
   public
     {*
 	Creates socks object.
@@ -916,7 +949,7 @@ type
 
 	@param timeout Timeout (default is INFINITE).
     }
-    function enter(ro: bool; timeout: unsigned = INFINITE): bool;
+    function enter(ro: bool; timeout: tTimeout = tTimeout(INFINITE)): bool;
     {*
 	Unlocks socks object.
     }
@@ -945,7 +978,7 @@ type
 
 	@return Thread id or 0 if some error occured.
     }
-    function createConnection(const host, port: string; protocol: int = IPPROTO_TCP; activate: bool = true; const bindToIP: string = '0.0.0.0'; const bindToPort: string = '0' {$IFDEF VC25_OVERLAPPED }; overlapped: bool = true{$ENDIF }): unsigned;
+    function createConnection(const host, port: string; protocol: int = IPPROTO_TCP; activate: bool = true; const bindToIP: string = '0.0.0.0'; const bindToPort: string = '0' {$IFDEF VC25_OVERLAPPED }; overlapped: bool = true{$ENDIF }): tConID;
     {*
 	Creates new server socket.
 	Returns thread id which will handle connections for this socket or 0 if some error occur.
@@ -960,7 +993,7 @@ type
 
 	@return Thread id or 0 if some error occured.
     }
-    function createServer(const port: string; protocol: int = IPPROTO_TCP; activate: bool = true; backlog: int = SOMAXCONN; udpConnectionTimeout: unsigned = c_defUdpConnTimeout; const bindToIP: string = '0.0.0.0' {$IFDEF VC25_OVERLAPPED }; overlapped: bool = true{$ENDIF }): unsigned;
+    function createServer(const port: string; protocol: int = IPPROTO_TCP; activate: bool = true; backlog: int = SOMAXCONN; udpConnectionTimeout: tTimeout = c_defUdpConnTimeout; const bindToIP: string = '0.0.0.0' {$IFDEF VC25_OVERLAPPED }; overlapped: bool = true{$ENDIF }): tConID;
     {*
 	Activate a thread (start server or connect client).
 
@@ -968,13 +1001,13 @@ type
 
 	@return True if thread was started successfully.
     }
-    function activate(id: unsigned): bool;
+    function activate(id: tConID): bool;
     {*
 	Returns thread active state.
 
 	@return True if thread is active (server is listening, client is connected).
     }
-    function isActive(id: unsigned): bool;
+    function isActive(id: tConID): bool;
     {*
 	Sends data to remote side over specified connection.
 
@@ -987,7 +1020,7 @@ type
 
 	@return 0 if data was sent successfully, or specific WSA error otherwise.
     }
-    function sendData(id: unsigned; data: pointer; size: unsigned; connId: unsigned; out asynch: bool; noCheck: bool = false; timeout: unsigned = 500): unsigned;
+    function sendData(id: tConID; data: pointer; size: uint; connId: tConID; out asynch: bool; noCheck: bool = false; timeout: tTimeout = 500): uint;
     {*
 	Returns true if it seems that we can send data to remote side over specified connection.
 
@@ -998,7 +1031,7 @@ type
 
 	@return True if data can be send.
     }
-    function okToWrite(id, connId: unsigned; timeout: unsigned = 100; noCheckState: bool = false): bool;
+    function okToWrite(id, connId: tConID; timeout: tTimeout = 100; noCheckState: bool = false): bool;
     {*
 	Returns specified connection.
 
@@ -1009,7 +1042,7 @@ type
 
 	@return Connection object or nil.
     }
-    function getConnection(id: unsigned; connId: unsigned; timeout: unsigned = 2000; needAcquire: bool = true): unaSocksConnection;
+    function getConnection(id: tConID; connId: tConID; timeout: tTimeout = 2000; needAcquire: bool = true): unaSocksConnection;
     {*
 	Returns socket object assigned to a thread.
 
@@ -1017,7 +1050,7 @@ type
 
 	@return Socket object or nil.
     }
-    function getThreadSocket(id: unsigned): unaSocket;
+    function getThreadSocket(id: tConID): unaSocket;
     {*
 	Closes and removes specified connection.
 	If thread has no more connections, closes it as well.
@@ -1027,7 +1060,7 @@ type
 
 	@return True if connection was closed.
     }
-    function removeConnection(id: unsigned; connId: unsigned): bool;
+    function removeConnection(id: tConID; connId: tConID): bool;
     {*
 	Returns remote IP and port for connection.
 
@@ -1038,7 +1071,7 @@ type
 
 	@return True if function was successfull.
     }
-    function getRemoteHostInfo(id, connId: unsigned; out ip, port: string): bool; overload;
+    function getRemoteHostInfo(id, connId: tConID; out ip, port: string): bool; overload;
     {*
 	Converts address record into IP and port.
 
@@ -1060,7 +1093,7 @@ type
 
 	@return True if function was successfull.
     }
-    function getRemoteHostInfoEx(id, connId: unsigned; out ip, port: string; out proto: int): bool;
+    function getRemoteHostInfoEx(id, connId: tConID; out ip, port: string; out proto: int): bool;
     {*
 	Returns remote address for connection.
 
@@ -1069,7 +1102,7 @@ type
 
 	@return Pointer to address record or nil.
     }
-    function getRemoteHostAddr(id, connId: unsigned): pSockAddrIn;
+    function getRemoteHostAddr(id, connId: tConID): pSockAddrIn;
     {*
 	Closes and removes all connection for specified thread.
 	Also stops the thread and makes it available for new connections.
@@ -1079,7 +1112,7 @@ type
 
 	@return True if operation was successfull.
     }
-    function closeThread(id: unsigned; timeout: int = 2700): bool;
+    function closeThread(id: tConID; timeout: tTimeout = 2700): bool;
     {*
 	Returns thread object.
 
@@ -1087,7 +1120,7 @@ type
 
 	@return Thread object or nil.
     }
-    function getThreadByID(id: unsigned; timeout: unsigned = 1000): unaSocksThread;
+    function getThreadByID(id: tConID; timeout: tTimeout = 1000): unaSocksThread;
     {*
 	Returns socket error for a thread.
 
@@ -1096,7 +1129,7 @@ type
 
 	@return Error code.
     }
-    function getSocketError(id: unsigned; needLock: bool = true): int;
+    function getSocketError(id: tConID; needLock: bool = true): int;
     {*
 	Closes all client or server (or both) threads.
 
@@ -1148,48 +1181,52 @@ function lookupHost(const host: string; out ip: string; list: unaStringList = ni
   <BR />If lookup fails, it uses the default parameter value as the IP address of the host.
   <BR />Returns IP address of the host or default parameter value if lookup fails.
 }
-function lookupHost(const host: string; defValue: unsigned): unsigned; overload;
+function lookupHost(const host: string; defValue: TIP4): TIP4; overload;
 
 {*
-  Lookups host info.
-  <BR />Returns the FQDN of the host (if any).
+         Lookups host info.
+
+         @param IP ip address in host byte order.
+         @return FQDN of the host (if any)
 }
-function getHostInfo(ip: uint32): string;
+function getHostInfo(ip: TIP4): string;
 
 {*
-  List all addresses assigned to a host.
-  <BR />Host name could be in integer ("194.44.186.254") or alpha ("www.microsoft.com") format or "" for local machine.
-  <BR />Returns 0 if successful or specific WSA error otherwise.
+	List all addresses assigned to a host.
+
+	@param host Host name could be in integer ("194.44.186.254") or alpha ("www.microsoft.com") format or "" for local machine.
+	@return 0 if successful or specific WSA error otherwise.
 }
 function listAddresses(const host: string; list: unaStringList): int;
 
 {*
-  Lookups port number.
-  <BR />Port name could be in integer ("110") or string ("POP3") format.
-  <BR />Returns port number if successful, or -1 if port is invalid.
+	Lookups port number.
+
+	@param port Port name in integer ("110") or string ("POP3") format.
+	@return port number if successful, or -1 if port is invalid or unknown.
 }
 function lookupPort(const port: string): int; overload;
 
 {*
-  Lookups port number.
-  <BR />Port name could be in integer ("110") or string ("POP3") format.
-  <BR />Returns 0 if successful, -1 if port is "" or specific WSA error otherwise.
-  <BR />Also fills given port_info parameter.
+	Lookups port number.
+	@param port Port name in integer ("110") or string ("POP3") format.
+	@return 0 if successful, -1 if port is "" or specific WSA error otherwise.
+		Also fills given port_info parameter.
 }
 function lookupPort(const port: string; out port_info: protoent): int; overload;
 
 {*
-  Startups the Windows sockets by creating unaWsa class instance.
+	Startups the Windows sockets by creating unaWsa class instance.
 }
-function startup(version: unsigned = {$IFDEF VC25_WINSOCK20 }$0202{$ELSE }$0101{$ENDIF }): int;
+function startup(version: uint = {$IFDEF VC25_WINSOCK20 }$0202{$ELSE }$0101{$ENDIF }): int;
 
 {*
-  Shutdowns the Windows sockets by deleting the unaWsa class instance created in startup() routine.
+	Shutdowns the Windows sockets by deleting the unaWsa class instance created in startup() routine.
 }
 function shutdown(): int;
 
 {*
-  Returns unaWSA class instance created by a call to startup(), or by unaSocks class.
+	Returns unaWSA class instance created by a call to startup(), or by unaSocks class.
 }
 function getWSAObject(): unaWSA;
 
@@ -1204,33 +1241,38 @@ function getWSAObject(): unaWSA;
 
     @return 0 if timeout occured, 1 if successfull, or some specific WSA error otherwise.
 }
-function select(s: tSocket; r, w, e: pbool; timeout: unsigned = INFINITE): int;
+function select(s: tSocket; r, w, e: pbool; timeout: tTimeout = tTimeout(INFINITE)): int;
 {$IFDEF __AFTER_DB__ }
-  // for some reason Delphi 2007 and earlier compilers give AV when inline is defined for this function :(
+  // for some reason Delphi 2007 and earlier compilers give AV when inline is defined for this function
   {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {$ENDIF __AFTER_DB__ }
 
 // --  --
 {*
-  Converts host byte order (little endian) unsigned 32 bits integer to string representing IP address (xxx.xxx.xxx.xxx).
+	Converts host byte order (little endian) unsigned 32 bits integer to string representing IP address (xxx.xxx.xxx.xxx).
 }
-function ipH2str(ip: unsigned): string;
+function ipH2str(ip: TIP4): string;
 {*
-  Converts network byte order (big endian) unsigned 32 bits integer to string representing IP address (xxx.xxx.xxx.xxx).
+	Converts network byte order (big endian) unsigned 32 bits integer to string representing IP address (xxx.xxx.xxx.xxx).
 }
-function ipN2str(ip: unsigned): string;
+function ipN2str(ip: TIP4): string;
 {*
-  Converts string representing IP address (xxx.xxx.xxx.xxx) into host byte order (little endian) unsigned 32 bits integer.
+	Converts string representing IP address (xxx.xxx.xxx.xxx) into host byte order (little endian) unsigned 32 bits integer.
 }
-function str2ipH(const ip: string): unsigned;
+function str2ipH(const ip: string): TIP4;
 {*
-  Converts string representing IP address (xxx.xxx.xxx.xxx) into network byte order (big endian) unsigned 32 bits integer.
+	Converts string representing IP address (xxx.xxx.xxx.xxx) into network byte order (big endian) unsigned 32 bits integer.
 }
-function str2ipN(const ip: string): unsigned;
+function str2ipN(const ip: string): TIP4;
 {*
-
+	Converts socket address to string.
 }
 function addr2str(addr: pSockAddrIn): string;
+{*
+	Converts string to socket address.
+	ipport should be in format udp://name-or-ip:port or tcp://name-or-ip:port
+}
+function str2addr(const ipport: string; var addr: sockaddr_in): bool;
 
 {*
 	Return True if specified address is whiting multicast range.
@@ -1240,23 +1282,21 @@ function isMulticastAddr(const addr: string): bool;
 	Return True if specified address is whiting multicast range.
 	ip is little-endian.
 }
-function isMulticastAddrH(ip: DWORD): bool;
+function isMulticastAddrH(ip: TIP4): bool;
 {*
 	Return True if specified address is whiting multicast range.
 	ip is big-endian (in network order).
 }
-function isMulticastAddrN(ip: DWORD): bool;
+function isMulticastAddrN(ip: TIP4): bool;
 {*
 	Return True if specified address is whiting broadcast range.
 	ip is big-endian (in network order).
 }
-function isBroadcastAddrN(ip: DWORD): bool;
-
+function isBroadcastAddrN(ip: TIP4): bool;
 {*
 	Returns True if two addresses are same (has same IP and port).
 }
 function sameAddr(const addr1, addr2: sockaddr_in; ipOnly: bool = false): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
-
 {*
 	Returns True if function succeeded.
 }
@@ -1266,13 +1306,13 @@ function makeAddr(const host, port: string; var addr: sockaddr_in): bool;{$IFDEF
 // -- IP/HTTP --
 
 type
-  tIpQueryCallback = procedure(queryId: unsigned; const query: string; const response, responseData: aString) of object;
+  tIpQueryCallback = procedure(queryId: tConID; const query: string; const response, responseData: aString) of object;
 
 //
 // returns -1 in case of some problem or
 // valid queryId (which is an integer greater than 0) if all seems to be OK
-function httpQuery(const ip, port, query: string; callback: tIpQueryCallback = nil; timeout: unsigned = 5000): int;
-function ipQuery(const ip, port, query: string; proto: int = IPPROTO_TCP; callback: tIpQueryCallback = nil; timeout: unsigned = 5000): int;
+function httpQuery(const ip, port, query: string; callback: tIpQueryCallback = nil; timeout: tTimeout = 5000): int;
+function ipQuery(const ip, port, query: string; proto: int = IPPROTO_TCP; callback: tIpQueryCallback = nil; timeout: tTimeout = 5000): int;
 
 type
   // URI crack record
@@ -1287,9 +1327,9 @@ type
   end;
 
 {*
-	Uses InternetCrackURL(), takes care of unicode/ansi versions
+	Uses InternetCrackURL(), takes care of unicode/ansi versions.
 }
-function crackURI(const URI: string; var crack: unaURICrack; flags: DWORD = 0): bool;
+function crackURI(URI: string; var crack: unaURICrack; flags: DWORD = 0): bool;
 
 
 implementation
@@ -1315,7 +1355,7 @@ var
   g_unaWSAGateReady: bool = false;
 
 // --  --
-function startup(version: unsigned): int;
+function startup(version: uint): int;
 begin
   result := -1;
   //
@@ -1334,7 +1374,6 @@ begin
 	g_unaWSAGate.releaseWO();
       end;
     end;
-    //
   end;
 end;
 
@@ -1406,7 +1445,7 @@ begin
 end;
 
 // --  --
-function select(s: tSocket; r, w, e: pbool; timeout: unsigned): int;
+function select(s: tSocket; r, w, e: pbool; timeout: tTimeout): int;
 var
   fds_r: tfdset;
   fds_w: tfdset;
@@ -1425,7 +1464,7 @@ begin
     fds_wptr := fdset(s, w, @fds_w);
     fds_eptr := fdset(s, e, @fds_e);
     //
-    if (timeout <> INFINITE) then begin
+    if (timeout <> tTimeout(INFINITE)) then begin
       //
       if (1 > timeout) then begin
 	//
@@ -1438,7 +1477,7 @@ begin
 	if (1 = timeout) then
 	  tv.tv_usec := 1
 	else
-	  tv.tv_usec := ((timeout - unsigned(tv.tv_sec) shl 10) shl 10);	// ~ (timeout mod 1000) * 1000;
+	  tv.tv_usec := (((timeout - tv.tv_sec) shl 10) shl 10);	// ~ (timeout mod 1000) * 1000;
 	//
 	if (999999 < tv.tv_usec) then
 	  tv.tv_usec := 999999;
@@ -1477,7 +1516,7 @@ begin
 end;
 
 // --  --
-function lookupHost(const host: string; defValue: unsigned): unsigned;
+function lookupHost(const host: string; defValue: TIP4): TIP4;
 var
   ip: string;
 begin
@@ -1487,12 +1526,15 @@ begin
     result := defValue;
 end;
 
+type
+  pPointer = ^pointer;
+
 // --  --
 function lookupHost(const host: string; out ip: string; list: unaStringList): int;
 var
-  addr: unsigned;
+  addr: TIP4;
   phost: pHostEnt;
-  ar, arr: pUInt32;
+  ar: pPointer;
   added: bool;
 begin
   ip := '';
@@ -1504,7 +1546,7 @@ begin
     if (g_unaWSA.acquire(false, 3000, false {$IFDEF DEBUG }, ' in lookupHost(host=' + host + ')' {$ENDIF DEBUG })) then try
       //
       added := false;
-      addr := unsigned(inet_addr(paChar(aString(host))));
+      addr := TIP4(inet_addr(paChar(aString(host))));
       if ((addr = DWORD(INADDR_NONE)) or (addr = INADDR_ANY)) then begin
 	//
 	// try to resolve the name
@@ -1514,15 +1556,13 @@ begin
 	  result := WSAGetLastError()
 	else begin
 	  //
-	  move(phost.h_addr^[0], addr, 4);
+	  move(phost.h_addr^[0], addr, sizeof(TIP4));
 	  if (nil <> list) then begin
 	    //
 	    ar := pointer(phost.h_addr_list);
-	    while (0 <> ar^) do begin
+	    while (nil <> ar^) do begin
 	      //
-	      arr := pointer(ar^);
-	      list.add(string(inet_ntoa(in_addr(arr^))));
-	      //
+	      list.add(string(inet_ntoa(in_addr(pTIP4(ar^)^))));
 	      inc(ar);
 	    end;
 	    //
@@ -1548,12 +1588,16 @@ begin
 end;
 
 // -- --
-function getHostInfo(ip: uint32): string;
+function getHostInfo(ip: TIP4): string;
 var
   he: pHOSTENT;
 begin
-  ip := uint32(htonl(int(ip)));
-  he := gethostbyaddr(@ip, sizeOf(ip), AF_INET);
+  ip := TIP4(htonl(u_long(ip)));
+{$IFDEF FPC }
+  he := gethostbyaddr(pChar(@ip), sizeof(ip), AF_INET);
+{$ELSE }
+  he := gethostbyaddr(@ip, sizeof(ip), AF_INET);
+{$ENDIF FPC }
   //
   if (nil = he) then
     result := ipN2str(ip)
@@ -1618,33 +1662,33 @@ begin
 end;
 
 // --  --
-function ipH2str(ip: unsigned): string;
+function ipH2str(ip: TIP4): string;
 var
   inAddr: in_addr;
 begin
-  inAddr.s_addr := htonl(int(ip));
+  inAddr.s_addr := htonl(u_long(ip));
   result := string(inet_ntoa(inAddr));
 end;
 
 // --  --
-function ipN2str(ip: unsigned): string;
+function ipN2str(ip: TIP4): string;
 var
   inAddr: in_addr;
 begin
-  unsigned(inAddr.s_addr) := ip;
+  TIP4(inAddr.s_addr) := ip;
   result := string(inet_ntoa(inAddr));
 end;
 
 // --  --
-function str2ipH(const ip: string): unsigned;
+function str2ipH(const ip: string): TIP4;
 begin
-  result := unsigned(ntohl(inet_addr(paChar(aString(ip)))));
+  result := TIP4(ntohl(inet_addr(paChar(aString(ip)))));
 end;
 
 // --  --
-function str2ipN(const ip: string): unsigned;
+function str2ipN(const ip: string): TIP4;
 begin
-  result := unsigned(inet_addr(paChar(aString(ip))));
+  result := TIP4(inet_addr(paChar(aString(ip))));
 end;
 
 // --  --
@@ -1653,7 +1697,17 @@ begin
   if (nil <> addr) then
     result := string(inet_ntoa(addr.sin_addr)) + ':' + int2str(ntohs(addr.sin_port))
   else
-    result := '<nil>';
+    result := {$IFDEF DEBUG }'<nil>'{$ELSE }''{$ENDIF DEBUG };
+end;
+
+// --  --
+function str2addr(const ipport: string; var addr: sockaddr_in): bool;
+var
+  crack: unaURICrack;
+begin
+  result := crackURI(ipport, crack);
+  if (result) then
+    result := makeAddr(crack.r_hostName, int2str(crack.r_port), addr);
 end;
 
 // --  --
@@ -1663,21 +1717,21 @@ begin
 end;
 
 // --  --
-function isMulticastAddrH(ip: DWORD): bool;
+function isMulticastAddrH(ip: TIP4): bool;
 begin
   ip := (ip shr 24) and $FF;
   result := ((224 <= ip) and (ip <= 239));
 end;
 
 // --  --
-function isMulticastAddrN(ip: DWORD): bool;
+function isMulticastAddrN(ip: TIP4): bool;
 begin
   ip := ip and $FF;
   result := ((224 <= ip) and (ip <= 239));
 end;
 
 // --  --
-function isBroadcastAddrN(ip: DWORD): bool;
+function isBroadcastAddrN(ip: TIP4): bool;
 begin
   result := ($FF = (ip shr 24 and $FF));	// lame, but should work in most cases
 end;
@@ -1707,13 +1761,11 @@ end;
 { unaWSA }
 
 // --  --
-constructor unaWSA.create(active: bool; version: unsigned);
+constructor unaWSA.create(active: bool; version: uint32);
 begin
   inherited create();
   //
   f_status := WSASYSNOTREADY;
-  //
-  //f_gate := unaInProcessGate.create({$IFDEF DEBUG}_classID + '(f_gate)'{$ENDIF});
   //
   if (active) then
     startup(version);
@@ -1724,8 +1776,6 @@ destructor unaWSA.destroy();
 begin
   if (isActive()) then
     shutdown();
-  //
-  //freeAndNil(f_gate);
   //
   inherited;
 end;
@@ -1749,7 +1799,7 @@ begin
 end;
 
 // --  --
-function unaWSA.startup(version: unsigned): int;
+function unaWSA.startup(version: uint32): int;
 begin
   f_status := WSAStartup(version, f_data);
   //
@@ -1757,14 +1807,13 @@ begin
 end;
 
 
-
 { unaSocket }
 
 // --  --
-function unaSocket.accept(out socket: tSocket; timeout: unsigned): unaSocket;
+function unaSocket.accept(out socket: tSocket; timeout: tTimeout): unaSocket;
 var
   addr: sockaddr_in;
-  len : int;
+  len : int32;
 begin
   result := nil;
   len := sizeof(addr);
@@ -1804,16 +1853,12 @@ begin
     else begin
       //
       laddr.sin_family := AF_INET;
-      if (0 = word(f_bindToPort.p_proto)) then
-	laddr.sin_port := htons(u_short(getPortInt()))
-      else
-	laddr.sin_port := htons(u_short(f_bindToPort.p_proto));
-      //
+      laddr.sin_port := htons(u_short(f_bindToPort.p_proto));
       laddr.sin_addr.s_addr := inet_addr(paChar(aString(f_bindToIp)));
-      if (DWORD(INADDR_NONE) = unsigned(laddr.sin_addr.s_addr)) then
-	unsigned(laddr.sin_addr.s_addr) := INADDR_ANY;
-      //
     end;
+    //
+    if (TIP4(INADDR_NONE) = TIP4(laddr.sin_addr.s_addr)) then
+      TIP4(laddr.sin_addr.s_addr) := INADDR_ANY;
     //
     result := checkError(WinSock.bind(f_socket, laddr, sizeof(laddr)), true {$IFDEF DEBUG}, self._classID + '.bind()'{$ENDIF});
     f_bound := (0 = result);
@@ -1837,16 +1882,14 @@ begin
     laddr.sin_port := htons(u_short(port));
   //
   laddr.sin_addr.s_addr := inet_addr(paChar(aString(f_bindToIp)));
-  if (DWORD(INADDR_NONE) = unsigned(laddr.sin_addr.s_addr)) then
-    unsigned(laddr.sin_addr.s_addr) := INADDR_ANY;
   //
   result := bind(@laddr);
 end;
 
 // --  --
-function unaSocket.check_error(timeout: unsigned): bool;
+function unaSocket.check_error(timeout: tTimeout): bool;
 var
-  e: bool;
+  e: LongBool;
   r: int;
 begin
   if (INVALID_SOCKET = f_socket) then begin
@@ -1865,9 +1908,9 @@ begin
 end;
 
 // --  --
-function unaSocket.check_read(timeout: unsigned): bool;
+function unaSocket.check_read(timeout: tTimeout): bool;
 var
-  r: bool;
+  r: LongBool;
 begin
   if (1 = select(f_socket, @r, nil, nil, timeout)) then
     result := r
@@ -1876,9 +1919,9 @@ begin
 end;
 
 // --  --
-function unaSocket.check_write(timeout: unsigned): bool;
+function unaSocket.check_write(timeout: tTimeout): bool;
 var
-  w: bool;
+  w: LongBool;
 begin
   if (1 = select(f_socket, nil, @w, nil, timeout)) then
     result := w
@@ -2017,20 +2060,19 @@ begin
 end;
 
 // --  --
-function unaSocket.getBufSize(index: Integer): unsigned;
+function unaSocket.getBufSizeRcv(): uint;
 begin
-  case (index) of
-
-    0: result := getOptInt(SO_SNDBUF);
-    1: result := getOptInt(SO_RCVBUF);
-
-    else
-      result := 0;
-  end;
+  result := uint(getOptInt(SO_RCVBUF));
 end;
 
 // --  --
-class function unaSocket.getGeneralMTU(): unsigned;
+function unaSocket.getBufSizeSnd(): uint;
+begin
+  result := uint(getOptInt(SO_SNDBUF));
+end;
+
+// --  --
+class function unaSocket.getGeneralMTU(): uint;
 begin
 {
 Below is a list of Default MTU size for different media.
@@ -2062,11 +2104,11 @@ begin
 end;
 
 // --  --
-function unaSocket.getMTU(): unsigned;
+function unaSocket.getMTU(): uint;
 begin
   if (not f_MTUValid) then begin
     //
-    f_MTU := word(uint32(getOptInt(SO_MAX_MSG_SIZE)));
+    f_MTU := word(uint(getOptInt(SO_MAX_MSG_SIZE)));
     f_MTUValid := true;
   end;
   //
@@ -2077,7 +2119,7 @@ end;
 function unaSocket.getOptBool(opt: int): bool;
 var
   c: Windows.BOOL;
-  len: int;
+  len: int32;
 begin
   if (not check_error()) then begin
     //
@@ -2094,7 +2136,7 @@ end;
 // --  --
 function unaSocket.getOptInt(opt: int): int;
 var
-  len: int;
+  len: int32;
 begin
   if (INVALID_SOCKET <> f_socket) then begin
     //
@@ -2108,16 +2150,16 @@ begin
 end;
 
 // --  --
-function unaSocket.getPendingDataSize(noCheckState: bool): unsigned;
+function unaSocket.getPendingDataSize(noCheckState: bool): uint;
 var
-  len: int;
+  len: int32;
 begin
   if (noCheckState or okToRead()) then
     //
     if (0 <> ioctl(FIONREAD, len)) then
       result := 0
     else
-      result := len
+      result := uint(len)
   else
     result := 0;
 end;
@@ -2148,8 +2190,8 @@ begin
   if ('' = host) then begin
     //
     addr.sin_addr.s_addr := inet_addr(paChar(aString(f_bindToIp)));
-    if (DWORD(INADDR_NONE) = unsigned(addr.sin_addr.s_addr)) then
-      unsigned(addr.sin_addr.s_addr) := INADDR_ANY;
+    if (DWORD(INADDR_NONE) = DWORD(addr.sin_addr.s_addr)) then
+      uint32(addr.sin_addr.s_addr) := INADDR_ANY;
     //
     result := 0;
   end
@@ -2158,7 +2200,6 @@ begin
     result := lookupHost(host, ip);
     if (0 = result) then
       addr.sin_addr.s_addr := inet_addr(paChar(aString(ip)));
-    //
   end;
   //
   if (0 = result) then
@@ -2168,7 +2209,7 @@ end;
 // --  --
 function unaSocket.getSockAddrBound(out addr: sockaddr_in): int;
 var
-  sz: int;
+  sz: int32;
 begin
   sz := sizeOf(addr);
   result := checkError(getsockname(f_socket, addr, sz));
@@ -2184,13 +2225,13 @@ begin
 end;
 
 // --  --
-function unaSocket.ioctl(command: unsigned; var param: int): int;
+function unaSocket.ioctl(command: uint; var param: int32): int;
 begin
-  result := checkError(WinSock.ioctlsocket(f_socket, command, param), true {$IFDEF DEBUG}, self._classID + '.ioctl()'{$ENDIF});
+  result := checkError(ioctlsocket(f_socket, command, param), true {$IFDEF DEBUG}, self._classID + '.ioctl()'{$ENDIF});
 end;
 
 // --  --
-function unaSocket.isConnected(timeout: unsigned): bool;
+function unaSocket.isConnected(timeout: tTimeout): bool;
 begin
   result := f_bound and not check_error(timeout) and okToWrite(timeout);
 end;
@@ -2211,7 +2252,7 @@ begin
     result := 0
   else begin
     //
-    result := bind(nil);
+    result := bindSocketToPort(u_short(getPortInt()));
     //
     if (0 = result) then
       result := checkError(WinSock.listen(f_socket, backlog), true {$IFDEF DEBUG}, self._classID + '.listen()'{$ENDIF});
@@ -2219,19 +2260,19 @@ begin
 end;
 
 // --  --
-function unaSocket.oktoRead(timeout: unsigned; noCheckState: bool): bool;
+function unaSocket.oktoRead(timeout: tTimeout; noCheckState: bool): bool;
 begin
   result := (noCheckState or check_read(timeout));
 end;
 
 // --  --
-function unaSocket.oktoWrite(timeout: unsigned; noCheckState: bool): bool;
+function unaSocket.oktoWrite(timeout: tTimeout; noCheckState: bool): bool;
 begin
   result := (noCheckState or check_write(timeout));
 end;
 
 // --  --
-function unaSocket.read(const buf: pointer; var size: unsigned; timeout: unsigned; noCheck: bool): int;
+function unaSocket.read(const buf: pointer; var size: uint; timeout: tTimeout; noCheck: bool): int;
 var
   e: int;
 begin
@@ -2256,7 +2297,7 @@ end;
 // --  --
 function unaSocket.readString(noCheck: bool): aString;
 var
-  len: unsigned;
+  len: uint;
 begin
   result := '';
   len := getPendingDataSize();
@@ -2273,7 +2314,7 @@ begin
 end;
 
 // --  --
-function unaSocket.send(buf: pointer; size: unsigned; noCheck: bool): int;
+function unaSocket.send(buf: pointer; size: uint; noCheck: bool): int;
 begin
   if (noCheck or okToWrite(1)) then begin
     //
@@ -2284,7 +2325,7 @@ begin
     end
     else begin
       //
-      if (unsigned(result) = size) then
+      if (uint(result) = size) then
 	result := 0
       else
 	result := -2;
@@ -2313,14 +2354,15 @@ begin
 end;
 
 // --  --
-procedure unaSocket.setBufSize(index: int; value: unsigned);
+procedure unaSocket.setBufSizeRcv(value: uint);
 begin
-  case (index) of
+  setOptInt(SO_RCVBUF, value);
+end;
 
-    0: setOptInt(SO_SNDBUF, value);
-    1: setOptInt(SO_RCVBUF, value);
-
-  end;
+// --  --
+procedure unaSocket.setBufSizeSnd(value: uint);
+begin
+  setOptInt(SO_SNDBUF, value);
 end;
 
 // --  --
@@ -2413,7 +2455,7 @@ begin
 end;
 
 // --  --
-function unaSocket.waitForData(timeout: unsigned; noCheckState: bool): bool;
+function unaSocket.waitForData(timeout: tTimeout; noCheckState: bool): bool;
 begin
   result := (0 < getPendingDataSize(true));
   if (not result) then
@@ -2433,12 +2475,6 @@ begin
   f_socketType := SOCK_STREAM;
 end;
 
-// --  --
-function unaTcpSocket.doBind(addr: pSockAddrIn): int;
-begin
-  result := bind(addr);
-end;
-
 
 { unaUdpSocket }
 
@@ -2453,10 +2489,10 @@ begin
 end;
 
 // --  --
-function unaUdpSocket.recvfrom(out from: sockaddr_in; var data: aString; noCheck: bool; flags: unsigned; timeout: unsigned): int;
+function unaUdpSocket.recvfrom(out from: sockaddr_in; var data: aString; noCheck: bool; flags: uint; timeout: tTimeout): int;
 var
-  len: unsigned;
-  sizeFrom: int;
+  len: uint;
+  sizeFrom: int32;
 begin
   if (noCheck or oktoRead(timeout)) then begin
     //
@@ -2485,15 +2521,9 @@ begin
 end;
 
 // --  --
-function unaUdpSocket.doBind(addr: pSockAddrIn): int;
-begin
-  result := bind(addr);
-end;
-
-// --  --
-function unaUdpSocket.recvfrom(out from: sockaddr_in; data: pointer; dataLen: unsigned; noCheck: bool; flags: unsigned; timeout: unsigned): int;
+function unaUdpSocket.recvfrom(out from: sockaddr_in; data: pointer; dataLen: uint; noCheck: bool; flags: uint; timeout: tTimeout): int;
 var
-  sizeFrom: int;
+  sizeFrom: int32;
 begin
   if (noCheck or oktoRead(timeout)) then begin
     //
@@ -2505,7 +2535,7 @@ begin
 end;
 
 // --  --
-function unaUdpSocket.sendto(var addr: sockaddr_in; const data: aString; flags: unsigned; timeout: unsigned): unsigned;
+function unaUdpSocket.sendto(var addr: sockaddr_in; const data: aString; flags: uint; timeout: tTimeout): uint;
 begin
   if (0 < length(data)) then
     result := sendto(addr, @data[1], length(data), flags, timeout)
@@ -2514,11 +2544,11 @@ begin
 end;
 
 // --  --
-function unaUdpSocket.sendto(var addr: sockaddr_in; data: pointer; size, flags: unsigned; timeout: unsigned; noCheck: bool): unsigned;
+function unaUdpSocket.sendto(var addr: sockaddr_in; data: pointer; size, flags: uint; timeout: tTimeout; noCheck: bool): uint;
 var
   err: int;
-  offset: unsigned;
-  subsize: unsigned;
+  offset: uint;
+  subsize: uint;
 begin
   if (noCheck or oktoWrite(timeout)) then begin
     //
@@ -2551,13 +2581,13 @@ begin
 end;
 
 // --  --
-function unaUdpSocket.sendto(var addr: sockaddr_in; data: pointer; size: unsigned; noCheck: bool; flags: unsigned): unsigned;
+function unaUdpSocket.sendto(var addr: sockaddr_in; data: pointer; size: uint; noCheck: bool; flags: uint): uint;
 begin
   result := sendto(addr, data, size, flags, 10, noCheck);
 end;
 
 // --  --
-function unaUdpSocket.sendto(var addr: sockaddr_in; const data: aString; noCheck: bool; flags: unsigned): unsigned;
+function unaUdpSocket.sendto(var addr: sockaddr_in; const data: aString; noCheck: bool; flags: uint): uint;
 begin
   if (0 < length(data)) then
     result := sendto(addr, @data[1], length(data), flags, 0, noCheck)
@@ -2565,200 +2595,164 @@ begin
     result := 0;
 end;
 
+
+
 { unaMulticastSocket }
 
 // --  --
-function unaMulticastSocket.closeSocket(): int;
-begin
-  f_isReadySender := false;
-  f_isReadyReceiver := false;
-  //
-  result := inherited closeSocket();
-end;
-
-// --  --
-function unaMulticastSocket.isReady(sender: bool): bool;
-begin
-  result := choice(sender, f_isReadySender, f_isReadyReceiver);
-end;
-
-// --  --
-function unaMulticastSocket.recGroupDrop(const groupAddr: string): int;
-var
-  drop: string;
-  mr: ip_mreq;
-begin
-  if (f_isReadyReceiver) then begin
-    //
-    if ('' = groupAddr) then
-      drop := f_recLastGroup
-    else
-      drop := groupAddr;
-    //
-    if ('' <> drop) then begin
-      //
-      mr.imr_multiaddr.s_addr := inet_addr(paChar(aString(drop)));
-      if (DWORD(INADDR_NONE) <> unsigned(mr.imr_multiaddr.s_addr)) then begin
-	//
-	mr.imr_interface.s_addr := inet_addr(paChar(aString(bindToIP)));
-	if (DWORD(INADDR_NONE) = unsigned(mr.imr_interface.s_addr)) then
-	  unsigned(mr.imr_interface.s_addr) := INADDR_ANY;
-	//
-	result := checkError(setsockopt(f_socket, IPPROTO_IP, IP_DROP_MEMBERSHIP, paChar(@mr), sizeOf(mr)));
-	//
-	if (0 = result) then begin
-	  //
-	  f_recLastGroup := '';
-	  dec(f_recGroupCount);
-	  //
-	  f_isReadyReceiver := (0 < f_recGroupCount);
-	  //
-	  if (not f_isReadyReceiver) then
-	    close();
-	  //
-	end;
-      end
-      else
-	result := WSAEADDRNOTAVAIL;
-      //
-    end
-    else
-      result := WSAEADDRNOTAVAIL;
-    //
-  end
-  else
-    result := 0;	// no socket, no drop
-end;
-
-// --  --
-function unaMulticastSocket.recGroupJoin(const groupAddr: string): int;
+function unaMulticastSocket.mjoin(const groupAddr: string; ioFlags: int; ttl: int; disableLoop: bool): int;
 var
   mr: ip_mreq;
 begin
-  if (not f_isReadyReceiver) then
-    result := checkError(bind())
+  if (not isConnected(10)) then
+    result := checkError(bind())	// bind socket to local address
   else
-    result := 0;	// OK since we has already joined some group
+    result := 0;			// OK since we has already joined a group
   //
   if (0 = result) then begin
     //
-    mr.imr_multiaddr.s_addr := inet_addr(paChar(aString(groupAddr)));
-    if (DWORD(INADDR_NONE) <> unsigned(mr.imr_multiaddr.s_addr)) then begin
+    if (prepareMultiaddr(groupAddr, mr)) then begin
       //
-      mr.imr_interface.s_addr := inet_addr(paChar(aString(bindToIP)));
-      if (DWORD(INADDR_NONE) = unsigned(mr.imr_interface.s_addr)) then
-	unsigned(mr.imr_interface.s_addr) := INADDR_ANY;
+      if (0 <> (c_unaMC_receive and ioFlags)) then
+	result := checkError(setsockopt(f_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, paChar(@mr), sizeOf(mr)))
+      else
+	result := 0;
       //
-      result := checkError(setsockopt(f_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, paChar(@mr), sizeOf(mr)));
       if (0 = result) then begin
 	//
-	f_recLastGroup := groupAddr;
-	inc(f_recGroupCount);
+	f_lastGroup := groupAddr;
 	//
-	f_isReadyReceiver := true;
+	if (INADDR_ANY <> uint(mr.imr_interface.s_addr)) then
+	  setIF(bindToIP);
+	//
+	if (disableLoop) then
+	  setLoopEnable(false);
+	//
+	if (0 <> (c_unaMC_send and ioFlags)) then begin
+	  //
+	  self.TTL := ttl;
+	  prepareSenderAddr(groupAddr);
+	end;
       end;
     end
     else
       result := WSAEADDRNOTAVAIL;
   end;
-  //
-  if ((0 <> result) and not f_isReadyReceiver) then
-    close();	// close the socket we had bound but not used
 end;
 
 // --  --
-function unaMulticastSocket.senderCreate(ttl, enableLoop: DWORD; noBind: bool): int;
+function unaMulticastSocket.mleave(const groupAddr: string): int;
 var
-  ip: DWORD;
-  lp: Windows.BOOL;
+  drop: string;
+  mr: ip_mreq;
 begin
-  if (f_isReadySender) then
-    close();
+  if ('' = groupAddr) then
+    drop := f_lastGroup
+  else
+    drop := groupAddr;
   //
-  ip := DWORD(inet_addr(paChar(aString(host))));
-  if ((0 < ip) and (DWORD(INADDR_NONE) <> ip)) then begin
+  if (prepareMultiaddr(drop, mr)) then begin
     //
-    if (isMulticastAddrN(ip)) then begin
-      //
-      if (noBind) then
-	result := socket()
-      else
-	result := checkError(bind());	// bind a socket to port/interface
-      //
-      if (0 = result) then begin
-	//
-	ip := DWORD(inet_addr(paChar(aString(f_bindToIp))));
-	if (DWORD(INADDR_NONE) = ip) then
-	  ip := INADDR_ANY;
-	//
-	if (INADDR_ANY <> ip) then begin
-	  //
-	  // set the multicast interface
-	  // even if this call fails, that in not a fatal error
-	  checkError(setsockopt(f_socket, IPPROTO_IP, IP_MULTICAST_IF, paChar(@ip), sizeOf(ip)), false);
-	end;
-	//
-	// set the multicast TTL
-	result := checkError(setsockopt(f_socket, IPPROTO_IP, IP_MULTICAST_TTL, paChar(@ttl), sizeOf(dword)));
-	//
-	if ((0 = result) and (0 = enableLoop)) then begin
-	  //
-	  // try disbaling a loop (which is ON by default)
-	  lp := false;
-	  result := checkError(setsockopt(f_socket, IPPROTO_IP, IP_MULTICAST_LOOP, paChar(@lp), sizeOf(lp)), false);
-	  //
-	  f_loopDisableForce := (0 <> result);
-	  //
-	  result := 0;	// loop option is not a fatal error
-	end;
-	//
-	if (0 = result) then begin
-	  //
-	  // prepare an address for sending
-	  fillChar(f_senderAddr, sizeOf(f_senderAddr), #0);
-	  f_senderAddr.sin_family := AF_INET;
-	  f_senderAddr.sin_addr.s_addr := inet_addr(paChar(aString(host)));
-	  f_senderAddr.sin_port := htons(u_short(getPortInt()));
-	  //
-	  f_isReadySender := (0 = result);
-	end;
-      end;
-    end
-    else
-      result := WSAEADDRNOTAVAIL;
-    //
+    result := checkError(setsockopt(f_socket, IPPROTO_IP, IP_DROP_MEMBERSHIP, paChar(@mr), sizeOf(mr)));
+    if (0 = result) then
+      f_lastGroup := '';
   end
   else
     result := WSAEADDRNOTAVAIL;
-  //
-  if (0 <> result) then
-    close();
 end;
 
 // --  --
-function unaMulticastSocket.senderSend(data: pointer; len: int; noCheck: bool): int;
+function unaMulticastSocket.prepareMultiaddr(const group: string; var maddr: ip_mreq): bool;
 begin
-  if (f_isReadySender) then
-    result := sendto(f_senderAddr, data, len, 0, 1, noCheck)
-  else
-    result := WSAENOTSOCK;
+  result := false;
+  //
+  if ('' <> group) then begin
+    //
+    maddr.imr_multiaddr.s_addr := inet_addr(paChar(aString(group)));
+    if (DWORD(INADDR_NONE) <> DWORD(maddr.imr_multiaddr.s_addr)) then begin
+      //
+      if (('' = bindToIP) or ('0.0.0.0' = bindToIP)) then
+	uint32(maddr.imr_interface.s_addr) := INADDR_ANY
+      else begin
+	//
+	maddr.imr_interface.s_addr := inet_addr(paChar(aString(bindToIP)));
+	if (TIP4(INADDR_NONE) = TIP4(maddr.imr_interface.s_addr)) then
+	  TIP4(maddr.imr_interface.s_addr) := INADDR_ANY;
+      end;
+      //
+      result := true;
+    end;
+  end;
 end;
 
 // --  --
-function unaMulticastSocket.senderSend(const data: aString; noCheck: bool): int;
+procedure unaMulticastSocket.prepareSenderAddr(const groupAddr: string);
+begin
+  // prepare an address for sending
+  fillChar(f_senderAddr, sizeOf(f_senderAddr), #0);
+  f_senderAddr.sin_family := AF_INET;
+  f_senderAddr.sin_addr.s_addr := inet_addr(paChar(aString(groupAddr)));
+  f_senderAddr.sin_port := htons(u_short(getPortInt()));
+end;
+
+// --  --
+function unaMulticastSocket.sendData(data: pointer; len: int; noCheck: bool): int;
+begin
+  result := sendto(f_senderAddr, data, len, 0, 1, noCheck)
+end;
+
+// --  --
+function unaMulticastSocket.sendData(const data: aString; noCheck: bool): int;
 begin
   if ('' <> data) then
-    result := senderSend(@data[1], length(data), noCheck)
+    result := sendData(@data[1], length(data), noCheck)
   else
     result := 0;
 end;
 
+// --  --
+function unaMulticastSocket.setIF(const intf: string): int;
+var
+  ip: DWORD;
+begin
+  ip := DWORD(inet_addr(paChar(aString(intf))));
+  if (DWORD(INADDR_NONE) = ip) then
+    ip := INADDR_ANY;
+  //
+  if (INADDR_ANY <> ip) then begin
+    //
+    // set the multicast interface
+    // even if this call fails, that in not a fatal error
+    result := checkError(setsockopt(f_socket, IPPROTO_IP, IP_MULTICAST_IF, paChar(@ip), sizeOf(ip)), false);
+  end
+  else
+    result := WSAEADDRNOTAVAIL;
+end;
+
+// --  --
+function unaMulticastSocket.setLoopEnable(enable: bool): int;
+var
+  lp: Windows.bool;
+begin
+  lp := enable;
+  result := checkError(setsockopt(f_socket, IPPROTO_IP, IP_MULTICAST_LOOP, paChar(@lp), sizeOf(lp)), false);
+end;
+
+// --  --
+procedure unaMulticastSocket.setTTL(value: DWORD);
+begin
+  f_ttl := value;
+  //
+  if (0 <> f_socket) then
+    // set the multicast TTL
+    checkError(setsockopt(f_socket, IPPROTO_IP, IP_MULTICAST_TTL, paChar(@f_ttl), sizeof(DWORD)));
+end;
 
 
 { unaSocksConnection }
 
 // --  --
-function unaSocksConnection.acquire(timeout: unsigned): bool;
+function unaSocksConnection.acquire(timeout: tTimeout): bool;
 begin
   if (f_destroying) then
     result := false
@@ -2797,7 +2791,7 @@ begin
 end;
 
 // --  --
-constructor unaSocksConnection.create(thread: unaSocksThread; connId: unsigned; socket: unaSocket; addr: pSockAddrIn; len: int);
+constructor unaSocksConnection.create(thread: unaSocksThread; connId: tConID; socket: unaSocket; addr: pSockAddrIn; len: int);
 begin
   inherited create();
   //
@@ -2822,13 +2816,13 @@ begin
 end;
 
 // --  --
-function unaSocksConnection.getTimeout(): unsigned;
+function unaSocksConnection.getTimeout(): tTimeout;
 begin
   result := timeElapsed32U(f_lpStamp);
 end;
 
 // --  --
-function unaSocksConnection.okToWrite(timeout: unsigned; noCheckState: bool): bool;
+function unaSocksConnection.okToWrite(timeout: tTimeout; noCheckState: bool): bool;
 begin
   result := f_threadSocket.okToWrite(timeout, noCheckState);
 end;
@@ -2846,7 +2840,7 @@ begin
 end;
 
 // --  --
-function unaSocksConnection.send(data: pointer; size: unsigned; noCheck: bool): unsigned;
+function unaSocksConnection.send(data: pointer; size: uint; noCheck: bool): uint;
 var
   res: int;
 begin
@@ -2892,7 +2886,7 @@ end;
 { unaSocketsConnections }
 
 // --  --
-function unaSocketsConnections.get_connection(connId: unsigned; timeout: unsigned): unaSocksConnection;
+function unaSocketsConnections.get_connection(connId: tConID; timeout: tTimeout): unaSocksConnection;
 begin
   result := itemById(connId, 0);
 end;
@@ -2914,14 +2908,14 @@ type
   punaPacketStormBuffer = ^unaPacketStormBuffer;
   unaPacketStormBuffer = packed record
     //
-    r_flags: unsigned;		// 0 - free
+    r_flags: uint;		// 0 - free
 				// 1 - has data
 				// 2 - pending (not free, and no data yet)
 				//
-    r_connId: unsigned;		// connection ID
+    r_connId: tConID;		// connection ID
     r_seqNum: int64;		// sequence num
-    r_dataSize: unsigned;	// memory size allocated for buffer
-    r_dataSizeUsed: unsigned;	// how much data is actually used
+    r_dataSize: uint;	// memory size allocated for buffer
+    r_dataSizeUsed: uint;	// how much data is actually used
     r_data: pointer;		// data buffer
   end;
 
@@ -2953,11 +2947,11 @@ type
     procedure AfterConstruction(); override;
     procedure BeforeDestruction(); override;
     //
-    procedure removeConnection(connId: unsigned);
+    procedure removeConnection(connId: tConID);
     procedure bufferRelease(buf: punaPacketStormBuffer);
-    function bufferGet(desiredSize: unsigned): punaPacketStormBuffer;
+    function bufferGet(desiredSize: uint): punaPacketStormBuffer;
     //
-    function newPacket(connId: unsigned; buf: punaPacketStormBuffer): bool;
+    function newPacket(connId: tConID; buf: punaPacketStormBuffer): bool;
   end;
 
 
@@ -2974,7 +2968,7 @@ end;
 // --  --
 procedure unaSocksPacketStormThread.beforeDestruction();
 var
-  i: unsigned;
+  i: uint;
 begin
 {$IFDEF LOG_SOCKS_THREADS }
   logMessage(_classID + '.beforeDestruction() - about to destroy..');
@@ -3003,9 +2997,9 @@ begin
 end;
 
 // --  --
-function unaSocksPacketStormThread.bufferGet(desiredSize: unsigned): punaPacketStormBuffer;
+function unaSocksPacketStormThread.bufferGet(desiredSize: uint): punaPacketStormBuffer;
 var
-  i: unsigned;
+  i: uint;
   index: int;
 begin
   result := nil;
@@ -3081,9 +3075,9 @@ end;
 // --  --
 function unaSocksPacketStormThread.execute(globalIndex: unsigned): int;
 var
-  i, cnt: unsigned;
-  bufIndexes: array[0..c_maxPSBufs - 1] of unsigned;
-  bufIndexesCnt: unsigned;
+  i, cnt: uint;
+  bufIndexes: array[0..c_maxPSBufs - 1] of uint;
+  bufIndexesCnt: uint;
   sleepBeforeNextLock: bool;
   nextMinSeq: int64;
   nextMinSeq2: int64;
@@ -3141,7 +3135,7 @@ begin
 	    nextMinSeq2 := $7FFFFFFFFFFFFFFF;
 	    while (not shouldStop and (i < bufIndexesCnt)) do begin
 	      //
-	      if (unsigned(-1) <> bufIndexes[i]) then begin
+	      if (uint(-1) <> bufIndexes[i]) then begin
 		//
 		sn := f_buffers[bufIndexes[i]].r_seqNum;
 		if (sn = nextMinSeq) then begin
@@ -3154,7 +3148,7 @@ begin
 		    // mark this buffer as free
 		    bufferRelease(@f_buffers[bufIndexes[i]]);
 		    //
-		    bufIndexes[i] := unsigned(-1);	// this buffer no longer will be considered
+		    bufIndexes[i] := uint(-1);	// this buffer no longer will be considered
 		  end;
 		end
 		else begin
@@ -3207,7 +3201,7 @@ begin
 end;
 
 // --  --
-function unaSocksPacketStormThread.newPacket(connId: unsigned; buf: punaPacketStormBuffer): bool;
+function unaSocksPacketStormThread.newPacket(connId: tConID; buf: punaPacketStormBuffer): bool;
 begin
   if (acquire(false, 100)) then try
     //
@@ -3234,9 +3228,9 @@ begin
 end;
 
 // --  --
-procedure unaSocksPacketStormThread.removeConnection(connId: unsigned);
+procedure unaSocksPacketStormThread.removeConnection(connId: tConID);
 var
-  i: unsigned;
+  i: uint;
 begin
 {$IFDEF LOG_SOCKS_THREADS }
   logMessage(_classID + '.removeStream(' + int2str(connId) + ') - ENTER');
@@ -3370,7 +3364,7 @@ begin
 end;
 
 // --  --
-constructor unaSocksThread.create(socks: unaSocks; id: unsigned);
+constructor unaSocksThread.create(socks: unaSocks; id: tConID);
 begin
   f_socks := socks;
   f_id := id;
@@ -3400,7 +3394,7 @@ begin
 end;
 
 // --  --
-function unaSocksThread.doGetRemoteHostAddr(connId: unsigned): pSockAddrIn;
+function unaSocksThread.doGetRemoteHostAddr(connId: tConID): pSockAddrIn;
 var
   conn: unaSocksConnection;
 begin
@@ -3422,18 +3416,19 @@ const
 var
   i: int;
   newSocket: unaSocket;
+  newSock: tSocket;
   index: integer;
   noData: bool;
   ok: bool;
   error: integer;
   //
   dataBuf: punaPacketStormBuffer;
-  dataBufSize: unsigned;
-  maxDataSize: unsigned;
+  dataBufSize: uint;
+  maxDataSize: uint;
   //
   addr: sockaddr_in;
   connection: unaSocksConnection;
-  waitForDataTimeout: unsigned;
+  waitForDataTimeout: tTimeout;
   //
   wasAcq: bool;
   //
@@ -3673,13 +3668,13 @@ begin
 		try
 		  if (0 < connections.count) then
 		    // we have some connections already, lets do a quick accept test
-		    newSocket := threadSocket.accept(error, 1)	// 1 ms. delay
+		    newSocket := threadSocket.accept(newSock, 1)	// 1 ms. delay
 		  else begin
 		    // we have no connections yet, lets do a long accept test
 		    {$IFDEF LOG_RAW_DATA_PACKETS }
 		    //logMessage('UNA_SOCKETS: TCP SERVER --------- DOING LONG ACCEPT ---------');
 		    {$ENDIF }
-		    newSocket := threadSocket.accept(error, cWaitTimeout);	// long delay
+		    newSocket := threadSocket.accept(newSock, cWaitTimeout);	// long delay
 		  end;
 		  //
 		  if (nil <> newSocket) then begin
@@ -3695,14 +3690,8 @@ begin
 		    //
 		    f_socks.event(unaseServerConnect, id, connection.connId);
 		    connection := nil;
-		  end
-		  else begin
-		    //
-		    if (WSAETIMEDOUT <> error) then
-		      checkSocketError(error, nil, true);	// could be some fatal problem with listening socket, so stop the thread if needed
 		  end;
 		except
-		  //
 		end;
 		//
 		noData := true;
@@ -3992,7 +3981,7 @@ begin
 end;
 
 // --  --
-function unaSocksThread.getConnection(connId: unsigned; timeout: unsigned): unaSocksConnection;
+function unaSocksThread.getConnection(connId: tConID; timeout: tTimeout): unaSocksConnection;
 begin
   result := connections.get_connection(connId, timeout);
   //
@@ -4046,13 +4035,13 @@ begin
 end;
 
 // --  --
-function unaSocksThread.getRemoteHostAddr(connId: unsigned): pSockAddrIn;
+function unaSocksThread.getRemoteHostAddr(connId: tConID): pSockAddrIn;
 begin
   result := doGetRemoteHostAddr(connId);
 end;
 
 // --  --
-function unaSocksThread.newConnId(initialValue_delta: int): unsigned;
+function unaSocksThread.newConnId(initialValue_delta: int): tConID;
 begin
   if (0 < initialValue_delta) then begin
     //
@@ -4065,11 +4054,11 @@ begin
       result := f_lastConnectionIdInt
     else
       result := InterlockedIncrement(f_lastConnectionIdInt);
-  end;    
+  end;
 end;
 
 // --  --
-procedure unaSocksThread.onConnectionRemove(connId: unsigned);
+procedure unaSocksThread.onConnectionRemove(connId: tConID);
 begin
 {$IFDEF LOG_UNASOCKETS_INFOS }
   logMessage(_classID + '.onConnectionRemove() - master connection [' + int2str(connId) + '] is about to be removed from server..');
@@ -4089,7 +4078,7 @@ begin
 end;
 
 // --  --
-function unaSocksThread.sendDataTo(connId: unsigned; data: pointer; len: unsigned; out asynch: bool; timeout: unsigned): int;
+function unaSocksThread.sendDataTo(connId: tConID; data: pointer; len: uint; out asynch: bool; timeout: tTimeout): int;
 begin
   result := WSAENOTCONN; // reserved for IOCP threads
 end;
@@ -4109,7 +4098,7 @@ end;
 { unaSocks }
 
 // --  --
-function unaSocks.activate(id: unsigned): bool;
+function unaSocks.activate(id: tConID): bool;
 var
   thread: unaSocksThread;
 begin
@@ -4141,7 +4130,7 @@ begin
 end;
 
 // --  --
-function unaSocks.closeThread(id: unsigned; timeout: int): bool;
+function unaSocks.closeThread(id: tConID; timeout: tTimeout): bool;
 var
   thread: unaSocksThread;
 begin
@@ -4203,7 +4192,7 @@ begin
 end;
 
 // --  --
-function unaSocks.createConnection(const host, port: string; protocol: int; activate: bool; const bindToIP, bindToPort: string{$IFDEF VC25_OVERLAPPED }; overlapped: bool{$ENDIF }): unsigned;
+function unaSocks.createConnection(const host, port: string; protocol: int; activate: bool; const bindToIP, bindToPort: string{$IFDEF VC25_OVERLAPPED }; overlapped: bool{$ENDIF }): tConID;
 var
   socket: unaSocket;
   thread: unaSocksThread;
@@ -4242,7 +4231,7 @@ begin
 end;
 
 // --  --
-function unaSocks.createServer(const port: string; protocol: int; activate: bool; backlog: int; udpConnectionTimeout: unsigned; const bindToIP: string{$IFDEF VC25_OVERLAPPED }; overlapped: bool{$ENDIF }): unsigned;
+function unaSocks.createServer(const port: string; protocol: int; activate: bool; backlog: int; udpConnectionTimeout: tTimeout; const bindToIP: string{$IFDEF VC25_OVERLAPPED }; overlapped: bool{$ENDIF }): tConID;
 var
   socket: unaSocket;
   thread: unaSocksThread;
@@ -4320,21 +4309,21 @@ begin
 end;
 
 // --  --
-function unaSocks.enter(ro: bool; timeout: unsigned): bool;
+function unaSocks.enter(ro: bool; timeout: tTimeout): bool;
 begin
   //result := f_gate.enter(timeout{$IFDEF DEBUG}, _classID{$ENDIF});
   result := acquire(ro, timeout);
 end;
 
 // --  --
-procedure unaSocks.event(event: unaSocketEvent; id, connId: unsigned; data: pointer; size: unsigned);
+procedure unaSocks.event(event: unaSocketEvent; id, connId: tConID; data: pointer; size: uint);
 begin
   if (assigned(f_onEvent)) then
     f_onEvent(self, event, id, connId, data, size);
 end;
 
 // --  --
-function unaSocks.getConnection(id, connId: unsigned; timeout: unsigned; needAcquire: bool): unaSocksConnection;
+function unaSocks.getConnection(id, connId: tConID; timeout: tTimeout; needAcquire: bool): unaSocksConnection;
 var
   thread: unaSocksThread;
 begin
@@ -4360,7 +4349,7 @@ begin
 end;
 
 // --  --
-function unaSocks.getRemoteHostAddr(id, connId: unsigned): pSockAddrIn;
+function unaSocks.getRemoteHostAddr(id, connId: tConID): pSockAddrIn;
 var
   thread: unaSocksThread;
 begin
@@ -4372,7 +4361,7 @@ begin
 end;
 
 // --  --
-function unaSocks.getRemoteHostInfo(id, connId: unsigned; out ip, port: string): bool;
+function unaSocks.getRemoteHostInfo(id, connId: tConID; out ip, port: string): bool;
 var
   proto: int;
 begin
@@ -4394,7 +4383,7 @@ begin
 end;
 
 // --  --
-function unaSocks.getRemoteHostInfoEx(id, connId: unsigned; out ip, port: string; out proto: int): bool;
+function unaSocks.getRemoteHostInfoEx(id, connId: tConID; out ip, port: string; out proto: int): bool;
 var
   addr: pSockAddrIn;
   thread: unaSocksThread;
@@ -4417,7 +4406,7 @@ begin
 end;
 
 // --  --
-function unaSocks.getSocketError(id: unsigned; needLock: bool): int;
+function unaSocks.getSocketError(id: tConID; needLock: bool): int;
 var
   thread: unaSocksThread;
 begin
@@ -4438,7 +4427,7 @@ begin
 end;
 
 // --  --
-function unaSocks.getThreadByID(id: unsigned; timeout: unsigned): unaSocksThread;
+function unaSocks.getThreadByID(id: tConID; timeout: tTimeout): unaSocksThread;
 begin
   result := f_threads.itemById(id, 0);
   //
@@ -4449,7 +4438,7 @@ begin
 end;
 
 // --  --
-function unaSocks.getThreadByIndex(index: unsigned): unaSocksThread;
+function unaSocks.getThreadByIndex(index: int): unaSocksThread;
 begin
   result := f_threads.get(index);
   //
@@ -4462,7 +4451,7 @@ end;
 // --  --
 function unaSocks.getThreadFromPool(allowGrowUp: bool): unaSocksThread;
 var
-  i: int;
+  i: integer;
 begin
   result := nil;
   //
@@ -4494,7 +4483,7 @@ begin
 end;
 
 // --  --
-function unaSocks.getThreadSocket(id: unsigned): unaSocket;
+function unaSocks.getThreadSocket(id: tConID): unaSocket;
 var
   thread: unaSocksThread;
 begin
@@ -4506,7 +4495,7 @@ begin
 end;
 
 // --  --
-function unaSocks.isActive(id: unsigned): bool;
+function unaSocks.isActive(id: tConID): bool;
 var
   thread: unaSocksThread;
 begin
@@ -4531,7 +4520,7 @@ begin
 end;
 
 // --  --
-function unaSocks.okToWrite(id, connId, timeout: unsigned; noCheckState: bool): bool;
+function unaSocks.okToWrite(id, connId: tConID; timeout: tTimeout; noCheckState: bool): bool;
 var
   conn: unaSocksConnection;
 begin
@@ -4569,7 +4558,7 @@ end;
 
 
 // --  --
-function unaSocks.removeConnection(id, connId: unsigned): bool;
+function unaSocks.removeConnection(id, connId: uint): bool;
 var
   i: int;
   thread: unaSocksThread;
@@ -4625,17 +4614,16 @@ begin
 end;
 
 // --  --
-function unaSocks.sendData(id: unsigned; data: pointer; size: unsigned; connId: unsigned; out asynch: bool; noCheck: bool; timeout: unsigned): unsigned;
+function unaSocks.sendData(id: tConID; data: pointer; size: uint; connId: tConID; out asynch: bool; noCheck: bool; timeout: tTimeout): uint;
 var
   conn: unaSocksConnection;
-  {$IFDEF VC25_OVERLAPPED }
+  {$IFDEF VC25_IOCP }
   thread: unaSocksThread;
-  {$ENDIF VC25_OVERLAPPED }
+  {$ENDIF VC25_IOCP }
 begin
   result := WSAENOTCONN;	// report some error
   //
-  {$IFDEF VC25_OVERLAPPED }
-  //
+{$IFDEF VC25_IOCP }
   if (isIOCP) then begin
     //
     thread := getThreadById(id);
@@ -4651,8 +4639,7 @@ begin
     //
   end
   else begin
-    //
-  {$ENDIF VC25_OVERLAPPED }
+{$ENDIF VC25_IOCP }
     //
     {$IFDEF LOG_SOCKS_THREADS }
     infoMessage(className + '.sendData() - about to acquire connId=' + int2str(connId));
@@ -4670,9 +4657,9 @@ begin
       end;
     end;
     //
-  {$IFDEF VC25_OVERLAPPED }
+{$IFDEF VC25_IOCP }
   end;
-  {$ENDIF VC25_OVERLAPPED }
+{$ENDIF VC25_IOCP }
 end;
 
 {$IFDEF VC25_IOCP }
@@ -4710,7 +4697,7 @@ end;
 // --  --
 procedure unaSocks.setPoolSize(threadsInPool: unsigned);
 var
-  i: int;
+  i: integer;
   id: int;
 begin
   threadsInPool := max(min(c_maxThreadPoolSize, threadsInPool), 1);
@@ -4736,7 +4723,7 @@ begin
       // add some threads
       for i := f_threadPoolSize to threadsInPool - 1 do begin
 	//
-	id := InterlockedExchangeAdd(@f_lastThreadID, 1);
+	id := InterlockedExchangeAdd(f_lastThreadID, 1);
 	//
 	{$IFDEF VC25_IOCP }
 	if (isIOCP) then
@@ -4766,19 +4753,19 @@ type
   //
   ipQueryInfo = class
   private
-    f_queryId: unsigned;
+    f_queryId: tConID;
     //
     f_ip: string;
     f_port: string;
     f_query: aString;
     f_proto: int;
     f_callback: tIpQueryCallback;
-    f_timeout: unsigned;
+    f_timeout: tTimeout;
     f_isHTTP: bool;
     //
     f_dataPing: Uint64;
-    f_socksId: unsigned;
-    f_socksConnId: unsigned;
+    f_socksId: tConID;
+    f_socksConnId: tConID;
     f_socksNotSentYet: bool;
     f_socksIsDone: bool;
     //
@@ -4786,10 +4773,10 @@ type
     f_responseData: aString;
     f_expectedSize: int;
   public
-    constructor create(const ip, port, query: string; proto: int; callback: tIpQueryCallback; timeout: unsigned; isHTTP: bool);
+    constructor create(const ip, port, query: string; proto: int; callback: tIpQueryCallback; timeout: tTimeout; isHTTP: bool);
     //
-    procedure addResponseData(data: paChar; len: unsigned);
-    function getDataPingTimeout(): unsigned;
+    procedure addResponseData(data: paChar; len: uint);
+    function getDataPingTimeout(): tTimeout;
   end;
 
 
@@ -4803,7 +4790,7 @@ type
     f_queries: unaList;
     f_lastQueryId: int;
     //
-    procedure onSocketEvent(sender: tObject; event: unaSocketEvent; id, connId: unsigned; data: pointer; size: unsigned);
+    procedure onSocketEvent(sender: tObject; event: unaSocketEvent; id, connId: tConID; data: pointer; size: uint);
     function sendQuery(query: ipQueryInfo): bool;
   protected
     function execute(globalIndex: unsigned): int; override;
@@ -4848,7 +4835,7 @@ Content-Type: text/html
 
 
 // --  --
-procedure ipQueryInfo.addResponseData(data: paChar; len: unsigned);
+procedure ipQueryInfo.addResponseData(data: paChar; len: uint);
 var
   newData: aString;
   posLen: int;
@@ -4917,7 +4904,7 @@ begin
 end;
 
 // --  --
-constructor ipQueryInfo.create(const ip, port, query: string; proto: int; callback: tIpQueryCallback; timeout: unsigned; isHTTP: bool);
+constructor ipQueryInfo.create(const ip, port, query: string; proto: int; callback: tIpQueryCallback; timeout: tTimeout; isHTTP: bool);
 begin
   f_ip := ip;
   f_port := port;
@@ -4941,7 +4928,7 @@ begin
 end;
 
 // --  --
-function ipQueryInfo.getDataPingTimeout(): unsigned;
+function ipQueryInfo.getDataPingTimeout(): tTimeout;
 begin
   result := timeElapsed32U(f_dataPing);
 end;
@@ -5046,9 +5033,9 @@ begin
 end;
 
 // --  --
-procedure ipQueryThread.onSocketEvent(sender: tObject; event: unaSocketEvent; id, connId: unsigned; data: pointer; size: unsigned);
+procedure ipQueryThread.onSocketEvent(sender: tObject; event: unaSocketEvent; id, connId: tConID; data: pointer; size: uint);
 var
-  i: unsigned;
+  i: uint;
   query: ipQueryInfo;
 begin
   query := nil;
@@ -5119,19 +5106,23 @@ end;
 // ------ IP/HTTP procs -------
 
 // --  --
-function httpQuery(const ip, port, query: string; callback: tIpQueryCallback; timeout: unsigned): int;
+function httpQuery(const ip, port, query: string; callback: tIpQueryCallback; timeout: tTimeout): int;
 begin
   result := ensureIpQueryThread().addQuery(ipQueryInfo.create(ip, port, query, IPPROTO_TCP, callback, timeout, true));
 end;
 
 // --  --
-function ipQuery(const ip, port, query: string; proto: int; callback: tIpQueryCallback; timeout: unsigned): int;
+function ipQuery(const ip, port, query: string; proto: int; callback: tIpQueryCallback; timeout: tTimeout): int;
 begin
   result := ensureIpQueryThread().addQuery(ipQueryInfo.create(ip, port, query, proto, callback, timeout, false));
 end;
 
 // --  --
+{$IFDEF FPC }
+procedure copyURI(w: bool; const u: URL_ComponentsW; var crack: unaURICrack); {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{$ELSE }
 procedure copyURI(w: bool; const u: TURLComponents; var crack: unaURICrack); {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{$ENDIF FPC }
 begin
   {$IFDEF __AFTER_DB__ }
     if (not w) then begin
@@ -5170,9 +5161,13 @@ begin
 end;
 
 // --  --
-function crackURI(const URI: string; var crack: unaURICrack; flags: DWORD): bool;
+function crackURI(URI: string; var crack: unaURICrack; flags: DWORD): bool;
 var
+  {$IFDEF FPC }
+  uriComponents: URL_ComponentsW;	// either ANSI or Wide pChars, depending on compiler version
+  {$ELSE }
   uriComponents: TURLComponents;	// either ANSI or Wide pChars, depending on compiler version
+  {$ENDIF FPC }
 begin
   fillChar(uriComponents, sizeof(TURLComponents), #0);
   uriComponents.dwStructSize := sizeOf(uriComponents);
@@ -5182,6 +5177,9 @@ begin
   uriComponents.dwPasswordLength := 1;
   uriComponents.dwUrlPathLength := 1;
   uriComponents.dwExtraInfoLength := 1;
+  //
+  if (1 > pos('//', URI)) then
+    URI := 'http://' + URI;
   //
 {$IFNDEF NO_ANSI_SUPPORT }
   if (g_wideApiSupported) then begin
@@ -5215,18 +5213,17 @@ end;
 initialization
   g_unaWSAGate := unaObject.create(); //unaInProcessGate.create();
   g_unaWSAGateReady := true;
-
+  //
 {$IFDEF LOG_UNASOCKETS_INFOS }
   logMessage('unaSockets - DEBUG is defined.');
 {$ENDIF LOG_UNASOCKETS_INFOS }
-
   //
   startup();
 
 
 finalization
 {$IFDEF LOG_UNASOCKETS_INFOS }
-  logMessage('unaSockets - finalizing.');
+  logMessage('unaSockets - finalization.');
 {$ENDIF LOG_UNASOCKETS_INFOS }
   //
   freeAndNil(g_ipQueryThread);

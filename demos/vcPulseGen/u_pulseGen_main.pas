@@ -89,8 +89,8 @@ type
     f_paintBusy: bool;
     f_noMoreFeed: bool;
     //
-    procedure myOnDA(sender: tObject; data: pointer; len: unsigned);
-    procedure myOnACD(sender: tObject; data: pointer; len: unsigned);
+    procedure myOnDA(sender: tObject; data: pointer; len: uint);
+    procedure myOnACD(sender: tObject; data: pointer; len: uint);
   public
     { Public declarations }
     waveOut: unaWaveOutDevice;
@@ -130,7 +130,7 @@ begin
     //
     for i := -1 to unaWaveOutDevice.getDeviceCount() - 1 do begin
       //
-      unaWaveOutDevice.getCaps(unsigned(i), devCaps);
+      unaWaveOutDevice.getCaps(uint(i), devCaps);
       c_comboBox_device.items.addObject(devCaps.szPname, pointer(i + 10));
     end;
     //
@@ -141,7 +141,7 @@ begin
   end;
   //
   // create devices
-  mixer := unaWaveMixerDevice.create(true, true, 10);
+  mixer := unaWaveMixerDevice.create(true, false, 10);
   mixer.onDataAvailable := myOnDA;
   //
   waveOut := unaWaveOutDevice.create(WAVE_MAPPER, false, false, 5);
@@ -179,7 +179,8 @@ begin
   c_checkBox_saveWav.checked := f_config.get('wav_write.enabled', false);
   c_edit_wavChange(sender);
   //
-  c_fft_main.fft.fft.setFormat(waveOut.srcFormatExt.Format.wBitsPerSample, waveOut.srcFormatExt.Format.nChannels);
+  c_fft_main.fft.fft.setFormat(waveOut.srcFormatExt.Format.nSamplesPerSec, waveOut.srcFormatExt.Format.wBitsPerSample, waveOut.srcFormatExt.Format.nChannels);
+  c_fft_main.fallback := 0;	// instant
   //
   c_paintBox_osc.controlStyle := c_paintBox_osc.controlStyle + [csOpaque]; 
 end;
@@ -189,7 +190,7 @@ procedure Tc_pg_main.a_openDevExecute(Sender: TObject);
 var
   res: MMRESULT;
 begin
-  waveOut.deviceId := unsigned(int(c_comboBox_device.items.objects[c_comboBox_device.itemIndex]) - 10);
+  waveOut.deviceId := uint(int(c_comboBox_device.items.objects[c_comboBox_device.itemIndex]) - 10);
   //
   if (c_checkBox_saveWav.checked) then begin
     //
@@ -282,14 +283,14 @@ begin
 end;
 
 // --  --
-procedure Tc_pg_main.myOnDA(sender: tObject; data: pointer; len: unsigned);
+procedure Tc_pg_main.myOnDA(sender: tObject; data: pointer; len: uint);
 begin
   if (f_saveToWav and (nil <> wavWrite)) then
     wavWrite.write(data, len);
 end;
 
 // --  --
-procedure Tc_pg_main.myOnACD(sender: tObject; data: pointer; len: unsigned);
+procedure Tc_pg_main.myOnACD(sender: tObject; data: pointer; len: uint);
 var
   i: int;
 begin
@@ -298,14 +299,14 @@ begin
   move(data^, f_samples1, len);
   //
   // notify pulses they have to add new chunk
-  if (not f_noMoreFeed and lockNonEmptyList_r(pulses, true, 50 {$IFDEF DEBUG }, '.myOnACD()'{$ENDIF DEBUG })) then
-    try
-      for i := 0 to pulses.count - 1 do
-	Tc_form_pulse(pulses[i]).feedSine(self);
-      //
-    finally
-      unlockListRO(pulses);
-    end;
+  if (not f_noMoreFeed and lockNonEmptyList_r(pulses, true, 50 {$IFDEF DEBUG }, '.myOnACD()'{$ENDIF DEBUG })) then try
+    //
+    for i := 0 to pulses.count - 1 do
+      Tc_form_pulse(pulses[i]).feedSine(self);
+    //
+  finally
+    unlockListRO(pulses);
+  end;
 end;
 
 // --  --

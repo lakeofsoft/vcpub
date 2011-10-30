@@ -79,17 +79,17 @@ type
   {*
     Data availability notification event.
   }
-  unavclPipeDataEvent = procedure(sender: unavclInOutPipe; data: pointer; len: unsigned) of object;
+  unavclPipeDataEvent = procedure(sender: unavclInOutPipe; data: pointer; len: cardinal) of object;
 
   {*
     Before format change notification event.
   }
-  unavclPipeBeforeFormatChangeEvent = procedure(sender: unavclInOutPipe; provider: unavclInOutPipe; newFormat: pointer; len: unsigned; out allowFormatChange: bool) of object;
+  unavclPipeBeforeFormatChangeEvent = procedure(sender: unavclInOutPipe; provider: unavclInOutPipe; newFormat: pointer; len: cardinal; out allowFormatChange: bool) of object;
 
   {*
     After format change notification event.
   }
-  unavclPipeAfterFormatChangeEvent = procedure(sender: unavclInOutPipe; provider: unavclInOutPipe; newFormat: pointer; len: unsigned) of object;
+  unavclPipeAfterFormatChangeEvent = procedure(sender: unavclInOutPipe; provider: unavclInOutPipe; newFormat: pointer; len: cardinal) of object;
 
 
   //
@@ -103,9 +103,9 @@ type
     f_lockObj: unaObject;
     //
     f_shouldActivate: bool;
-    f_isFormatProvider: bool;
-    f_autoActivate: bool;
-    f_enableDataProxy: bool;
+    f_isFormatProvider: boolean;
+    f_autoActivate: boolean;
+    f_enableDataProxy: boolean;
     //
     f_closing: bool;
     //
@@ -113,7 +113,7 @@ type
 				// +1 - setting active := true
 				// -1 - setting active := false
     //
-    f_enableDP: bool;
+    f_enableDP: boolean;
     //
     f_dumpOutput: wideString;
     f_dumpInput: wideString;
@@ -132,24 +132,24 @@ type
     f_afterFormatChange: unavclPipeAfterFormatChangeEvent;
     f_beforeFormatChange: unavclPipeBeforeFormatChangeEvent;
     //
-    f_formatCRC: unsigned;
+    f_formatCRC: uint;
     //
     f_consumers: unaObjectList;
     f_providers: unaObjectList;
     f_dataProxyThread: unaThread;
     //
-    procedure triggerDataAvailEvent(data: pointer; len: unsigned);
-    procedure triggerDataDSPEvent(data: pointer; len: unsigned);
+    procedure triggerDataAvailEvent(data: pointer; len: uint);
+    procedure triggerDataDSPEvent(data: pointer; len: uint);
     //
-    function getActive(): bool;
-    procedure setActive(value: bool);
+    function getActive(): boolean;
+    procedure setActive(value: boolean);
     //
     function getConsumerOneAndOnly(): unavclInOutPipe;
     function getProviderOneAndOnly(): unavclInOutPipe;
     procedure setConsumerOneAndOnly(value: unavclInOutPipe);
-    function applyFormatOnConsumers(data: pointer; len: unsigned; restoreActiveState: bool; provider: unavclInOutPipe): bool;
+    function applyFormatOnConsumers(data: pointer; len: uint; restoreActiveState: bool; provider: unavclInOutPipe): bool;
     //
-    procedure setEnableDP(value: bool);
+    procedure setEnableDP(value: boolean);
     {*
 	Returns number of consumers.
 
@@ -169,7 +169,7 @@ type
 
 	@return Consumer of a pipe.
     }
-    function getConsumer(index: unsigned = 0): unavclInOutPipe;
+    function getConsumer(index: int = 0): unavclInOutPipe;
     {*
 	Returns provider.
 
@@ -177,20 +177,20 @@ type
 
 	@return Provider of a pipe.
     }
-    function getProvider(index: unsigned = 0): unavclInOutPipe;
+    function getProvider(index: int = 0): unavclInOutPipe;
   protected
     {*
       Writes data into the pipe.
     }
-    function doWrite(data: pointer; len: unsigned; provider: pointer = nil): unsigned; virtual; abstract;
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; virtual; abstract;
     {*
       Reads data from the pipe.
     }
-    function doRead(data: pointer; len: unsigned): unsigned; virtual; abstract;
+    function doRead(data: pointer; len: uint): uint; virtual; abstract;
     {*
       Returns data size available in the pipe (bytes).
     }
-    function getAvailableDataLen(index: int): unsigned; virtual; abstract;
+    function getAvailableDataLen(index: integer): uint; virtual; abstract;
     {*
 	Increments (or decrements in/outBytes property by delta.
 
@@ -214,29 +214,29 @@ type
     {*
 	Sets active state of the pipe.
     }
-    function doSetActive(value: bool; timeout: unsigned = 3000; provider: unavclInOutPipe = nil): bool;
+    function doSetActive(value: bool; timeout: tTimeout = 3000; provider: unavclInOutPipe = nil): bool;
     {*
 	Processes new data available from the pipe.
 
 	@return True if successfull.
     }
-    function onNewData(data: pointer; len: unsigned; provider: pointer = nil): bool; virtual;
+    function onNewData(data: pointer; len: uint; provider: pointer = nil): bool; virtual;
     {*
 	Applies new format of the data stream.
 
 	@return True if successfull.
     }
-    function applyFormat(data: pointer; len: unsigned; provider: unavclInOutPipe = nil; restoreActiveState: bool = false): bool; virtual;
+    function applyFormat(data: pointer; len: uint; provider: unavclInOutPipe = nil; restoreActiveState: bool = false): bool; virtual;
     {*
 	Fills the format of the data stream.
 
 	@return Stream data format.
     }
-    function getFormatExchangeData(out data: pointer): unsigned; virtual;
+    function getFormatExchangeData(out data: pointer): uint; virtual;
     {*
 	Calls f_beforeFormatChange or f_afterFormatChange if assigned.
     }
-    procedure doBeforeAfterFC(doBefore: bool; provider: unavclInOutPipe; data: pointer; len: unsigned; out allowFC: bool);
+    procedure doBeforeAfterFC(doBefore: bool; provider: unavclInOutPipe; data: pointer; len: uint; out allowFC: bool);
     {*
 	Checks if component is format provider and applies format to consumer if it is (and format was not applied before).
     }
@@ -244,7 +244,7 @@ type
     {*
 	Checks if autoActivate property is True and activates/deactivates consumers if yes.
     }
-    function checkIfAutoActivate(value: bool; timeout: unsigned = 10054): bool;
+    function checkIfAutoActivate(value: bool; timeout: tTimeout = 10054): bool;
     {*
 	Implements positions retrieval routine.
 
@@ -283,7 +283,7 @@ type
     {*
 	Sets enableDataProcessing value.
     }
-    procedure doSetEnableDP(value: bool); virtual;
+    procedure doSetEnableDP(value: boolean); virtual;
     {*
 	Usually creates an internal device of the pipe, and activates the component if needed.
     }
@@ -323,7 +323,7 @@ type
 	@param ro True for read-only lock.
 	@return True if critical section was entered.
     }
-    function enter(ro: bool; timeout: unsigned = 100): bool;
+    function enter(ro: bool; timeout: tTimeout = 100): bool;
     {*
 	Leaves the internal critical section.
     }
@@ -338,7 +338,7 @@ type
 
 	@return Number of bytes actually written.
     }
-    function write(data: pointer; len: unsigned; provider: unavclInOutPipe = nil): unsigned; overload;
+    function write(data: pointer; len: uint; provider: unavclInOutPipe = nil): uint; overload;
     {*
 	Writes data into the pipe.
 
@@ -347,7 +347,7 @@ type
 
 	@return Number of bytes actually written.
     }
-    function write(const data: aString; provider: unavclInOutPipe = nil): unsigned; overload;
+    function write(const data: aString; provider: unavclInOutPipe = nil): uint; overload;
     {*
 	If you did not specify the consumer for the pipe, you must call
 	this method periodically to access the stream output data.
@@ -355,7 +355,7 @@ type
 
 	@return Number of bytes actually read.
     }
-    function read(data: pointer; len: unsigned): unsigned; overload;
+    function read(data: pointer; len: uint): uint; overload;
     {*
 	Reads data as a AnsiString.
 
@@ -371,7 +371,7 @@ type
     {*
 	Closes the pipe.
     }
-    procedure close(timeout: int = 0; provider: unavclInOutPipe = nil);
+    procedure close(timeout: tTimeout = 0; provider: unavclInOutPipe = nil);
     {*
 	Adds new provider for the pipe.
 
@@ -427,11 +427,11 @@ type
     {*
 	Returns data written into but not yet processed by the pipe.
     }
-    property availableDataLenIn: unsigned index 0 read getAvailableDataLen;
+    property availableDataLenIn: uint index 0 read getAvailableDataLen;
     {*
 	Returns data size available to read from the pipe.
     }
-    property availableDataLenOut: unsigned index 1 read getAvailableDataLen;
+    property availableDataLenOut: uint index 1 read getAvailableDataLen;
     {*
 	Number of bytes received by the pipe.
     }
@@ -443,7 +443,7 @@ type
     {*
 	Specifies whether the component would perform any data processing.
     }
-    property enableDataProcessing: bool read f_enableDP write setEnableDP default True;
+    property enableDataProcessing: boolean read f_enableDP write setEnableDP default True;
     {*
 	Current position in stream (if applicable).
     }
@@ -459,7 +459,7 @@ type
 
 	@return Consumer of a pipe.
     }
-    property consumers[index: unsigned]: unavclInOutPipe read getConsumer;
+    property consumers[index: int]: unavclInOutPipe read getConsumer;
     {*
 	Returns provider.
 
@@ -467,7 +467,7 @@ type
 
 	@return Provider of a pipe.
     }
-    property providers[index: unsigned]: unavclInOutPipe read getProvider;
+    property providers[index: int]: unavclInOutPipe read getProvider;
     {*
 	Number of consumers.
     }
@@ -490,7 +490,7 @@ type
 	All other properties should be set to proper values before activation.
 	Set to False to deactivate (close) the component.
     }
-    property active: bool read getActive write setActive default false;
+    property active: boolean read getActive write setActive default false;
     {*
       Specifies the consumer of component.
       When set, specified consumer will receive all the stream data
@@ -526,19 +526,19 @@ type
       can assign PCM format for linked <A href="../../unaVC_wave/unavclWaveOutDevice.html">unavclWaveOutDevice</A>
       component, so WAVe file will be played back correctly.
     }
-    property isFormatProvider: bool read f_isFormatProvider write f_isFormatProvider default false;
+    property isFormatProvider: boolean read f_isFormatProvider write f_isFormatProvider default false;
     {*
        When True tells the component it must activate consumer (if any)
        before activating itself. Same applies for deactivation.
 
        <P>When False the component does not change the consumer state.
     }
-    property autoActivate: bool read f_autoActivate write f_autoActivate default true;
+    property autoActivate: boolean read f_autoActivate write f_autoActivate default true;
     {*
 	Data will be placed to proxy thread before processing.
 	This allows component to return from the write() method as soon as possible.
     }
-    property enableDataProxy: bool read f_enableDataProxy write f_enableDataProxy default false;
+    property enableDataProxy: boolean read f_enableDataProxy write f_enableDataProxy default false;
     //
     // -- EVENTS --
     //
@@ -589,10 +589,10 @@ type
   //
   punaDataProxyChunk = ^tunaDataProxyChunk;
   tunaDataProxyChunk = record
-    r_len: int;			// chunk data size
+    r_len: uint;		// chunk data size
     r_provider: pointer;	// not a gtreat idea of storing pointers, but..
     r_data: pointer;		// data itself
-    r_dataSize: unsigned;	// size of data buffer allocated so far
+    r_dataSize: uint;   	// size of data buffer allocated so far
 {$IFDEF DEBUG }
     r_leadIn: uint64;		// time when buffer was filled
 {$ENDIF DEBUG }
@@ -619,9 +619,10 @@ type
     //
     f_dataEvent: unaEvent;
     //
-    function write(data: pointer; len: unsigned; provider: unavclInOutPipe = nil): unsigned; overload;
+    function write(data: pointer; len: uint; provider: unavclInOutPipe = nil): uint; overload;
   protected
     function execute(globalIndex: unsigned): int; override;
+    //
     procedure startIn(); override;
   public
     constructor create(owner: unavclInOutPipe);
@@ -722,7 +723,7 @@ begin
 end;
 
 // --  --
-function unaDataProxyThread.write(data: pointer; len: unsigned; provider: unavclInOutPipe): unsigned;
+function unaDataProxyThread.write(data: pointer; len: uint; provider: unavclInOutPipe): uint;
 var
   newHead: unsigned;
 {$IFDEF DEBUG }
@@ -801,9 +802,9 @@ begin
   inherited;
   //
   f_autoActivate := true;
-  f_consumers := unaObjectList.create(false);
+  f_consumers := unaObjectList.create(false, true);
   f_consumers.timeOut := 300;
-  f_providers := unaObjectList.create(false);
+  f_providers := unaObjectList.create(false, true);
   f_providers.timeOut := 300;
   //
   f_enableDP := true;
@@ -814,7 +815,7 @@ begin
 end;
 
 // --  --
-function unavclInOutPipe.applyFormat(data: pointer; len: unsigned; provider: unavclInOutPipe; restoreActiveState: bool): bool;
+function unavclInOutPipe.applyFormat(data: pointer; len: uint; provider: unavclInOutPipe; restoreActiveState: bool): bool;
 var
   allowFC: bool;
 begin
@@ -834,7 +835,7 @@ begin
 end;
 
 // --  --
-function unavclInOutPipe.applyFormatOnConsumers(data: pointer; len: unsigned; restoreActiveState: bool; provider: unavclInOutPipe): bool;
+function unavclInOutPipe.applyFormatOnConsumers(data: pointer; len: uint; restoreActiveState: bool; provider: unavclInOutPipe): bool;
 var
   i: int;
 begin
@@ -882,7 +883,7 @@ begin
 end;
 
 // --  --
-function unavclInOutPipe.checkIfAutoActivate(value: bool; timeout: unsigned): bool;
+function unavclInOutPipe.checkIfAutoActivate(value: bool; timeout: tTimeout): bool;
 var
   i: int;
 begin
@@ -910,9 +911,9 @@ end;
 // --  --
 function unavclInOutPipe.checkIfFormatProvider(restoreActiveState: bool): bool;
 var
-  len: unsigned;
+  len: uint;
   format: pointer;
-  formatCRC: unsigned;
+  formatCRC: uint;
 begin
   result := isFormatProvider;
   //
@@ -942,7 +943,7 @@ begin
 end;
 
 // --  --
-procedure unavclInOutPipe.close(timeout: int; provider: unavclInOutPipe);
+procedure unavclInOutPipe.close(timeout: tTimeout; provider: unavclInOutPipe);
 begin
   doSetActive(false, choice(0 = timeout, 3000, timeout), provider);
 end;
@@ -954,6 +955,9 @@ var
 begin
   if ((nil <> consumer) and lockList_r(f_consumers, false, 1005 {$IFDEF DEBUG }, '.doAddConsumer()'{$ENDIF DEBUG })) then begin
     //
+  {$IFDEF LOG_UNAVC_PIPE_INFOS }
+      logMessage(name + ':' + className + '.doAddConsumer(' + consumer.name + ':' + consumer.className + ')');
+  {$ENDIF LOG_UNAVC_PIPE_INFOS }
     try
       //
       if (0 > getConsumerIndex(consumer)) then begin
@@ -991,6 +995,9 @@ function unavclInOutPipe.doAddProvider(provider: unavclInOutPipe): bool;
 begin
   if ((nil <> provider) and lockList_r(f_providers, false, 1007 {$IFDEF DEBUG }, '.doAddProvider()'{$ENDIF DEBUG })) then begin
     //
+  {$IFDEF LOG_UNAVC_PIPE_INFOS }
+      logMessage(name + ':' + className + '.doAddProvider(' + provider.name + ':' + provider.className + ')');
+  {$ENDIF LOG_UNAVC_PIPE_INFOS }
     try
       if (0 > getProviderIndex(provider)) then
 	f_providers.add(provider);
@@ -1008,7 +1015,7 @@ begin
 end;
 
 // --  --
-procedure unavclInOutPipe.doBeforeAfterFC(doBefore: bool; provider: unavclInOutPipe; data: pointer; len: unsigned; out allowFC: bool);
+procedure unavclInOutPipe.doBeforeAfterFC(doBefore: bool; provider: unavclInOutPipe; data: pointer; len: uint; out allowFC: bool);
 begin
   if (doBefore) then begin
     //
@@ -1079,6 +1086,10 @@ procedure unavclInOutPipe.doRemoveConsumer(consumer: unavclInOutPipe);
 begin
   if (nil <> consumer) then begin
     //
+{$IFDEF LOG_UNAVC_PIPE_INFOS }
+    logMessage(name + ':' + className + '.doRemoveConsumer(' + consumer.name + ':' + consumer.className + ')');
+{$ENDIF LOG_UNAVC_PIPE_INFOS }
+    //
     f_consumers.removeItem(consumer);
     //
     if (0 <= consumer.getProviderIndex(self)) then
@@ -1091,6 +1102,10 @@ procedure unavclInOutPipe.doRemoveProvider(provider: unavclInOutPipe);
 begin
   if (nil <> provider) then begin
     //
+{$IFDEF LOG_UNAVC_PIPE_INFOS }
+    logMessage(name + ':' + className + '.doRemoveProvider(' + provider.name + ':' + provider.className + ')');
+{$ENDIF LOG_UNAVC_PIPE_INFOS }
+    //
     f_providers.removeItem(provider);
     //
     if (0 <= provider.getConsumerIndex(self)) then
@@ -1099,11 +1114,10 @@ begin
 end;
 
 // --  --
-function unavclInOutPipe.doSetActive(value: bool; timeout: unsigned; provider: unavclInOutPipe): bool;
+function unavclInOutPipe.doSetActive(value: bool; timeout: tTimeout; provider: unavclInOutPipe): bool;
 var
   notReal: bool;
   activeState: int;
-  activeStateIsSame: bool;
   entryMark: uint64;
   {$IFDEF LOG_UNAVC_PIPE_INFOEX }
   provName: string;
@@ -1134,52 +1148,7 @@ begin
     //
     repeat
       //
-{* not compatible with Win95
-
-      if (nil = InterlockedCompareExchange(pointer(f_activateState), pointer(activeState), pointer(0))) then begin
-*}
-      asm
-		push 	eax
-		push	edx
-		push	ecx
-		//
-		sub	eax, eax		// clear eax
-		mov	edx, activeState	// what we want it to be
-		mov	ecx, self
-		//
-{$IFDEF __BEFORE_D5__ }
-		cmp	dword ptr [ecx + f_dataAvail - 4], $0FC
-{$ELSE }
-		cmp	dword ptr [ecx + f_dataAvail - 8], $100
-{$ENDIF __BEFORE_D5__ }
-		jbe	@okToEnter
-		//
-	lock	cmpxchg  [ecx + f_activateState], edx
-						//
-						// eax = 0
-						//
-						// if (eax = f_activateState) {
-						//   ZF = 1;
-						//   f_activateState = edx;
-						// }
-						// else {
-						//   ZF = 0;
-						//   eax := f_activateState;
-						// }
-		//
-		mov	activeStateIsSame, bool(true)
-		jz	@okToEnter		// OK, we can change active now
-
-		mov	activeStateIsSame, bool(false)
-
-
-	@okToEnter:
-		pop	ecx
-		pop	edx
-		pop	eax
-      end;
-      //
-      if (activeStateIsSame) then begin
+      if ((0 = InterlockedCompareExchange(f_activateState, activeState, 0))) then begin
 	//
 	if (enter(true, timeout)) then begin
 	  try
@@ -1253,7 +1222,7 @@ begin
       else
 	Sleep(1);
       //
-    until ((timeout < timeElapsed32U(entryMark)) or (getActive() = value));
+    until ((timeout < tTimeout(timeElapsed32U(entryMark))) or (getActive() = value));
   end;
   //
   try
@@ -1267,20 +1236,20 @@ begin
 end;
 
 // --  --
-procedure unavclInOutPipe.doSetEnableDP(value: bool);
+procedure unavclInOutPipe.doSetEnableDP(value: boolean);
 begin
   if (enableDataProcessing <> value) then
     f_enableDP := value;
 end;
 
 // --  --
-function unavclInOutPipe.enter(ro: bool; timeout: unsigned): bool;
+function unavclInOutPipe.enter(ro: bool; timeout: tTimeout): bool;
 begin
   result := f_lockObj.acquire(ro, timeout, false {$IFDEF DEBUG }, '.enter()' {$ENDIF DEBUG });
 end;
 
 // --  --
-function unavclInOutPipe.getActive(): bool;
+function unavclInOutPipe.getActive(): boolean;
 begin
   if ((csLoading in componentState) or (csDesigning in componentState)) then
     result := f_shouldActivate
@@ -1289,7 +1258,7 @@ begin
 end;
 
 // --  --
-function unavclInOutPipe.getConsumer(index: unsigned): unavclInOutPipe;
+function unavclInOutPipe.getConsumer(index: int): unavclInOutPipe;
 begin
   result := f_consumers[index]
 end;
@@ -1316,7 +1285,7 @@ begin
 end;
 
 // --  --
-function unavclInOutPipe.getFormatExchangeData(out data: pointer): unsigned;
+function unavclInOutPipe.getFormatExchangeData(out data: pointer): uint;
 begin
   result := 0;
   data := nil;
@@ -1330,7 +1299,7 @@ begin
 end;
 
 // --  --
-function unavclInOutPipe.getProvider(index: unsigned): unavclInOutPipe;
+function unavclInOutPipe.getProvider(index: int): unavclInOutPipe;
 begin
   result := f_providers[index]
 end;
@@ -1406,7 +1375,7 @@ begin
 	//
 	i := getProviderIndex(component as unavclInOutPipe);
 	if (0 <= i) then
-	  f_providers.removeByIndex(i)
+	  f_providers.removeByIndex(i);
       finally
 	unlockListWO(f_providers);
       end;
@@ -1490,12 +1459,11 @@ begin
 end;
 
 // --  --
-function unavclInOutPipe.onNewData(data: pointer; len: unsigned; provider: pointer): bool;
+function unavclInOutPipe.onNewData(data: pointer; len: uint; provider: pointer): bool;
 var
   i: int;
 begin
   result := (nil <> data) and (0 < len);
-  //
   if (result) then begin
     //
     triggerDataDSPEvent(data, len);
@@ -1542,7 +1510,7 @@ begin
 end;
 
 // --  --
-function unavclInOutPipe.read(data: pointer; len: unsigned): unsigned;
+function unavclInOutPipe.read(data: pointer; len: uint): uint;
 begin
   result := doRead(data, len);
 end;
@@ -1550,7 +1518,7 @@ end;
 // --  --
 function unavclInOutPipe.read(): aString;
 var
-  len: unsigned;
+  len: uint;
 begin
   len := availableDataLenIn;
   setLength(result, len);
@@ -1574,7 +1542,7 @@ begin
 end;
 
 // --  --
-procedure unavclInOutPipe.setActive(value: bool);
+procedure unavclInOutPipe.setActive(value: boolean);
 begin
   if (nil <> self) then
     doSetActive(value);
@@ -1600,27 +1568,27 @@ begin
 end;
 
 // --  --
-procedure unavclInOutPipe.setEnableDP(value: bool);
+procedure unavclInOutPipe.setEnableDP(value: boolean);
 begin
   doSetEnableDP(value);
 end;
 
 // --  --
-procedure unavclInOutPipe.triggerDataAvailEvent(data: pointer; len: unsigned);
+procedure unavclInOutPipe.triggerDataAvailEvent(data: pointer; len: uint);
 begin
   if (assigned(f_dataAvail)) then
     f_dataAvail(self, data, len);
 end;
 
 // --  --
-procedure unavclInOutPipe.triggerDataDSPEvent(data: pointer; len: unsigned);
+procedure unavclInOutPipe.triggerDataDSPEvent(data: pointer; len: uint);
 begin
   if (assigned(f_dataDSP)) then
     f_dataDSP(self, data, len);
 end;
 
 // --  --
-function unavclInOutPipe.write(data: pointer; len: unsigned; provider: unavclInOutPipe): unsigned;
+function unavclInOutPipe.write(data: pointer; len: uint; provider: unavclInOutPipe): uint;
 begin
   if ((nil <> data) and (0 < len)) then begin
     //
@@ -1651,7 +1619,7 @@ begin
 end;
 
 // --  --
-function unavclInOutPipe.write(const data: aString; provider: unavclInOutPipe): unsigned;
+function unavclInOutPipe.write(const data: aString; provider: unavclInOutPipe): uint;
 begin
   if (0 < length(data)) then
     result := write(@data[1], length(data), provider)
@@ -1661,9 +1629,13 @@ end;
 
 
 initialization
-
 {$IFDEF LOG_UNAVC_PIPE_INFOS }
-  logMessage('unaVC_pipe - DEBUG is defined.');
+  logMessage('unaVC_pipe - initialization.');
+{$ENDIF LOG_UNAVC_PIPE_INFOS }
+
+finalization
+{$IFDEF LOG_UNAVC_PIPE_INFOS }
+  logMessage('unaVC_pipe - finalization.');
 {$ENDIF LOG_UNAVC_PIPE_INFOS }
 
 end.

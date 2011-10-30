@@ -74,7 +74,7 @@ type
     f_delayStep: int;
     //
     procedure dafControl(cmd: int);
-    procedure myOnDA(sender: tObject; data: pointer; len: unsigned);
+    procedure myOnDA(sender: tObject; data: pointer; len: uint);
   public
     { Public declarations }
   end;
@@ -103,6 +103,10 @@ begin
   c_defChunksPerSecond := 50;			// 20 ms chunks
   //c_defPlaybackChunksAheadNumber := 0;		// no delay
   //
+  {$IFDEF __AFTER_D7__ }
+  doubleBuffered := True;
+  {$ENDIF __AFTER_D7__ }
+  //
   f_delayStep := 1000 div c_defChunksPerSecond;
   //
   f_config := unaIniFile.create();
@@ -116,6 +120,7 @@ procedure Tc_form_main.formCloseQuery(sender: tObject; var canClose: boolean);
 begin
   c_timer_update.enabled := false;
   //
+  c_fftControl_main.active := false;
   f_feedback.stop();
   //
   f_config.setValue('waveIn.deviceIndex', c_cb_waveIn.itemIndex);
@@ -190,7 +195,7 @@ begin
 
     1: begin
       //
-      c_fftControl_main.fft.fft.setFormat(f_feedback.waveIn.dstFormatExt.format.wBitsPerSample, f_feedback.waveIn.dstFormatExt.format.nChannels);
+      c_fftControl_main.fft.fft.setFormat(f_feedback.waveIn.dstFormatExt.format.nSamplesPerSec, f_feedback.waveIn.dstFormatExt.format.wBitsPerSample, f_feedback.waveIn.dstFormatExt.format.nChannels);
       c_fftControl_main.active := true;
       //
       f_feedback.start();
@@ -247,7 +252,7 @@ begin
 end;
 
 // --  --
-procedure Tc_form_main.myOnDA(sender: tObject; data: pointer; len: unsigned);
+procedure Tc_form_main.myOnDA(sender: tObject; data: pointer; len: uint);
 begin
   c_fftControl_main.fft.write(data, len);
 end;

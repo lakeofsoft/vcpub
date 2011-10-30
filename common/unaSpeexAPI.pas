@@ -1435,13 +1435,13 @@ type
     f_st_resampler: SpeexResamplerState;
     //
     function getLib(): pSpeexDSPLibrary_proc;
-    function dsp_getBool(index: int): bool;
-    procedure dsp_setBool(index: int; value: bool);
+    function dsp_getBool(index: integer): bool;
+    procedure dsp_setBool(index: integer; value: bool);
     //
     function getAcgLvl(): float;
     function getAcgLdn(): float;
   protected
-    function lock(timeout: int = 1000): bool;
+    function lock(timeout: tTimeout = 1000): bool;
     procedure unlock();
   public
     {*
@@ -1484,8 +1484,8 @@ type
 	@param outBufUsed number of samples written into outBuf
 	@return number of samples read from srcFrame
     }
-    function resample(srcFrame: pspx_int16_t; var srcSamples: uint; srcSamplingRate: int; outBuf: pspx_int16_t; var outBufUsed: uint): uint; overload;
-    function resample(srcFrame: pspx_int16_t; var srcSamples: uint; outBuf: pspx_int16_t; outSamplingRate: int; var outBufUsed: uint): uint; overload;
+    function resampleSrc(srcFrame: pspx_int16_t; var srcSamples: spx_uint32_t; srcSamplingRate: int; outBuf: pspx_int16_t; var outBufUsed: spx_uint32_t): uint;
+    function resampleDst(srcFrame: pspx_int16_t; var srcSamples: spx_uint32_t; outBuf: pspx_int16_t; outSamplingRate: int; var outBufUsed: spx_uint32_t): uint;
     {*
     }
     procedure echo_playback(frame: pspx_int16_t);
@@ -1576,7 +1576,7 @@ type
     procedure setMode(value: int);
     procedure setActive(value: bool);
   protected
-    function enter(timeout: unsigned = 3000): bool;
+    function enter(timeout: tTimeout = 3000): bool;
     procedure leave();
     //
     procedure afterOpen(); virtual;
@@ -1699,7 +1699,7 @@ type
 	Called when new block of encoded data is available.
 	numFrames is number of frames encoded in buffer.
     }
-    procedure encoder_write(sampleDelta: unsigned; data: pointer; size: int; numFrames: int); virtual;
+    procedure encoder_write(sampleDelta: uint; data: pointer; size: uint; numFrames: uint); virtual;
   public
     procedure AfterConstruction(); override;
     {*
@@ -1876,7 +1876,7 @@ begin
 	r_lib_ctl         := GetProcAddress(r_module, 'speex_lib_ctl');
 	//
 	r_moduleRefCount := 1;	// also, makes it non-zero (see below mscand)
-	if (nil <> mscand(@speexProc, sizeof(speexProc) shr 2, 0)) then begin
+	if (nil <> mscanp(@speexProc, nil, sizeof(speexProc))) then begin
 	  //
 	  // something is missing, close the library
 	  FreeLibrary(r_module);
@@ -1980,7 +1980,7 @@ begin
 	r_speex_resampler_strerror	      	:= GetProcAddress(r_module, 'speex_resampler_strerror');
 	//
 	r_moduleRefCount := 1;	// also, makes it non-zero (see below mscand)
-	if (nil <> mscand(@speexDSPProc, sizeof(speexDSPProc) shr 2, 0)) then begin
+	if (nil <> mscanp(@speexDSPProc, nil, sizeof(speexDSPProc))) then begin
 	  //
 	  // something is missing, close the library
 	  FreeLibrary(r_module);
@@ -2107,7 +2107,7 @@ begin
 end;
 
 // --  --
-function unaSpeexCoder.enter(timeout: unsigned): bool;
+function unaSpeexCoder.enter(timeout: tTimeout): bool;
 begin
   result := lib.libOK and acquire(false, timeout, false {$IFDEF DEBUG }, '.enter()' {$ENDIF DEBUG });
 end;
@@ -2373,7 +2373,7 @@ begin
 end;
 
 // --  --
-procedure unaSpeexEncoder.encoder_write(sampleDelta: unsigned; data: pointer; size: int; numFrames: int);
+procedure unaSpeexEncoder.encoder_write(sampleDelta: uint; data: pointer; size: uint; numFrames: uint);
 begin
   // override this method to get notified of new data
 end;
@@ -2788,7 +2788,7 @@ begin
 end;
 
 // --  --
-function unaSpeexDSP.dsp_getBool(index: int): bool;
+function unaSpeexDSP.dsp_getBool(index: integer): bool;
 var
   r: spx_int32_t;
 begin
@@ -2835,7 +2835,7 @@ begin
 end;
 
 // --  --
-procedure unaSpeexDSP.dsp_setBool(index: int; value: bool);
+procedure unaSpeexDSP.dsp_setBool(index: integer; value: bool);
 var
   r: spx_int32_t;
 begin
@@ -2893,7 +2893,7 @@ begin
 end;
 
 // --  --
-function unaSpeexDSP.lock(timeout: int): bool;
+function unaSpeexDSP.lock(timeout: tTimeout): bool;
 begin
   result := acquire(false, timeout, false {$IFDEF DEBUG }, '.lock()' {$ENDIF DEBUG });
 end;
@@ -2958,7 +2958,7 @@ begin
 end;
 
 // --  --
-function unaSpeexDSP.resample(srcFrame: pspx_int16_t; var srcSamples: uint; outBuf: pspx_int16_t; outSamplingRate: int; var outBufUsed: uint): uint;
+function unaSpeexDSP.resampleDst(srcFrame: pspx_int16_t; var srcSamples: spx_uint32_t; outBuf: pspx_int16_t; outSamplingRate: int; var outBufUsed: spx_uint32_t): uint;
 var
   err: int;
 begin
@@ -2993,7 +2993,7 @@ begin
 end;
 
 // --  --
-function unaSpeexDSP.resample(srcFrame: pspx_int16_t; var srcSamples: uint; srcSamplingRate: int; outBuf: pspx_int16_t; var outBufUsed: uint): uint;
+function unaSpeexDSP.resampleSrc(srcFrame: pspx_int16_t; var srcSamples: spx_uint32_t; srcSamplingRate: int; outBuf: pspx_int16_t; var outBufUsed: spx_uint32_t): uint;
 var
   err: int;
 begin

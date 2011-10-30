@@ -94,9 +94,9 @@ begin
       c_edit_2.visible := true;
       c_edit_3.visible := true;
       //
-      c_edit_1.text := string(formatTemplate('%EQ2B.FRQ%', aString(f_params), false));
-      c_edit_2.text := string(formatTemplate('%EQ2B.Q%', aString(f_params), false));
-      c_edit_3.text := string(formatTemplate('%EQ2B.GAIN%', aString(f_params), false));
+      c_edit_1.text := formatTemplate('%EQ2B.FRQ%', f_params, false);
+      c_edit_2.text := formatTemplate('%EQ2B.Q%', f_params, false);
+      c_edit_3.text := formatTemplate('%EQ2B.GAIN%', f_params, false);
     end;
 
     1: begin	// LD
@@ -117,8 +117,8 @@ begin
       c_edit_2.visible := true;
       c_edit_3.visible := false;
       //
-      c_edit_1.text := string(formatTemplate('%LD.ATT%', aString(f_params), false));
-      c_edit_2.text := string(formatTemplate('%LD.REL%', aString(f_params), false));
+      c_edit_1.text := formatTemplate('%LD.ATT%', f_params, false);
+      c_edit_2.text := formatTemplate('%LD.REL%', f_params, false);
     end;
 
     2: begin	// DYNPROC
@@ -139,8 +139,8 @@ begin
       c_edit_2.visible := true;
       c_edit_3.visible := false;
       //
-      c_edit_1.text := string(formatTemplate('%LD.ATT%', aString(f_params), false));
-      c_edit_2.text := string(formatTemplate('%LD.REL%', aString(f_params), false));
+      c_edit_1.text := formatTemplate('%LD.ATT%', f_params, false);
+      c_edit_2.text := formatTemplate('%LD.REL%', f_params, false);
     end;
 
     3: begin	// SPEECHPROC
@@ -160,9 +160,9 @@ begin
       c_edit_2.visible := true;
       c_edit_3.visible := true;
       //
-      c_edit_1.text := string(formatTemplate('%LD.ATT%', aString(f_params), false));
-      c_edit_2.text := string(formatTemplate('%LD.REL%', aString(f_params), false));
-      c_edit_3.text := string(formatTemplate('%SP.TRH%', aString(f_params), false));
+      c_edit_1.text := formatTemplate('%LD.ATT%', f_params, false);
+      c_edit_2.text := formatTemplate('%LD.REL%', f_params, false);
+      c_edit_3.text := formatTemplate('%SP.TRH%', f_params, false);
     end;
 
     4: begin	// ND
@@ -177,7 +177,7 @@ begin
       c_edit_2.visible := false;
       c_edit_3.visible := false;
       //
-      c_edit_1.text := string(formatTemplate('%ND.TRH%', aString(f_params), false));
+      c_edit_1.text := formatTemplate('%ND.TRH%', f_params, false);
     end;
 
     5: begin	// EQMB
@@ -192,7 +192,7 @@ begin
       c_edit_2.visible := false;
       c_edit_3.visible := false;
       //
-      c_edit_1.text := string(formatTemplate('%EQMB.NBA%', aString(f_params), false));
+      c_edit_1.text := formatTemplate('%EQMB.NBA%', f_params, false);
     end;
 
     6: begin	// MBSP
@@ -207,7 +207,7 @@ begin
       c_edit_2.visible := false;
       c_edit_3.visible := false;
       //
-      c_edit_1.text := string(formatTemplate('%MBSP.NBA%', aString(f_params), false));
+      c_edit_1.text := formatTemplate('%MBSP.NBA%', f_params, false);
     end;
 
     else begin

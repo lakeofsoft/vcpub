@@ -124,7 +124,7 @@ type
     }
     function doEncode(data: pointer; nBytes: unsigned; out bytesUsed: unsigned): UNA_ENCODER_ERR; virtual; abstract;
     //
-    function enter(timeout: unsigned): bool;
+    function enter(timeout: tTimeout): bool;
     //
     function leave(): bool;
   public
@@ -907,7 +907,7 @@ type
   // --  --
   unaBassStreamDecoder = class(unaThread)
   private
-    f_dataTimeout: unsigned;
+    f_dataTimeout: tTimeout;
     f_bassStream: unaBassStream;
     f_dataStream: unaAbstractStream;
     f_onAS: tUnaBassApplySampling;
@@ -919,13 +919,13 @@ type
     procedure applySampling(rate, bits, channels: unsigned); virtual;
     procedure dataAvailable(data: pointer; size: unsigned); virtual;
   public
-    constructor create(bassStream: unaBassStream; dataStream: unaAbstractStream; dataTimeout: int = 1000);
+    constructor create(bassStream: unaBassStream; dataStream: unaAbstractStream; dataTimeout: tTimeout = 1000);
     procedure BeforeDestruction(); override;
     //
     property onApplySampling: tUnaBassApplySampling read f_onAS write f_onAS;
     property onDataAvailable: tUnaBassDataAvailable read f_onDA write f_onDA;
     //
-    property dataTimeout: unsigned read f_dataTimeout write f_dataTimeout;	// ms
+    property dataTimeout: tTimeout read f_dataTimeout write f_dataTimeout;	// ms
   end;
 
 
@@ -1380,7 +1380,7 @@ begin
 end;
 
 // --  --
-function unaAbstractEncoder.enter(timeout: unsigned): bool;
+function unaAbstractEncoder.enter(timeout: tTimeout): bool;
 begin
   result := acquire(false, timeout);
 end;
@@ -3401,7 +3401,7 @@ begin
 {$IFDEF BASS_AFTER_20 }
     // v 2.1
     result := f_bass.f_bass.r_channelSetPosition(handle, order or (row shl 16));
-    result := result and f_bass.f_bass.r_channelSetFlags(handle, flags or choice(reset, BASS_MUSIC_POSRESETEX , DWORD(0)));
+    result := result and f_bass.f_bass.r_channelSetFlags( handle, int(flags) or choice(reset, BASS_MUSIC_POSRESETEX, int(0)) );
     //
     result := result and f_bass.f_bass.r_channelPlay(handle, false);
 {$ELSE }
@@ -3420,7 +3420,7 @@ begin
 {$IFDEF BASS_AFTER_20 }
     // v 2.1
     result := f_bass.f_bass.r_channelSetPosition(handle, DWORD(position or ($FFFF shl 16)));
-    result := result and f_bass.f_bass.r_channelSetFlags(handle, flags or choice(reset, BASS_MUSIC_POSRESETEX , DWORD(0)));
+    result := result and f_bass.f_bass.r_channelSetFlags(handle, int(flags) or choice(reset, BASS_MUSIC_POSRESETEX, int(0)));
     //
     result := result and f_bass.f_bass.r_channelPlay(handle, false);
 {$ELSE }
@@ -4390,7 +4390,7 @@ begin
 end;
 
 // --  --
-constructor unaBassStreamDecoder.create(bassStream: unaBassStream; dataStream: unaAbstractStream; dataTimeout: int);
+constructor unaBassStreamDecoder.create(bassStream: unaBassStream; dataStream: unaAbstractStream; dataTimeout: tTimeout);
 begin
   f_bassStream := bassStream;
   f_dataStream := dataStream;
@@ -4422,7 +4422,10 @@ begin
   if (not shouldStop) then
 {$IFDEF BASS_AFTER_18 }
 {$IFDEF CPU64 }
-    exit;
+    begin
+      result := 0;
+      exit;
+    end;
 {$ELSE }
     f_bassStream.createStream(0, BASS_STREAM_DECODE, @bassStreamFileProc, DWORD(self));
 {$ENDIF CPU64 }

@@ -61,7 +61,7 @@ const
 type
   pWAVEFILTER = ^WAVEFILTER;
   {$EXTERNALSYM WAVEFILTER}
-  WAVEFILTER = packed record
+  WAVEFILTER = record
     cbStruct   : DWORD;        // Size of the filter in bytes
     dwFilterTag: DWORD;        // filter type
     fdwFilter  : DWORD;        // Flags for the filter (Universal Dfns)
@@ -155,15 +155,15 @@ const
 	directly--general errors are defined as MMSYSERR_*.
   }
   {$EXTERNALSYM ACMERR_BASE }
-  ACMERR_BASE         	= (512);
+  ACMERR_BASE         	= 512;
   {$EXTERNALSYM ACMERR_NOTPOSSIBLE }
-  ACMERR_NOTPOSSIBLE	= (ACMERR_BASE + 0);
+  ACMERR_NOTPOSSIBLE	= ACMERR_BASE + 0;
   {$EXTERNALSYM ACMERR_BUSY }
-  ACMERR_BUSY         	= (ACMERR_BASE + 1);
+  ACMERR_BUSY         	= ACMERR_BASE + 1;
   {$EXTERNALSYM ACMERR_UNPREPARED }
-  ACMERR_UNPREPARED   	= (ACMERR_BASE + 2);
+  ACMERR_UNPREPARED   	= ACMERR_BASE + 2;
   {$EXTERNALSYM ACMERR_CANCELED }
-  ACMERR_CANCELED     	= (ACMERR_BASE + 3);
+  ACMERR_CANCELED     	= ACMERR_BASE + 3;
 
   {
 	ACM Window Messages
@@ -175,11 +175,11 @@ const
 	mmsystem.
   }
   {$EXTERNALSYM MM_ACM_OPEN }
-  MM_ACM_OPEN        	= (MM_STREAM_OPEN);  // conversion callback messages
+  MM_ACM_OPEN        	= MM_STREAM_OPEN;  // conversion callback messages
   {$EXTERNALSYM MM_ACM_CLOSE }
-  MM_ACM_CLOSE       	= (MM_STREAM_CLOSE);
+  MM_ACM_CLOSE       	= MM_STREAM_CLOSE;
   {$EXTERNALSYM MM_ACM_DONE }
-  MM_ACM_DONE		= (MM_STREAM_DONE);
+  MM_ACM_DONE		= MM_STREAM_DONE;
 
   {
 	the ACM version is a 32 bit number that is broken into three parts as
@@ -313,7 +313,7 @@ const
 type
 //
 //
-  ACMDRVSTREAMINSTANCE = packed record
+  ACMDRVSTREAMINSTANCE = record
     cbStruct  : DWORD;
     pwfxSrc   : PWAVEFORMATEX;
     pwfxDst   : PWAVEFORMATEX;
@@ -330,7 +330,7 @@ type
 //  structure for ACMDM_STREAM_SIZE message
 //
 //
-  ACMDRVSTREAMSIZE = packed record
+  ACMDRVSTREAMSIZE = record
     cbStruct:    DWORD;
     fdwSize:     DWORD;
     cbSrcLength: DWORD;
@@ -343,18 +343,18 @@ type
 //  defines more information for the driver writing convenience
 //
   PACMDRVSTREAMHEADER = ^ACMDRVSTREAMHEADER;
-  ACMDRVSTREAMHEADER = packed record
+  ACMDRVSTREAMHEADER = record
     cbStruct:        DWORD;
     fdwStatus:       DWORD;
-    dwUser:          DWORD;
+    dwUser:          DWORD_PTR;
     pbSrc:           PBYTE;
     cbSrcLength:     DWORD;
     cbSrcLengthUsed: DWORD;
-    dwSrcUser:       DWORD;
+    dwSrcUser:       DWORD_PTR;
     pbDst:           PBYTE;
     cbDstLength:     DWORD;
     cbDstLengthUsed: DWORD;
-    dwDstUser:       DWORD;
+    dwDstUser:       DWORD_PTR;
 
     fdwConvert:      DWORD;               // flags passed from convert func
     padshNext:       PACMDRVSTREAMHEADER; // for async driver queueing
@@ -381,7 +381,7 @@ type
 //  structure containing the information for the ACMDM_FORMAT_SUGGEST message
 //
 //
-  ACMDRVFORMATSUGGEST = packed record
+  ACMDRVFORMATSUGGEST = record
     cbStruct: DWORD;		// sizeof(ACMDRVFORMATSUGGEST)
     fdwSuggest: DWORD;		// Suggest flags
     pwfxSrc: PWAVEFORMATEX;	// Source Format
@@ -459,7 +459,7 @@ const
 type
   pACMDRIVERDETAILSA = ^ACMDRIVERDETAILSA;
   {$EXTERNALSYM ACMDRIVERDETAILSA }
-  ACMDRIVERDETAILSA = packed record
+  ACMDRIVERDETAILSA = record
     cbStruct      : DWORD;              // number of valid bytes in structure
     fccType       : FOURCC;             // compressor type 'audc'
     fccComp       : FOURCC;             // sub-type (not used; reserved)
@@ -480,7 +480,7 @@ type
 
   pACMDRIVERDETAILSW = ^ACMDRIVERDETAILSW;
   {$EXTERNALSYM ACMDRIVERDETAILSW }
-  ACMDRIVERDETAILSW = packed record
+  ACMDRIVERDETAILSW = record
     cbStruct      : DWORD;              // number of valid bytes in structure
     fccType       : FOURCC;             // compressor type 'audc'
     fccComp       : FOURCC;             // sub-type (not used; reserved)
@@ -593,7 +593,7 @@ const
 type
   pACMFORMATTAGDETAILSA = ^ACMFORMATTAGDETAILSA;
   {$EXTERNALSYM ACMFORMATTAGDETAILSA }
-  ACMFORMATTAGDETAILSA = packed record
+  ACMFORMATTAGDETAILSA = record
     cbStruct         : DWORD;
     dwFormatTagIndex : DWORD;
     dwFormatTag      : DWORD;
@@ -605,7 +605,7 @@ type
 
   pACMFORMATTAGDETAILSW = ^ACMFORMATTAGDETAILSW;
   {$EXTERNALSYM ACMFORMATTAGDETAILSW }
-  ACMFORMATTAGDETAILSW = packed record
+  ACMFORMATTAGDETAILSW = record
     cbStruct         : DWORD;
     dwFormatTagIndex : DWORD;
     dwFormatTag      : DWORD;
@@ -662,7 +662,7 @@ const
 type
   pACMFORMATDETAILSA = ^ACMFORMATDETAILSA;
   {$EXTERNALSYM ACMFORMATDETAILSA }
-  ACMFORMATDETAILSA = packed record
+  ACMFORMATDETAILSA = record
     cbStruct      : DWORD;
     dwFormatIndex : DWORD;
     dwFormatTag   : DWORD;
@@ -674,7 +674,7 @@ type
 
   pACMFORMATDETAILSW = ^ACMFORMATDETAILSW;
   {$EXTERNALSYM ACMFORMATDETAILSW }
-  ACMFORMATDETAILSW = packed record
+  ACMFORMATDETAILSW = record
     cbStruct      : DWORD;
     dwFormatIndex : DWORD;
     dwFormatTag   : DWORD;
@@ -797,7 +797,7 @@ type
 
   pACMFORMATCHOOSEA = ^ACMFORMATCHOOSEA;
   {$EXTERNALSYM ACMFORMATCHOOSEA }
-  ACMFORMATCHOOSEA = packed record
+  ACMFORMATCHOOSEA = record
     cbStruct        : DWORD;            	// sizeof(ACMFORMATCHOOSE)
     fdwStyle        : DWORD;            	// chooser style flags
     hwndOwner       : hWND;            		// caller's window handle
@@ -818,7 +818,7 @@ type
 
   pACMFORMATCHOOSEW = ^ACMFORMATCHOOSEW;
   {$EXTERNALSYM ACMFORMATCHOOSEW }
-  ACMFORMATCHOOSEW = packed record
+  ACMFORMATCHOOSEW = record
     cbStruct        : DWORD;            	// sizeof(ACMFORMATCHOOSE)
     fdwStyle        : DWORD;            	// chooser style flags
     hwndOwner       : hWND;            		// caller's window handle
@@ -873,7 +873,7 @@ const
 type
   pACMFILTERTAGDETAILSA = ^ACMFILTERTAGDETAILSA;
   {$EXTERNALSYM ACMFILTERTAGDETAILSA }
-  ACMFILTERTAGDETAILSA = packed record
+  ACMFILTERTAGDETAILSA = record
     cbStruct         : DWORD;
     dwFilterTagIndex : DWORD;
     dwFilterTag      : DWORD;
@@ -885,7 +885,7 @@ type
 
   pACMFILTERTAGDETAILSW = ^ACMFILTERTAGDETAILSW;
   {$EXTERNALSYM ACMFILTERTAGDETAILSW }
-  ACMFILTERTAGDETAILSW = packed record
+  ACMFILTERTAGDETAILSW = record
     cbStruct         : DWORD;
     dwFilterTagIndex : DWORD;
     dwFilterTag      : DWORD;
@@ -942,7 +942,7 @@ const
 type
   pACMFILTERDETAILSA = ^ACMFILTERDETAILSA;
   {$EXTERNALSYM ACMFILTERDETAILSA }
-  ACMFILTERDETAILSA = packed record
+  ACMFILTERDETAILSA = record
     cbStruct      : DWORD;
     dwFilterIndex : DWORD;
     dwFilterTag   : DWORD;
@@ -954,7 +954,7 @@ type
 
   pACMFILTERDETAILSW = ^ACMFILTERDETAILSW;
   {$EXTERNALSYM ACMFILTERDETAILSW }
-  ACMFILTERDETAILSW = packed record
+  ACMFILTERDETAILSW = record
     cbStruct      : DWORD;
     dwFilterIndex : DWORD;
     dwFilterTag   : DWORD;
@@ -1028,7 +1028,7 @@ type
 
   pACMFILTERCHOOSEA = ^ACMFILTERCHOOSEA;
   {$EXTERNALSYM ACMFILTERCHOOSEA }
-  ACMFILTERCHOOSEA = packed record
+  ACMFILTERCHOOSEA = record
     cbStruct        : DWORD;            	// sizeof(ACMFILTERCHOOSE)
     fdwStyle        : DWORD;            	// chooser style flags
     hwndOwner       : hWND;            		// caller's window handle
@@ -1049,7 +1049,7 @@ type
 
   pACMFILTERCHOOSEW = ^ACMFILTERCHOOSEW;
   {$EXTERNALSYM ACMFILTERCHOOSEW }
-  ACMFILTERCHOOSEW = packed record
+  ACMFILTERCHOOSEW = record
     cbStruct        : DWORD;            	// sizeof(ACMFILTERCHOOSE)
     fdwStyle        : DWORD;            	// chooser style flags
     hwndOwner       : hWND;            		// caller's window handle
@@ -1098,22 +1098,35 @@ function acm_filterChoose (pafltrc: pACMFILTERCHOOSE): MMRESULT; stdcall;
 //
 //  ACM Stream API's
 
+const
+  //#ifdef  _WIN64
+  {$IFDEF CPU64 }
+    //#define _DRVRESERVED    15
+    _DRVRESERVED = 15;
+  //#else
+  {$ELSE }
+    //#define _DRVRESERVED    10
+    _DRVRESERVED = 10;
+  //#endif  // _WIN64
+  {$ENDIF CPU64 }
+
 type
   pACMSTREAMHEADER = ^ACMSTREAMHEADER;
   {$EXTERNALSYM ACMSTREAMHEADER }
-  ACMSTREAMHEADER = packed record
+
+  ACMSTREAMHEADER = record
     cbStruct         : DWORD;              	// sizeof(ACMSTREAMHEADER)
     fdwStatus        : DWORD;              	// ACMSTREAMHEADER_STATUSF_*
-    dwUser           : DWORD;              	// user instance data for hdr
+    dwUser           : DWORD_PTR;              	// user instance data for hdr
     pbSrc            : PBYTE;
     cbSrcLength      : DWORD;
     cbSrcLengthUsed  : DWORD;
-    dwSrcUser        : DWORD;             	// user instance data for src
+    dwSrcUser        : DWORD_PTR;             	// user instance data for src
     pbDst            : PBYTE;
     cbDstLength      : DWORD;
     cbDstLengthUsed  : DWORD;
-    dwDstUser        : DWORD;              	// user instance data for dst
-    dwReservedDriver : array [0..9] of DWORD;	// driver reserved work space
+    dwDstUser        : DWORD_PTR;              	// user instance data for dst
+    dwReservedDriver : array [0.._DRVRESERVED - 1] of DWORD;	// driver reserved work space
   end;
 
 const
@@ -2033,7 +2046,7 @@ const
 //  WAVEFORMATEXTENSIBLE.Format.wFormatTag field.
 //
 type
-  WAVEFORMATEXTENSIBLE_SAMPLES = packed record
+  WAVEFORMATEXTENSIBLE_SAMPLES = record
     //
     case int of
       0: (wValidBitsPerSample: WORD);       //* bits of precision  */
@@ -2044,7 +2057,7 @@ type
   {$EXTERNALSYM PWAVEFORMATEXTENSIBLE }
   {$EXTERNALSYM WAVEFORMATEXTENSIBLE }
   PWAVEFORMATEXTENSIBLE = ^WAVEFORMATEXTENSIBLE;
-  WAVEFORMATEXTENSIBLE = packed record
+  WAVEFORMATEXTENSIBLE = record
     //
     Format: WAVEFORMATEX;
     Samples: WAVEFORMATEXTENSIBLE_SAMPLES;
@@ -2131,7 +2144,6 @@ const
 
   // specific to Lake of Soft, do not use
   SPEAKER_DEFAULT		= $A0000000;
-
 
 
   {$EXTERNALSYM KSAUDIO_SPEAKER_DIRECTOUT }
@@ -2261,7 +2273,7 @@ type
   {$EXTERNALSYM NPADPCMCOEFSET }
   {$EXTERNALSYM LPADPCMCOEFSET }
   PADPCMCOEFSET = ^ADPCMCOEFSET;
-  ADPCMCOEFSET = packed record
+  ADPCMCOEFSET = record
     //
     iCoef1: shortInt;
     iCoef2: shortInt;
@@ -2275,7 +2287,7 @@ type
   {$EXTERNALSYM NPADPCMWAVEFORMAT }
   {$EXTERNALSYM LPADPCMWAVEFORMAT }
   PADPCMWAVEFORMAT = ^ADPCMWAVEFORMAT;
-  ADPCMWAVEFORMAT = packed record
+  ADPCMWAVEFORMAT = record
     //
     wfx: WAVEFORMATEX;
     wSamplesPerBlock: WORD;

@@ -42,7 +42,7 @@ uses
 
 begin
   Application.Initialize;
-  Application.Title := 'VC 2.5 Pro - FFT control demo';
+  Application.Title := 'VC 2.5 Pro - Live Spectrum Demo';
   Application.CreateForm(Tc_form_main, c_form_main);
   Application.Run;
 end.

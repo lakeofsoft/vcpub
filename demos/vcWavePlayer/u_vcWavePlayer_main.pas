@@ -155,6 +155,10 @@ uses
 procedure Tc_form_main.formCreate(sender: tObject);
 begin
   f_config := unaIniFile.create();
+  //
+  {$IFDEF __AFTER_D7__ }
+  doubleBuffered := True;
+  {$ENDIF __AFTER_D7__ }
 end;
 
 // --  --
@@ -303,7 +307,7 @@ begin
 	      msecTotal := 0;
 	    end;
 	    //
-	    c_statusBar_main.panels[2].text := int2str(trunc(msec), 10, 3) + ' / ' + int2str(trunc(msecTotal), 10, 3);
+	    c_statusBar_main.panels[2].text := int2str(msec, 10, 3) + ' / ' + int2str(msecTotal, 10, 3);
 	  end;
 
 	  else

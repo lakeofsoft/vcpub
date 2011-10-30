@@ -335,7 +335,7 @@ end;
 // --  --
 procedure run();
 var
-  mark, m2: int64;
+  mark, m2: uint64;
   h, m, s, ms: unsigned;
   f: bool;
 begin
@@ -345,18 +345,18 @@ begin
   waveResampler.open();
   waveReader.open();
   //
-  mark := timeMark();
-  m2 := timeMark();
+  mark := timeMarkU();
+  m2 := timeMarkU();
   //
   // 2. read the source wav, feeding the encoder
   encoder.priority := THREAD_PRIORITY_ABOVE_NORMAL;
   while (not waveReader.streamIsDone) do begin
     //
     f := feed();
-    if ( f or (1000 < timeElapsed64(m2)) ) then begin
+    if ( f or (1000 < timeElapsed64U(m2)) ) then begin
       //
       write(' [ ] Reading input file: ' + int2str(percent(waveReader.streamPosition, waveReader.streamSize)) + '% done ..   '#13);
-      m2 := timeMark();
+      m2 := timeMarkU();
     end;
   end;
   infoMessage(' [x] Reading input file: done, ' + int2str(waveReader.outBytes) + ' bytes read.              '#13);
@@ -367,7 +367,7 @@ begin
   while ((waveResampler.chunkSize < waveResampler.getDataAvailable(true)) or (0 < waveResampler.getDataAvailable(false))) do begin
     //
     f := feed();
-    if ( f or (1000 < timeElapsed64(m2)) ) then begin
+    if ( f or (1000 < timeElapsed64U(m2)) ) then begin
       //
       write(' [ ] Feeding the encoder: ' + int2str(waveResampler.getDataAvailable(false), 10, 3) + ' bytes left ..     '#13);
       //
@@ -377,7 +377,7 @@ begin
 	waveResampler.close();	// do not need to waste CPU cycles on empty resample thread
       end;
       //
-      m2 := timeMark();
+      m2 := timeMarkU();
     end;
   end;
   //
@@ -406,7 +406,7 @@ begin
   infoMessage(' [x] Flushing the output file: done.                       '#13);
   //
   // calculate the time used
-  mark := timeElapsed64(mark);
+  mark := timeElapsed64U(mark);
   h := mark div (3600000);
   m := mark div (60000) - h * 60;
   s := mark div (1000) - m * 60 - h * 60 * 60;

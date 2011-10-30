@@ -184,7 +184,7 @@ end;
 // --  --
 procedure run();
 var
-  mark: int64;
+  mark: uint64;
   h, m, s, ms: unsigned;
   eos, res: int;
   og: tOgg_page;
@@ -199,7 +199,7 @@ begin
   waveWriter.open();
   waveResampler.open();
   //
-  mark := timeMark();
+  mark := timeMarkU();
   //
   // 2. read and decode source ogg, feeding the resampler
   decoder.priority := THREAD_PRIORITY_HIGHEST;
@@ -271,7 +271,7 @@ begin
   waveWriter.close();
 
   // calculate the time used
-  mark := timeElapsed64(mark);
+  mark := timeElapsed64U(mark);
   h := mark div (3600000);
   m := mark div (60000) - h * 60;
   s := mark div (1000) - m * 60 - h * 60 * 60;

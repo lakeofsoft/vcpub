@@ -18,17 +18,21 @@
 	  modified by:
 		Lake, Oct 2003
 		Lake, Jun 2007
+		Lake, May-Oct 2011
 
 	----------------------------------------------
 *)
 
-{$I unaDef.inc}
+{$I unaDef.inc }
 
 {*
   FFT and DTMF implementations.
 
   @Author Lake
+  @Version 2.5.2007.?? DTMF added
   @Version 2.5.2008.07 Still here
+  @Version 2.5.2011.05 DTMF decoder state cleanup fix
+  @Version 2.5.2011.10 FFT updated
 }
 
 unit
@@ -37,7 +41,7 @@ unit
 interface
 
 uses
-  Windows, unaTypes, unaUtils, unaClasses, unaWave;
+  Windows, unaTypes, unaFFT, unaClasses, unaWave;
 
 type
   {*
@@ -45,19 +49,18 @@ type
   }
   unaDspFFT = class(unaObject)
   private
-    f_bits: unsigned;
-    f_channels: unsigned;
+    f_bits: int;
+    f_channels: int;
+    f_sps: int;
     //
     f_steps: unsigned;
     f_windowSize: unsigned;
     //
-    f_helper: pUint32Array;
-    f_cos_array: pFloatArray;
-    f_sin_array: pFloatArray;
     f_dataProxy: pFloatArray;
+    f_fft: unaFFTclass;
     //
-    f_dataR: pFloatArray;
-    f_dataI: pFloatArray;
+    f_dataC: pComplexFloatArray;
+    f_fftReady: bool;
     //
     procedure samplesToDataProxy(samples: pointer; channel: unsigned);
     procedure dataProxyToRI();
@@ -73,7 +76,7 @@ type
     }
     procedure setWindowSize(size: unsigned);
     procedure setFormat(format: punaPCMFormat); overload;
-    procedure setFormat(bits, channels: unsigned); overload;
+    procedure setFormat(sps, bits, channels: int); overload;
     //
     {*
       complex DFT. Results are in dataR, dataI.
@@ -88,11 +91,14 @@ type
     //
     property data: pFloatArray read f_dataProxy;
     //
-    property dataR: pFloatArray read f_dataR;
-    property dataI: pFloatArray read f_dataI;
+    property dataC: pComplexFloatArray read f_dataC;
     //
     property windowSize: unsigned read f_windowSize write setWindowSize;
     property steps: unsigned read f_steps write setSteps;
+    //
+    property sampleRate: int read f_sps;
+    //
+    property fftReady: bool read f_fftReady;
   end;
 
 
@@ -110,12 +116,12 @@ type
     MGHM:  Double;     // Max of 1209..1633
     IL: Integer;       // index of max from F 697..941
     IH: Integer;       // index of max from F 1209..1633)
-    K1: Single;        // MxGLH/S2
-    K2: Single;        // MxGL/MxGLH
-    K3: Single;        // MxGH/MxGLH
-    K4: Single;        // MGLM/MxGL
-    K5: Single;        // MGHM/MxGH
-    K6: Single;        // K1*K2*K3*K4*K5 - signal quality estimation
+    K1: double;        // MxGLH/S2
+    K2: double;        // MxGL/MxGLH
+    K3: double;        // MxGH/MxGLH
+    K4: double;        // MGLM/MxGL
+    K5: double;        // MGHM/MxGH
+    K6: double;        // K1*K2*K3*K4*K5 - signal quality estimation
   end;
 
 const
@@ -125,7 +131,7 @@ const
   //c_dtmfd_TP	= 40;      	// ms per pause
   //c_dtmfd_TS	= 50;      	// ms per signal
   //
-  c_def_dtmfd_LVS   = 900;    	// silence threshold
+  c_def_dtmfd_LVS   = 900;    	// default silence threshold
   //
   c_dtmfd_FDL: tDtmfd_md4 = (697,   770,  852,  941);	// DTMF low freqs
   c_dtmfd_FDH: tDtmfd_md4 = (1209, 1336, 1477, 1633); 	// DTMF hi freqs
@@ -187,9 +193,10 @@ type
     procedure DTMFCodeDetected(code: char; const param: single); virtual;
   public
     constructor create();
-    procedure BeforeDestruction(); override;
     //
     function setFormat(samplingRate, bitsPerSample, numChannels: int): HRESULT;
+    //
+    procedure clearState();
     //
     function write(data: pointer; size: int): HRESULT;
     //
@@ -205,53 +212,9 @@ type
 implementation
 
 
-// -- from Math.pas --
-function log2(const x: int64): float;
-asm
-	fld1		// ST(0) <= 1.0
-	fild	x	// ST(1) <= ST(0) <= x
-	fyl2x		// ST(1) <= ST(1) * log.2(ST(0))
-	fwait
-end;
+uses
+  unaUtils;
 
-// --  --
-function min(a, b: int): int;
-begin
-  if (a < b) then
-    result := a
-  else
-    result := b;
-end;
-
-// --  --
-function bitReverse(x, steps: unsigned): unsigned;
-{
-	IN EAX = x
-	IN ECX = steps
-
-	OUT EAX = result
-}
-asm
-	mov	ecx, edx
-	and	ecx, $1F	// 0..31
-	jecxz	@done
-	//
-	push	ecx
-  @loop:
-	ror	eax, 1
-	rcl	edx, 1
-	loop	@loop
-	//
-	pop	ecx
-	//
-	neg	ecx
-	add	ecx, 32
-	shl	edx, cl		// clear high cl bits
-	shr	edx, cl
-	//
-  @done:
-	mov	eax, edx
-end;
 
 { unaDspFFT }
 
@@ -268,12 +231,9 @@ procedure unaDspFFT.beforeDestruction();
 begin
   inherited;
   //
-  mrealloc(f_helper);
-  mrealloc(f_cos_array);
-  mrealloc(f_sin_array);
   mrealloc(f_dataProxy);
-  mrealloc(f_dataR);
-  mrealloc(f_dataI);
+  mrealloc(f_dataC);
+  freeAndNil(f_fft);
 end;
 
 // --  --
@@ -281,14 +241,12 @@ constructor unaDspFFT.create(windowSize: unsigned);
 begin
   inherited create();
   //
+  f_fft := unaFFTclass.create(1);
+  //
   f_windowSize := windowSize;
   //
-  f_helper := nil;
-  f_cos_array := nil;
-  f_sin_array := nil;
   f_dataProxy := nil;
-  f_dataR := nil;
-  f_dataI := nil;
+  f_dataC := nil;
   //
   f_bits := 16;
   f_channels := 2;
@@ -301,8 +259,8 @@ var
 begin
   for i := 0 to f_windowSize - 1 do begin
     //
-    f_dataR[i] := f_dataProxy[i];
-    f_dataI[i] := 0;
+    f_dataC[i].re := f_dataProxy[i];
+    f_dataC[i].im := 0;
   end;
 end;
 
@@ -318,9 +276,8 @@ begin
     //
     // Zero REX[ ] and IMX[ ], so they can be used
     // as accumulators during the correlation
-    //
-    f_dataR[i] := 0;
-    f_dataI[i] := 0;
+    f_dataC[i].re := 0;
+    f_dataC[i].im := 0;
   end;
   //
   for k := 0 to f_windowSize - 1 do begin	// Loop for each value in frequency domain
@@ -328,68 +285,28 @@ begin
     sc := 2 * Pi * k / f_windowSize;
     for i := 0 to f_windowSize - 1 do begin	// Correlate with the complex sinusoid, SR & SI
       //
-      f_dataR[k] := f_dataR[k] + f_dataProxy[i] * cos(sc * i);
-      f_dataI[k] := f_dataI[k] - f_dataProxy[i] * sin(sc * i);
+      f_dataC[k].re := f_dataC[k].re + f_dataProxy[i] * cos(sc * i);
+      f_dataC[k].im := f_dataC[k].im - f_dataProxy[i] * sin(sc * i);
     end;
   end;
 end;
 
 // --  --
 procedure unaDspFFT.fft_complex_forward(samples: pointer; channel: unsigned);
-var
-  i, j, l, le2, ip: unsigned;
-  tr, ti, ur, ui, sr, si: float;
 begin
-  {
-    THE FAST FOURIER TRANSFORM
-    Upon entry, N% contains the number of points in the DFT, REX[ ] and
-    IMX[ ] contain the real and imaginary parts of the input. Upon return,
-    REX[ ] and IMX[ ] contain the DFT output. All signals run from 0 to N%-1.
-  }
-  samplesToDataProxy(samples, channel);
-  dataProxyToRI();
-  //
-  for i := 0 to f_windowSize - 1 do begin	// Bit reversal sorting
+  if (acquire(false, 100)) then try
     //
-    j := f_helper[i];
-    if (i < j) then begin
+    f_fftReady := false;
+    try
+      samplesToDataProxy(samples, channel);
+      dataProxyToRI();
       //
-      ti := f_dataR[i];
-      f_dataR[i] := f_dataR[j];
-      f_dataR[j] := ti;
+      f_fft.fft(data, dataC);
+    finally
+      f_fftReady := true;
     end;
-  end;
-  //
-  for L := 1 to f_steps do begin	// Loop for each stage
-    //
-    LE2 := (1 shl L) shr 1;
-    UR := 1;
-    UI := 0;
-    //
-    SR := f_cos_array[L - 1];	// Calculate sine & cosine values
-    SI := f_sin_array[L - 1];
-    //
-    for j := 1 to LE2 do begin	// Loop for each sub DFT
-      //
-      I := J - 1;
-      while (i < f_windowSize) do begin	// Loop for each butterfly
-	//
-	IP := I + LE2;
-	TR := f_dataR[IP] * UR - f_dataI[IP] * UI;	// Butterfly calculation
-	TI := f_dataR[IP] * UI + f_dataI[IP] * UR;
-	//
-	f_dataR[IP] := f_dataR[I] - TR;
-	f_dataI[IP] := f_dataI[I] - TI;
-	f_dataR[I] := f_dataR[I] + TR;
-	f_dataI[I] := f_dataI[I] + TI;
-	//
-	inc(i, LE2 shl 1);
-      end;
-      //
-      TR := UR;
-      UR := TR * SR - UI * SI;
-      UI := TR * SI + UI * SR;
-    end;
+  finally
+    releaseWO();
   end;
 end;
 
@@ -405,13 +322,13 @@ begin
     case (f_bits) of
 
       8:
-	f_dataProxy[i] := ($7F - pArray(samples)[ofs]) shl 8;
+	f_dataProxy[i] := ($7F - pArray(samples)[ofs]) / 128;
 
       16:
-	f_dataProxy[i] := pInt16Array(samples)[ofs];
+	f_dataProxy[i] := pInt16Array(samples)[ofs] / 32768;
 
       32:
-	f_dataProxy[i] := pInt32Array(samples)[ofs];
+	f_dataProxy[i] := pFloatArray(samples)[ofs];
 
     end;
     //
@@ -422,14 +339,15 @@ end;
 // --  --
 procedure unaDspFFT.setFormat(format: punaPCMFormat);
 begin
-  setFormat(format.pcmBitsPerSample, format.pcmNumChannels);
+  setFormat(format.pcmSamplesPerSecond, format.pcmBitsPerSample, format.pcmNumChannels);
 end;
 
 // --  --
-procedure unaDspFFT.setFormat(bits, channels: unsigned);
+procedure unaDspFFT.setFormat(sps, bits, channels: int);
 begin
   f_bits := bits;
   f_channels := channels;
+  f_sps := sps;
 end;
 
 // --  --
@@ -442,57 +360,44 @@ end;
 // --  --
 procedure unaDspFFT.setWindowSize(size: unsigned);
 var
-  i: unsigned;
+  i, ws: unsigned;
 begin
-  {
-	m = FFT_Step;
-	n = 1 << m;
-	nv = n >> 1;
-  }
-  i := round(log2(size));
+  i := 0;
+  ws := size;
+  while (1 < ws) do begin
+    //
+    ws := ws shr 1;
+    inc(i);
+  end;
   //
   if (0 < i) then begin
     //
     f_steps := i;
     f_windowSize := 1 shl f_steps;
     //
-    mrealloc(f_helper, f_windowSize * sizeof(f_helper[0]));
-    mrealloc(f_cos_array, f_steps * sizeof(f_cos_array[0]));
-    mrealloc(f_sin_array, f_steps * sizeof(f_sin_array[0]));
     mrealloc(f_dataProxy, f_windowSize * sizeof(f_dataProxy[0]));
     //
-    mrealloc(f_dataR, f_windowSize * sizeof(f_dataR[0]));
-    mrealloc(f_dataI, f_windowSize * sizeof(f_dataI[0]));
+    mrealloc(f_dataC, f_windowSize * sizeof(f_dataC[0]));
     //
-    for i := 0 to f_steps - 1 do begin
-      //
-      f_cos_array[i] :=  cos(Pi / (1 shl i));
-      f_sin_array[i] := -sin(Pi / (1 shl i));
-    end;
-    //
-    for i := 0 to f_windowSize - 1 do
-      f_helper[i] := bitReverse(i, f_steps);
-    //
+    f_fft.setup(i);
   end;
 end;
-
 
 
 { unaDspDTMFDecoder }
 
 // --  --
-procedure unaDspDTMFDecoder.BeforeDestruction();
+procedure unaDspDTMFDecoder.clearState();
 begin
-  inherited;
+  f_NMX := 0;		// num of samples in buffer
+  f_BMX := 0;		// first sample index
   //
-  //freeAndNil(f_gate);
+  f_state := 0;
 end;
 
 // --  --
 constructor unaDspDTMFDecoder.create();
 begin
-  //f_gate := unaInProcessGate.create();
-  //
   f_dtmfd_LVS := c_def_dtmfd_LVS;	// default threshold
   //
   setFormat(c_dtmfd_samplingRate, 16, 1);
@@ -608,7 +513,7 @@ var
 
       0: begin
 	//
-	if (RdecI.MxGLH > f_dtmfd_LVS) then begin
+	if (RdecI.MxGLH > threshold) then begin
 	  //
 	  Run_K();
 	  f_state := 1;
@@ -639,7 +544,7 @@ var
 
       2: begin
 	//
-	if (RdecI.MxGLH < f_dtmfd_LVS) then
+	if (RdecI.MxGLH < threshold) then
 	  f_state :=0;
       end;
 
@@ -649,6 +554,11 @@ var
 
 
 begin
+  fillChar(MGL, sizeof(MGL), #0);
+  fillChar(MGH, sizeof(MGH), #0);
+  fillChar(RdecO, sizeof(RdecO), #0);
+  fillChar(RdecI, sizeof(RdecI), #0);
+  //
   while (f_NMX - f_BMX >= f_NG) do begin
     //
     Run_G();
@@ -694,10 +604,7 @@ begin
       //f_NP := round(0.5 * c_dtmfd_TP * f_FDSC / 1000);
       //f_NS := round(c_dtmfd_TS * f_FDSC / 1000);  		//
       //
-      f_NMX := 0;		// num of samples in buffer
-      f_BMX := 0;		// first sample index
-      //
-      f_state := 0;
+      clearState();
       //
       result := S_OK;
     end

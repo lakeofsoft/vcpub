@@ -17,6 +17,7 @@
 
 	  modified by:
 		Lake, Nov 2003
+		Lake, Oct 2011
 
 	----------------------------------------------
 *)
@@ -28,6 +29,9 @@
 
   @Author Lake
   @Version 2.5.2008.07 Still here
+
+  @Author Lake
+  @Version 2.5.2011.10 +drawStyle, +fallback, +grid
 }
 
 unit
@@ -48,7 +52,7 @@ type
 
   //
   {*
-  	FFT Pipe
+	FFT Pipe
   }
   TunadspFFTPipe = class(unavclInOutPipe)
   private
@@ -78,15 +82,15 @@ type
     {*
       Writes data into the pipe.
     }
-    function doWrite(data: pointer; len: unsigned; provider: pointer = nil): unsigned; override;
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
     {*
       Reads data from the pipe.
     }
-    function doRead(data: pointer; len: unsigned): unsigned; override;
+    function doRead(data: pointer; len: uint): uint; override;
     {*
       Returns available data size in the pipe.
     }
-    function getAvailableDataLen(index: int): unsigned; override;
+    function getAvailableDataLen(index: integer): uint; override;
     {*
       Returns active state of the pipe.
     }
@@ -94,11 +98,11 @@ type
     {*
       Applies new format of the stream to the pipe.
     }
-    function applyFormat(data: pointer; len: unsigned; provider: unavclInOutPipe = nil; restoreActiveState: bool = false): bool; override;
+    function applyFormat(data: pointer; len: uint; provider: unavclInOutPipe = nil; restoreActiveState: bool = false): bool; override;
     {*
       Fills the format of the pipe stream.
     }
-    function getFormatExchangeData(out data: pointer): unsigned; override;
+    function getFormatExchangeData(out data: pointer): uint; override;
   public
     procedure AfterConstruction(); override;
     procedure BeforeDestruction(); override;
@@ -117,20 +121,33 @@ const
   cldef_BandLow		= $00808080;
   cldef_BandMed		= $00A0A0A0;
   cldef_BandTop		= $00C0C0C0;
+  cldef_BandGrid	= $00FFFFFF;
 
 type
+  TunadspFFTDrawStype = (unaFFTDraw_Solid, unaFFTDraw_Line, unaFFTDraw_Dots);
+
 
   {*
-  	FFT Control
+	FFT Control
   }
   TunadspFFTControl = class(tGraphicControl)
   private
     f_pipe: TunadspFFTPipe;
     f_bandWidth: unsigned;
     f_bandGap: unsigned;
+    f_fallback: int;
+    f_fallbackf: double;
+    f_dstyle: TunadspFFTDrawStype;
+    f_drawGrid: boolean;
     //
-    f_pen: array[0..2] of hPen;
-    f_penColor: array[0..2] of tColor;
+    f_dbUpdate: int;
+    f_dbPeak: double;
+    //
+    f_pen: array[0..3] of hPen;
+    f_penColor: array[0..3] of tColor;
+    //
+    f_amp: pFloatArray;
+    f_ampMax: double;
     //
     function getSteps(): unsigned;
     procedure setSteps(value: unsigned);
@@ -140,11 +157,12 @@ type
     procedure setChannel(value: unsigned);
     procedure setColorBack(value: tColor);
     function getColorBack(): tColor;
-    function getActive(): bool;
-    procedure setActive(value: bool);
+    function getActive(): boolean;
+    procedure setActive(value: boolean);
     //
-    function getBandColor(index: int): tColor;
-    procedure setBandColor(index: int; value: tColor);
+    function getBandColor(index: integer): tColor;
+    procedure setBandColor(index: integer; value: tColor);
+    procedure setFallback(const Value: int);
   protected
     procedure Paint(); override;
     //
@@ -156,29 +174,67 @@ type
     procedure BeforeDestruction(); override;
     //
     function displayMBSPBands(numBands: unsigned; values: punaMBSPBands; nSamples: unsigned): bool;
-    //
+    {*
+	Internal data pipe.
+    }
     property fft: TunadspFFTPipe read f_pipe;
   published
-    //
+    {*
+	Width of each bar/band in pixels.
+    }
     property bandWidth: unsigned read f_bandWidth write f_bandWidth default 1;
-    //
+    {*
+	Gap between bars/bands in pixels.
+    }
     property bandGap: unsigned read f_bandGap write f_bandGap default 0;
-    //
+    {*
+	FFT steps = log2(windowSize).
+    }
     property steps: unsigned read getSteps write setSteps default 8;
-    //
-    property interval: unsigned read getInterval write setInterval default 1000;
-    //
+    {*
+	Update interval (milliseconds).
+    }
+    property interval: unsigned read getInterval write setInterval default 100;
+    {*
+	Channle number to display spectrum for.
+    }
     property channel: unsigned read getChannel write setChannel default 0;
-    //
+    {*
+	Background color.
+    }
     property color: tColor read getColorBack write setColorBack default clBlack;
-    //
+    {*
+	Color of low portion of a bar.
+    }
     property bandColorLow: tColor index 0 read getBandColor write setBandColor default cldef_BandLow;
-    //
+    {*
+	Color of medium portion of a bar.
+    }
     property bandColorMed: tColor index 1 read getBandColor write setBandColor default cldef_BandMed;
-    //
+    {*
+	Color of top portion of a bar.
+    }
     property bandColorTop: tColor index 2 read getBandColor write setBandColor default cldef_BandTop;
-    //
-    property active: bool read getActive write setActive default false;
+    {*
+	Color of grid.
+    }
+    property bandColorGrid: tColor index 3 read getBandColor write setBandColor default cldef_BandGrid;
+    {*
+	Draw grid.
+    }
+    property drawGrid: boolean read f_drawGrid write f_drawGrid default true;
+    {*
+	Draw style.
+    }
+    property drawStyle: TunadspFFTDrawStype read f_dstyle write f_dstyle default unaFFTDraw_Solid;
+    {*
+	Fallback speed, 0 (instant) or from 1 (quite slow) to 99 (quite fast).
+    }
+    property fallback: int read f_fallback write setFallback default 80;
+    {*
+	Specifies whether this control is active and should display bars.
+    }
+    property active: boolean read getActive write setActive default false;
     //
     property Anchors;
     property Align;
@@ -196,7 +252,7 @@ type
     property OnMouseWheel;
     property OnMouseWheelDown;
     property OnMouseWheelUp;
-{$ENDIF }
+{$ENDIF __BEFORE_D6__ }
     property OnDblClick;
     property OnMouseDown;
     property OnMouseMove;
@@ -206,7 +262,7 @@ type
 
 
   {*
-    	DTMF Control	
+	DTMF Control
   }
   TunavclDTMFDecoder = class(unavclInOutWavePipe)
   private
@@ -220,8 +276,8 @@ type
   protected
     function applyDeviceFormat(format: PWAVEFORMATEXTENSIBLE; isSrc: bool = true): bool; override;
     //
-    function doWrite(data: pointer; len: unsigned; provider: pointer = nil): unsigned; override;
-    function getAvailableDataLen(index: int): unsigned; override;
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
+    function getAvailableDataLen(index: integer): uint; override;
     function doOpen(): bool; override;
     procedure doClose(); override;
     function  isActive(): bool; override;
@@ -254,11 +310,10 @@ uses
 // --  --
 procedure TunadspFFTPipe.afterConstruction();
 begin
-  f_timer := unaMMTimer.create(1000);
-  //f_timer.enabled := false;
+  f_timer := unaMMTimer.create(100);
   f_timer.onTimer := onTimer;
   //
-  f_fft := unadspFFT.create(1 shl 8{default window size});
+  f_fft := unadspFFT.create(1 shl 1);
   //
   f_localFormat := nil;
   //
@@ -266,7 +321,7 @@ begin
 end;
 
 // --  --
-function TunadspFFTPipe.applyFormat(data: pointer; len: unsigned; provider: unavclInOutPipe; restoreActiveState: bool): bool;
+function TunadspFFTPipe.applyFormat(data: pointer; len: uint; provider: unavclInOutPipe; restoreActiveState: bool): bool;
 begin
   if (enter(false, 100)) then
     try
@@ -277,7 +332,7 @@ begin
 	move(data^, f_localFormat^, len);
       //
       with (punavclWavePipeFormatExchange(data).r_formatM) do
-	f_fft.setFormat(formatOriginal.pcmBitsPerSample, formatOriginal.pcmNumChannels);
+	f_fft.setFormat(formatOriginal.pcmSamplesPerSecond, formatOriginal.pcmBitsPerSample, formatOriginal.pcmNumChannels);
       //
     finally
       leaveWO();
@@ -314,17 +369,17 @@ begin
 end;
 
 // --  --
-function TunadspFFTPipe.doRead(data: pointer; len: unsigned): unsigned;
+function TunadspFFTPipe.doRead(data: pointer; len: uint): uint;
 begin
   result := 0;
 end;
 
 // --  --
-function TunadspFFTPipe.doWrite(data: pointer; len: unsigned; provider: pointer): unsigned;
+function TunadspFFTPipe.doWrite(data: pointer; len: uint; provider: pointer): uint;
 begin
   // copy new data locally
   if (0 < len) then
-    move(data^, f_dataProxy, min(sizeOf(f_dataProxy), len));
+    move(data^, f_dataProxy, unaUtils.min(sizeof(f_dataProxy), len));
   //
   // pass data to consumers
   onNewData(data, len, self);
@@ -332,13 +387,13 @@ begin
 end;
 
 // --  --
-function TunadspFFTPipe.getAvailableDataLen(index: int): unsigned;
+function TunadspFFTPipe.getAvailableDataLen(index: integer): uint;
 begin
   result := 0;
 end;
 
 // --  --
-function TunadspFFTPipe.getFormatExchangeData(out data: pointer): unsigned;
+function TunadspFFTPipe.getFormatExchangeData(out data: pointer): uint;
 begin
   if (enter(true, 100)) then begin
     try
@@ -378,7 +433,7 @@ end;
 // --  --
 procedure TunadspFFTPipe.onTimer(sender: tObject);
 begin
-  if (enter(true, 100)) then
+  if (active and enter(true, 100)) then
     try
       f_fft.fft_complex_forward(@f_dataProxy, f_channel);
     finally
@@ -395,6 +450,7 @@ begin
   f_timer.interval := value;
 end;
 
+
 { TunadspFFTControl }
 
 // --  --
@@ -406,9 +462,15 @@ begin
   f_bandWidth := 1;
   canvas.brush.color := clBlack;
   //
-  bandColorLow := cldef_BandLow;
-  bandColorMed := cldef_BandMed;
-  bandColorTop := cldef_BandTop;
+  bandColorLow  := cldef_BandLow;
+  bandColorMed  := cldef_BandMed;
+  bandColorTop  := cldef_BandTop;
+  bandColorGrid := cldef_BandGrid;
+  //
+  drawStyle := unaFFTDraw_Solid;
+  drawGrid := true;
+  //
+  fallback := 80;
   //
   width := 100;
   height := 200;
@@ -416,6 +478,8 @@ begin
   controlStyle := controlStyle + [csOpaque];
   //
   inherited;
+  //
+  steps := 8;
 end;
 
 // --  --
@@ -424,6 +488,7 @@ begin
   inherited;
   //
   freeAndNil(f_pipe);
+  mrealloc(f_amp);
 end;
 
 // --  --
@@ -498,13 +563,13 @@ begin
 end;
 
 // --  --
-function TunadspFFTControl.getActive(): bool;
+function TunadspFFTControl.getActive(): boolean;
 begin
   result := fft.active;
 end;
 
 // --  --
-function TunadspFFTControl.getBandColor(index: int): tColor;
+function TunadspFFTControl.getBandColor(index: integer): tColor;
 begin
   result := f_penColor[index];
 end;
@@ -557,9 +622,14 @@ end;
 // --  --
 procedure TunadspFFTControl.paintOnDC(dc: hDC);
 var
-  i, j, x, k: unsigned;
-  h, w, t: int;
-  r: double;
+  j, k, i: integer;
+  x: int;
+  h, w, w2: int;
+  r, f, fMax, fpeak, fdbStep: double;
+  //
+  nmaxH: int;	// max number of harmonics
+  limit, abs2, abs2min: double;
+  s: string;
 begin
   // clear background
   fillRect(dc, clientRect, canvas.brush.handle);
@@ -567,48 +637,180 @@ begin
   h := clientRect.bottom - clientRect.top;
   w := clientRect.right - clientRect.left;
   //
-  if ((0 < h) and (0 < f_bandWidth)) then begin
-    // draw FFT bands
-    x := 0;
-    r := h / 256;
-    for i := 0 to f_pipe.fft.windowSize shr 1 do begin
+  if (f_pipe.fft.acquire(true, 10)) then try
+    //
+    if ((0 < h) and (0 < f_bandWidth) and (nil <> f_amp) and f_pipe.fft.fftReady) then begin
       //
-      if (0.001 > abs(f_pipe.fft.dataR[i])) then
-	t := 0
-      else
-	//t := round(r * abs(f_pipe.fft.dataR[i] / f_pipe.fft.windowSize));
-	t := round(r * abs((SQRt(  sqr(f_pipe.fft.dataI[i]) + sqr(f_pipe.fft.dataR[i])) / (f_pipe.fft.windowSize) )));
-      //
-      if (0 < t) then begin
-        //
-	for j := 0 to f_bandWidth - 1 do begin
+      nmaxH := f_pipe.fft.windowSize shr 1;
+      if (drawGrid) then begin
+	//
+	// draw grid
+	fMax := f_pipe.fft.sampleRate shr 1;
+	r := fMax / 2000;
+	w2 := int(bandWidth + bandGap) * nmaxH;
+	//
+	windows.selectObject(dc, f_pen[3]);
+	SetTextColor(dc, bandColorGrid);
+	//
+	f := 0;
+	i := 0;
+	while (f < fMax) do begin
 	  //
-	  if (int(x + j) < w) then begin
-	    //
-	    for k := 0 to 2 do begin
-	      //
-	      windows.selectObject(dc, f_pen[k]);
-	      moveToEx(dc, x + j, h - (t shr 2) * (int(k) + 0), nil);
-	      lineTo  (dc, x + j, h - (t shr 2) * (int(k) + 1));
-	    end;
-	  end;
+	  moveToEx(dc, trunc(i * w2/r), 0, nil);
+	  lineTo  (dc, trunc(i * w2/r), h);
+	  //
+	  if (0 = i) then
+	    s := 'kHz'
+	  else
+	    s := int2str(trunc(f/1000));
+	  //
+	  TextOut(dc, trunc(i * w2/r) + 4, 4, pchar(s), length(s));
+	  //
+	  f := f + 2000;
+	  inc(i);
+	end;
+	//
+	i := 0;
+	r := h / 10;
+	while (i < 10) do begin
+	  //
+	  moveToEx(dc, 0, trunc(i * r), nil);
+	  lineTo  (dc, w, trunc(i * r));
+	  //
+	  inc(i);
 	end;
       end;
       //
-      inc(x, f_bandWidth);
-      inc(x, f_bandGap);
+      // draw FFT bands
+      //
+      limit := 0.00001; // f_pipe.fft.dataC[0].re / 10000;
+      abs2min := limit * limit * f_pipe.fft.windowSize * f_pipe.fft.windowSize;
+      //
+      x := 0;
+      r := h / 3.01;
+      f_ampMax := f_ampMax * 0.97;
+      fpeak := 0;
+      //
+      for i := 1 to nmaxH - 1 do begin
+	//
+	abs2 := (f_pipe.fft.dataC[i].re * f_pipe.fft.dataC[i].re) + (f_pipe.fft.dataC[i].im * f_pipe.fft.dataC[i].im);
+	f := (2.0 * sqrt(abs2) / f_pipe.fft.windowSize);
+	if (fpeak < f) then
+	  fpeak := f;
+	//
+	if (abs2min < abs2) then begin
+	  //
+	  f_amp[i] := log2(2 + f * 4) - 1;
+	  if (f_ampMax < f_amp[i] * 1.2) then
+	    f_ampMax := f_amp[i] * 1.2;
+	end
+	else begin
+	  //
+	  if (1 < f_fallbackf) then
+	    f_amp[i] := f_amp[i] / f_fallbackf * f_ampMax
+	  else
+	    f_amp[i] := 0;
+	end;
+      end;
+      //
+      //f_ampMax := log2(2 + fpeak * 4) - 1;
+      //
+      if (f_ampMax < limit) then
+	f_ampMax := limit;
+      //
+      for i := 1 to nmaxH - 1 do
+	f_amp[i] := f_amp[i] / f_ampMax;
+      //
+      case (drawStyle) of
+
+	unaFFTDraw_Solid: begin
+	  //
+	  for i := 1 to nmaxH - 1 do begin
+	    for j := 0 to f_bandWidth - 1 do begin
+	      for k := 0 to 2 do begin
+		//
+		windows.selectObject(dc, f_pen[k]);
+		moveToEx(dc, x + j, trunc(h - r * f_amp[i] * (k + 0)), nil);
+		lineTo  (dc, x + j, trunc(h - r * f_amp[i] * (k + 1)));
+	      end;
+	    end;
+	    //
+	    inc(x, bandWidth);
+	    inc(x, bandGap);
+	  end;
+	end;
+
+	unaFFTDraw_Line: begin
+	  //
+	  windows.selectObject(dc, f_pen[2]);
+	  moveToEx(dc, 0, h, nil);
+	  for i := 1 to nmaxH - 1 do begin
+	    for j := 0 to f_bandWidth - 1 do begin
+	      //
+	      lineTo  (dc, x + j, trunc(h - r * f_amp[i] * (2 + 1)));
+	    end;
+	    //
+	    inc(x, bandWidth);
+	    inc(x, bandGap);
+	  end;
+	end;
+
+	unaFFTDraw_Dots: begin
+	  //
+	  for i := 1 to nmaxH - 1 do begin
+	    for j := 0 to f_bandWidth - 1 do begin
+	      //
+	      setPixel(dc, x + j, trunc(h - r * f_amp[i] * (0 + 1)), bandColorLow);
+	      setPixel(dc, x + j, trunc(h - r * f_amp[i] * (1 + 1)), bandColorMed);
+	      setPixel(dc, x + j, trunc(h - r * f_amp[i] * (2 + 1)), bandColorTop);
+	    end;
+	    //
+	    inc(x, bandWidth);
+	    inc(x, bandGap);
+	  end;
+	end;
+
+      end; // case
+      //
+      if (drawGrid) then begin
+	//
+	inc(f_dbUpdate);
+	if (6 < f_dbUpdate) then begin
+	  //
+	  if (0 < fpeak) then
+	    fpeak := 0 - 10 * log10(1 / fpeak)
+	  else
+	    fpeak := -60;
+	  //
+	  f_dbPeak := f_dbPeak + (fpeak - f_dbPeak) / 3;
+	  //
+	  f_dbUpdate := 0;
+	end;
+	//
+	fdbStep := (60 + f_dbPeak) / 10;
+	//
+	SetTextColor(dc, bandColorGrid);
+	for i := 1 to 9 do begin
+	  //
+	  s := '   ' + int2str(trunc(f_dbPeak - i * fdbStep)) + ' dB   ';
+	  TextOut(dc, w - 70, i * h div 10 - 8, pchar(s), length(s));
+	end;
+      end;
     end;
+    //
+  finally
+    f_pipe.fft.releaseRO();
   end;
 end;
 
 // --  --
-procedure TunadspFFTControl.setActive(value: bool);
+procedure TunadspFFTControl.setActive(value: boolean);
 begin
   fft.active := value;
 end;
 
 // --  --
-procedure TunadspFFTControl.setBandColor(index: int; value: tColor);
+procedure TunadspFFTControl.setBandColor(index: integer; value: tColor);
 begin
   f_penColor[index] := value;
   //
@@ -631,6 +833,20 @@ begin
   refresh();
 end;
 
+// --  --
+procedure TunadspFFTControl.setFallback(const Value: int);
+begin
+  if ((0 <= value) and (value < 100)) then begin
+    //
+    f_fallback := value;
+    if (0 = value) then
+      f_fallbackf := 0
+    else
+      f_fallbackf := 1 + value / 100;
+  end;
+end;
+
+// --  --
 procedure TunadspFFTControl.setInterval(value: unsigned);
 begin
   f_pipe.updateInterval := value;
@@ -640,6 +856,10 @@ end;
 procedure TunadspFFTControl.setSteps(value: unsigned);
 begin
   f_pipe.fft.steps := value;
+  //
+  mrealloc(f_amp, sizeof(f_amp[0]) * (1 shl value));
+  fillChar(f_amp^, sizeof(f_amp[0]) * (1 shl value), #0);
+  f_ampMax := 0;
 end;
 
 
@@ -676,6 +896,8 @@ begin
   inherited;
   //
   f_isActive := false;
+  //
+  f_decoder.clearState();
 end;
 
 // --  --
@@ -687,7 +909,7 @@ begin
 end;
 
 // --  --
-function TunavclDTMFDecoder.doWrite(data: pointer; len: unsigned; provider: pointer): unsigned;
+function TunavclDTMFDecoder.doWrite(data: pointer; len: uint; provider: pointer): uint;
 begin
   if (SUCCEEDED(f_decoder.write(data, len))) then
     result := len
@@ -696,7 +918,7 @@ begin
 end;
 
 // --  --
-function TunavclDTMFDecoder.getAvailableDataLen(index: int): unsigned;
+function TunavclDTMFDecoder.getAvailableDataLen(index: integer): uint;
 begin
   result := 0;
 end;

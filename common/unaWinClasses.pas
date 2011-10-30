@@ -397,7 +397,7 @@ type
     procedure setMinHeight(value: int);
     procedure setMinWidth(value: int);
     //
-    function hasStyle(index: int): bool;
+    function hasStyle(index: integer): bool;
     function getUnaParent: unaWinWindow;
   protected
     f_isCommonDC: bool;
@@ -521,7 +521,7 @@ type
     {*
       Enters TM-safe lock state, if possible. Returns False if locking was impossible during given time interval.
     }
-    function enter(timeout: unsigned = 10000): bool;
+    function enter(timeout: tTimeout = 10000): bool;
     {*
       Frees the window from TM-safe lock state.
     }
@@ -1134,7 +1134,7 @@ type
     property actualFps: unsigned read f_actualFps;
     property frameWidth: unsigned read f_frameWidth;
     property frameHeight: unsigned read f_frameHeight;
-    property bgColor: unsigned read f_bgColor;
+    property bgColor: COLORREF read f_bgColor;
     //
     property eraseBg: bool read f_eraseBg write f_eraseBg;
   end;
@@ -1979,7 +1979,7 @@ begin
 end;
 
 // --  --
-function unaWinWindow.enter(timeout: unsigned): bool;
+function unaWinWindow.enter(timeout: tTimeout): bool;
 begin
   result := acquire(false, timeout); //f_gate.enter(timeout{$IFDEF DEBUG}, className{$ENDIF});
 end;
@@ -2107,7 +2107,7 @@ begin
 end;
 
 // --  --
-function unaWinWindow.hasStyle(index: int): bool;
+function unaWinWindow.hasStyle(index: integer): bool;
 begin
   result := (0 <> (index and GetWindowLong(wnd, GWL_STYLE)));
 end;
@@ -3125,10 +3125,10 @@ begin
     TOOLTIPS_CLASS,
     nil,
     style,
-    int(CW_USEDEFAULT),
-    int(CW_USEDEFAULT),
-    int(CW_USEDEFAULT),
-    int(CW_USEDEFAULT),
+    integer(CW_USEDEFAULT),
+    integer(CW_USEDEFAULT),
+    integer(CW_USEDEFAULT),
+    integer(CW_USEDEFAULT),
     parent,
     0,
     hInstance,

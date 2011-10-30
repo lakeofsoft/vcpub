@@ -132,6 +132,10 @@ begin
   c_trackBar_volumeChange(nil);
   c_edit_PhaseChange(nil);
   //
+  {$IFDEF __AFTER_D7__ }
+  doubleBuffered := True;
+  {$ENDIF __AFTER_D7__ }
+  //
   label4.caption := #176;	// looks like Dlephi 4 and 5 does not support such strings in DFM files..
 end;
 
@@ -231,7 +235,7 @@ begin
 	  f_buf[i] := trunc(volume * (value - 360) / 90);
 
       3: // square
-	f_buf[i] := trunc(volume * choice(value < 180, -1, +1));
+	f_buf[i] := volume * choice(value < 180, -1, +1);
 
       4: // random
 	f_buf[i] := trunc(volume * (random(10000) - 5000) / 5000);
@@ -276,6 +280,7 @@ begin
       //
     end;
   end;
+  //
   f_period := period;
   f_volume := volume;
   f_step := step;

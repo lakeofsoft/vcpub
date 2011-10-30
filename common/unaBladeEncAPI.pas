@@ -453,7 +453,7 @@ type
     //
     function calcFrameSize(rate: int): int;
   protected
-    procedure onEncodedData(sampleDelta: unsigned; data: pointer; len: int); virtual;
+    procedure onEncodedData(sampleDelta: uint; data: pointer; len: uint); virtual;
   public
     constructor create(const libName: string = c_lameEncDLL);
     procedure BeforeDestruction(); override;
@@ -527,8 +527,7 @@ implementation
 
 
 uses
-  unaUtils,
-  unaWave;
+  unaUtils, unaWave;
 
 
 // ============= Blade ========================
@@ -575,7 +574,7 @@ begin
 	r_be_moduleRefCount := 1;	// also, makes it not zero
 					// (see below for mscand)
 	//
-	if (nil <> mscand(@bladeProc, sizeOf(bladeProc) shr 2, 0)) then begin
+	if (nil <> mscanp(@bladeProc, nil, sizeOf(bladeProc))) then begin
           //
 	  // something is missing, close the library
 	  FreeLibrary(r_be_module);
@@ -720,7 +719,7 @@ begin
 	r_lame_moduleRefCount := 1;	// also, makes it not zero
 					// (see below for mscand)
 	//
-	if (nil <> mscand(@lameProc, sizeOf(lameProc) shr 2, 0)) then begin
+	if (nil <> mscanp(@lameProc, nil, sizeOf(lameProc))) then begin
 	  // something is missing, close the library
 	  Windows.freeLibrary(r_lame_module);
 	  r_lame_module := 0;
@@ -961,7 +960,7 @@ begin
 end;
 
 // --  --
-procedure unaLameEncoder.onEncodedData(sampleDelta: unsigned; data: pointer; len: int);
+procedure unaLameEncoder.onEncodedData(sampleDelta: uint; data: pointer; len: uint);
 begin
   // override to receive the data
 end;

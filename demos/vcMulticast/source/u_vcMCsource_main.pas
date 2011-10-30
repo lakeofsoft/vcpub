@@ -40,13 +40,12 @@ type
     c_label_mcsTTL: TLabel;
     c_label_mcsPort: TLabel;
     c_label_mcsBindTo: TLabel;
-    c_edit_mcsHost: TEdit;
+    c_edit_group: TEdit;
     c_cb_mcsTTL: TComboBox;
-    c_edit_mcsPort: TEdit;
+    c_edit_port: TEdit;
     c_button_mcsStart: TButton;
     c_button_mcsStop: TButton;
     c_checkBox_mcsEnableLoopback: TCheckBox;
-    c_checkBox_mcsExBind: TCheckBox;
     c_cb_mcsBindTo: TComboBox;
     waveIn: TunavclWaveInDevice;
     codecIn: TunavclWaveCodecDevice;
@@ -100,11 +99,12 @@ uses
 // --  --
 procedure Tc_form_main.formCreate(sender: tObject);
 begin
-  unaSockets.startup();	// since we are not using unaSocks class here,
-			// we need to startup and shutdown the sockets explicitly
-  //
   f_config := unaIniFile.create();
   f_source := unaMulticastSocket.create();
+  //
+  {$IFDEF __AFTER_D7__ }
+  doubleBuffered := True;
+  {$ENDIF __AFTER_D7__ }
   //
   waveIn.addConsumer(c_fft_main.fft);
 end;
@@ -118,11 +118,10 @@ begin
   loadControlPosition(self, f_config);
   //
   f_config.section := 'mc';
-  c_edit_mcsHost.text := f_config.get('groupIP', '224.0.1.2');
-  c_edit_mcsPort.text := f_config.get('port', '18000');
+  c_edit_group.text := f_config.get('groupIP', '224.0.1.2');
+  c_edit_port.text := f_config.get('port', '18000');
   c_cb_mcsTTL.text := f_config.get('ttl', '0');
   c_checkBox_mcsEnableLoopback.checked := f_config.get('enableLoopback', false);
-  c_checkBox_mcsExBind.checked := f_config.get('exBind', false);
   //
   c_cb_mcsBindTo.clear();
   c_cb_mcsBindTo.items.add('0.0.0.0');
@@ -143,6 +142,8 @@ begin
     free();
   end;
   //
+  codecIn.device.assignStream(false, nil);
+  //
   c_timer_update.enabled := true;
 end;
 
@@ -155,11 +156,10 @@ begin
   f_source.close();
   //
   f_config.section := 'mc';
-  f_config.setValue('groupIP', c_edit_mcsHost.text);
-  f_config.setValue('port', c_edit_mcsPort.text);
+  f_config.setValue('groupIP', c_edit_group.text);
+  f_config.setValue('port', c_edit_port.text);
   f_config.setValue('ttl', c_cb_mcsTTL.text);
   f_config.setValue('enableLoopback', c_checkBox_mcsEnableLoopback.checked);
-  f_config.setValue('exBind', c_checkBox_mcsExBind.checked);
   //
   f_config.setValue('bindToIndex', c_cb_mcsBindTo.itemIndex);
   //
@@ -171,8 +171,6 @@ procedure Tc_form_main.formDestroy(sender: tObject);
 begin
   freeAndNil(f_source);
   freeAndNil(f_config);
-  //
-  unaSockets.shutdown();
 end;
 
 // --  --
@@ -184,10 +182,10 @@ begin
     c_statusBar_main.panels[0].text := int2str(ams() shr 10, 10, 3) + ' KB';
     {$ENDIF DEBUG }
     //
-    c_button_mcsStart.enabled := not f_source.isReady(true);
-    c_button_mcsStop.enabled := f_source.isReady(true);
+    c_button_mcsStart.enabled := not f_source.isConnected(1);
+    c_button_mcsStop.enabled := not c_button_mcsStart.enabled;
     //
-    c_label_status.caption := 'Status: ' + choice(f_source.isReady(true), 'sent ' + int2str(f_sent shr 10, 10, 3) + ' KB',
+    c_label_status.caption := 'Status: ' + choice(f_source.isConnected(0), 'sent ' + int2str(f_sent shr 10, 10, 3) + ' KB',
       choice(0 = f_socketErr, ' inactive.', 'socket error = ' + int2str(f_socketErr)));
   end;
 end;
@@ -197,11 +195,10 @@ procedure Tc_form_main.c_button_mcsStartClick(Sender: TObject);
 begin
   // start streaming
   f_sent := 0;
-  f_source.setHost(c_edit_mcsHost.text);
-  f_source.setPort(c_edit_mcsPort.text);
+  f_source.setPort(c_edit_port.text);
   f_source.bindToIP := c_cb_mcsBindTo.text;
   //
-  f_socketErr := f_source.senderCreate(str2intInt(c_cb_mcsTTL.text, 1), choice(c_checkBox_mcsEnableLoopback.checked, IP_DEFAULT_MULTICAST_LOOP, int(0)), not c_checkBox_mcsExBind.checked);
+  f_socketErr := f_source.mjoin(c_edit_group.text, c_unaMC_send, str2intInt(c_cb_mcsTTL.text, -1), not c_checkBox_mcsEnableLoopback.checked);
   //
   if (0 = f_socketErr) then
     waveIn.open();
@@ -224,9 +221,9 @@ end;
 // --  --
 procedure Tc_form_main.codecInDataAvailable(sender: unavclInOutPipe; data: pointer; len: cardinal);
 begin
-  if (f_source.isReady()) then begin
+  if (f_source.isConnected(1)) then begin
     //
-    if (0 = f_source.senderSend(data, len)) then
+    if (0 = f_source.sendData(data, len)) then
       inc(f_sent, len);
     //
   end;

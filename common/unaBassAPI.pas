@@ -58,7 +58,7 @@ const
   BASSVERSIONTEXT = '2.4';
 
   // Use these to test for error from functions that return a DWORD or QWORD
-  DW_ERROR = Cardinal(-1); // -1 (DWORD)
+  DW_ERROR = LongWord(-1); // -1 (DWORD)
   QW_ERROR = Int64(-1);    // -1 (QWORD)
 
   // Error codes returned by BASS_GetErrorCode()

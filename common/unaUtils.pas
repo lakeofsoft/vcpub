@@ -3,7 +3,7 @@
 	----------------------------------------------
 	  unaUtils.pas
 	----------------------------------------------
-	  Copyright (c) 2001-2010 Lake of Soft
+	  Copyright (c) 2001-2011 Lake of Soft
 		     All rights reserved
 
 	  http://lakeofsoft.com/
@@ -23,7 +23,7 @@
 		Lake, Jan-Oct 2008
 		Lake, Jun-Dec 2009
 		Lake, Jan-Dec 2010
-		Lake, Jan 2011
+		Lake, Jan-May 2011
 
 	----------------------------------------------
 *)
@@ -33,6 +33,9 @@
 {x $DEFINE UNAUTILS_MEM_USE_HEAP_CALLS }	// define to use HeapAlloc()/HeapReAlloc() instead of Borland memory manager
 
 {x $DEFINE CONSOLE_IO }				// defien to declare and initialize I/O handles: g_CONIN and g_CONOUT
+
+{x $DEFINE UNAUTILS_NOSHELL }			// Do not link to Shell/WinMM
+{$DEFINE UNAUTILS_NOTIME }			// Do not link to WinMM timers
 
 {$IFDEF DEBUG }
   //
@@ -44,16 +47,17 @@
     {x $DEFINE UNAUTILS_DEBUG_MEM }	// enable memory allocations calcualtions (g_allocMemSize will be valid)
 					// NOTE: If UNAUTILS_DEBUG_MEM is defined, ams() will return size of
 					//       memory allocated by malloc()/mrealloc() routines only.
-
+    //
     {x $DEFINE LOG_UNAUTILS_MALLOCS } 	// enable memory allocations logging
     //
   {$ENDIF __AFTER_D9__ }
-  //
+
   {x $DEFINE CHECK_MEMORY_LEAKS }			// enable memory leaks checking routines
-{$IFDEF CHECK_MEMORY_LEAKS }
-  {$DEFINE CHECK_MEMORY_LEAKS_UNA_ONLY }	// enable memory leaks checking routines (do not override memory manager)
-{$ENDIF CHECK_MEMORY_LEAKS }
   //
+  {$IFDEF CHECK_MEMORY_LEAKS }
+    {$DEFINE CHECK_MEMORY_LEAKS_UNA_ONLY }	// enable memory leaks checking routines (do not override memory manager)
+  {$ENDIF CHECK_MEMORY_LEAKS }
+
 {$ENDIF DEBUG }
 
 {*
@@ -69,6 +73,16 @@
 unit
   unaUtils;
 
+{$IFDEF CPU64 }
+  {$IFDEF CHECK_MEMORY_LEAKS }
+    Memory leak checks for x86_64 are not supported.
+  {$ENDIF CHECK_MEMORY_LEAKS }
+  //
+  {$IFDEF UNAUTILS_DEBUG_MEM }
+    Memory debug for x86_64 is not supported.
+  {$ENDIF UNAUTILS_DEBUG_MEM }
+{$ENDIF CPU64 }
+
 interface
 
 uses
@@ -82,6 +96,8 @@ uses
 
 {
   Note from Delphi Help.
+
+  ( **** See below for CPU64 *** )
 
 procedure Test(A: Integer; var B: Char; C: Double; const D: string; E: Pointer);
 
@@ -108,6 +124,27 @@ constructor or destructor in assembler, be sure to preserve the DL register.
 Procedures and functions are invoked with the assumption that the CPU’s direction
 flag is cleared (corresponding to a CLD instruction) and must return with the
 direction flag cleared.
+
+
+
+**** For CPU64 ***
+
+Unlike the x86, the C/C++ compiler only supports one calling convention on x64.
+This calling convention takes advantage of the increased number of registers available on x64:
+
+IN:
+    * The first four integer or pointer parameters are passed in the rcx, rdx, r8, and r9 registers.
+    * The first four floating-point parameters are passed in the first four SSE registers, xmm0-xmm3.
+    * The caller reserves space on the stack for arguments passed in registers.
+      The called function can use this space to spill the contents of registers to the stack.
+    * Any additional arguments are passed on the stack.
+OUT:
+    * An integer or pointer return value is returned in the rax register, while a floating-point return value is returned in xmm0.
+    * rax, rcx, rdx, r8-r11 are volatile.
+    * rbx, rbp, rdi, rsi, r12-r15 are nonvolatile.
+
+The calling convention for C++ is very similar: the this pointer is passed as an implicit first parameter.
+The next three parameters are passed in registers, while the rest are passed on the stack.
 
 }
 
@@ -209,53 +246,15 @@ function base64decode(data: pointer; len: unsigned): aString; overload;
 
 	@param data String of bytes to be decoded.
 	@param buf Output buffer. Use mrealloc() to deallocate memory pointed by buf.
-	
+
 	@return Number of bytes in output buffer.
 }
 function base64decode(const data: aString; out buf: pointer): unsigned; overload;
 
 {*
-	  Encodes data with "base65" method.
-
-	  @return Encoded value as string.
-}
-function base65encode(data: pointer; len: unsigned): aString; overload;
-{*
-	  Encodes data with "base65" method.
-
-	  @return Encoded value as string.
-}
-function base65encode(const data: aString): aString; overload;
-{*
-	  Decodes data encoded with "base65" method.
-
-	  @return Dencoded value as string.
-}
-function base65decode(data: pointer; len: unsigned): aString; overload;
-{*
-	  Decodes data encoded with "base65" method.
-
-	  @return Dencoded value as string.
-}
-function base65decode(const data: aString): aString; overload;
-
-// --  --
-{*
-	  Encodes data with "X" method.
-
-	  @return Dencoded value as string.
-}
-function baseXencode(const data, key: aString; ver: int): aString;
-{*
-	  Decodes data encoded with "X" method.
-
-	  @return Dencoded value as string.
-}
-function baseXdecode(const data, key: aString; ver: int): aString;
-
-{*
 	Calculates CRC32 checksum.
 	Based on Hagen Reddmann code.
+	NOTE: It is not fully compatible with standard CRC32!
 
 	@param data String of bytes to calculate CRC32 of.
 	@param crc Initial CRC value, do not change.
@@ -265,6 +264,7 @@ function crc32(const data: aString; crc: uint32 = $FFFFFFFF): uint32; overload;
 {*
 	Calculates CRC32 checksum.
 	Based on Hagen Reddmann code.
+	NOTE: It is not fully compatible with standard CRC32!
 
 	@param data Pointer to array of bytes to calculate CRC32 of.
 	@param len Size of array pointed by data.
@@ -274,7 +274,6 @@ function crc32(const data: aString; crc: uint32 = $FFFFFFFF): uint32; overload;
 function crc32(data: pointer; len: unsigned; crc: uint32 = $FFFFFFFF): uint32; overload;
 {*
 	Calculates "CRC16" checksum. CRC16 is defined as "(crc shr 16) xor (crc and $FFFF)" where crc is standard CRC32 value.
-	Based on Hagen Reddmann code.
 
 	@param data Pointer to array of bytes to calculate CRC16 of.
 	@param len Size of array pointed by data.
@@ -283,7 +282,6 @@ function crc32(data: pointer; len: unsigned; crc: uint32 = $FFFFFFFF): uint32; o
 function crc16(data: pointer; len: unsigned): uint16;
 {*
 	Calculates "CRC8" checksum.
-	Based on Hagen Reddmann code.
 
 	@param data Pointer to array of bytes to calculate CRC8 of.
 	@param len Size of array pointed by data.
@@ -292,7 +290,6 @@ function crc16(data: pointer; len: unsigned): uint16;
 function crc8(data: pointer; len: unsigned): uint8;
 {*
 	Calculates "CRC4" checksum.
-	Based on Hagen Reddmann code.
 
 	@param data Pointer to array of bytes to calculate CRC4 of.
 	@param len Size of array pointed by data.
@@ -344,7 +341,6 @@ function UTF82UTF16(const s: aString): wString;
 	@return ANSI string (single-byte string).
 }
 function wide2ansi(const w: wString; cp: unsigned = CP_ACP): aString;
-
 
 //	FILES
 
@@ -453,9 +449,10 @@ function writeToFile(handle: tHandle; buf: pointer; size: unsigned; pos: unsigne
 	@return -4 if number of bytes written does not equal to given size.
 }
 function writeToFile(handle: tHandle; const buf: aString; pos: unsigned = 0; posMode: unsigned = FILE_CURRENT): int; overload;
+
 {$IFDEF VC25_OVERLAPPED }
-/// overlapped write
-function write2file(handle: tHandle; var offset: int32; buf: pointer; len: unsigned): bool;
+  /// overlapped write
+function write2file(handle: tHandle; var offset: int; buf: pointer; len: unsigned): bool;
 {$ENDIF VC25_OVERLAPPED }
 
 {*
@@ -463,7 +460,7 @@ function write2file(handle: tHandle; var offset: int32; buf: pointer; len: unsig
 
 	@param name File name.
 	@param buf Buffer to place data into.
-	@param size Number of bytes to read. Buffer must be at least of that size.<BR>Will be set to number of bytes actually read from the file, or to 0 if some error has occured.
+	@param size Number of bytes to read. Buffer must be at least of that size. This parameter will be set to number of bytes actually read from the file, or to 0 if some error has occured.
 	@param pos Offset in file to read data from (actual offset depends on posMode).
 	@param posMode How to calculate the real offset in the file (default is FILE_BEGIN, refer to MSDN for mode details).
 
@@ -472,6 +469,7 @@ function write2file(handle: tHandle; var offset: int32; buf: pointer; len: unsig
 	@return -2 if there was an error in opening the file;
 	@return -3 if operation has been failed for some reason;
 	@return -4 if number of bytes read does not equal to given size (file is too short). Not a fatal error in most cases.
+	@return size parameter will be set to number of bytes actually read from the file, or to 0 if some error occured.
 }
 function readFromFile(const name: wString; buf: pointer; var size: unsigned; pos: unsigned = 0; posMode: unsigned = FILE_BEGIN): int; overload;
 {*
@@ -485,10 +483,6 @@ function readFromFile(const name: wString; buf: pointer; var size: unsigned; pos
 	@return Read data as string of bytes.
 }
 function readFromFile(const name: wString; pos: unsigned = 0; posMode: unsigned = FILE_BEGIN; len: int64 = 0): aString; overload;
-{*
-	Same as readFromFile() but return wideString.
-}
-//function readFromFileW(const name: wString; pos: unsigned = 0; posMode: unsigned = FILE_BEGIN; len: int64 = 0): wString;
 {*
 	Reads data from a file specified by handle at specified position.
 
@@ -584,7 +578,7 @@ function changeFileExt(const fileName: wString; const ext: wString = '.txt'): wS
 {*
 	Expands short file name to long one.
 }
-function GetLongPathName(shortPathName: wString): wString;
+function getLongPathName(shortPathName: wString): wString;
 
 
 const
@@ -617,7 +611,7 @@ const
   BIF_SHAREABLE          = $8000;
 
   {$EXTERNALSYM BIF_USENEWUI}
-	BIF_USENEWUI = BIF_NEWDIALOGSTYLE or BIF_EDITBOX;
+  BIF_USENEWUI = BIF_NEWDIALOGSTYLE or BIF_EDITBOX;
 
 
   { message from browser }
@@ -691,7 +685,7 @@ type
   TFNBFFCallBack = type BFFCALLBACK;
 
   //
-	PBrowseInfoA = ^TBrowseInfoA;
+  PBrowseInfoA = ^TBrowseInfoA;
   PBrowseInfoW = ^TBrowseInfoW;
 {$IFDEF FPC }
 {$ELSE }
@@ -736,6 +730,8 @@ type
   {$EXTERNALSYM BROWSEINFO}
   BROWSEINFO = BROWSEINFOA;
 {$ENDIF FPC }
+
+{$IFNDEF UNAUTILS_NOSHELL }
 
 {$IFDEF FPC }
 {$ELSE }
@@ -818,10 +814,12 @@ function SHGetPathFromIDListW(pidl: PItemIDList; pszPath: pwChar): BOOL; stdcall
 	@param directory Start brofsing from this directory ('' = root). Returns selected directory if selection was successfull.
 	@param handle Handle of parent window.
 	@param flags Flags for the dialog.
-	
+
 	@return True if selection was successfull.
 }
 function guiSelectDirectory(const caption, root: wString; var directory: wString; handle: hWnd = 0; flags: uint = BIF_RETURNONLYFSDIRS): bool;
+
+{$ENDIF UNAUTILS_NOSHELL }
 
 
 {*
@@ -839,6 +837,8 @@ function addBackSlash(const path: wString): wString;
 	Returns temporary file name.
 }
 function getTemporaryFileName(const prefix: wString = 'una'): wString;
+
+{$IFNDEF UNAUTILS_NOSHELL }
 
 const
   {$EXTERNALSYM REGSTR_PATH_EXPLORER}
@@ -962,6 +962,9 @@ function SHGetSpecialFolderPathW(owner: HWND; lpszPath: pwChar; nFolder: int; fC
 	Returns special folder path.
 }
 function getSpecialFolderPath(nFolder: int; owner: hWnd = 0; doCreate: bool = false): wString;
+
+{$ENDIF UNAUTILS_NOSHELL }
+
 {*
 	Returns Application Data folder path.
 }
@@ -1012,12 +1015,16 @@ function paramStrW(index: unsigned): wString;
 {*
 	Returns True if command line contains given switch.
 }
-function hasSwitch(const name: string; caseSensitive: bool = false): bool; overload;
+function hasSwitch(const name: string; caseSensitive: bool = false): bool;
 {*
 	Returns value of a given command line switch.
 }
 function switchValue(const name: string; caseSensitive: bool = false; defValue: int = 0): int; overload;
 function switchValue(const name: string; caseSensitive: bool = false; const defValue: string = ''): string; overload;
+{*
+	Returns a possible file name specified in parameters.
+}
+function switchFileName(var index: int; mustExists: bool = true): wString;
 
 
 // -- DISK --
@@ -1050,6 +1057,12 @@ function bool2str(value: bool): string;
 }
 function bool2strStr(value: bool): string;
 
+{*
+	Converts pointer value to string.
+	See int2str(int) for description of other parameters.
+}
+function ptr2str(value: pointer): string;
+
 {$IFNDEF CPU64 }
 {*
 	Converts integer value to a string.
@@ -1067,7 +1080,9 @@ function int2str(value: int; base: unsigned = 10; split: unsigned = 0; splitchar
 }
 function int2str(const value: int64; base: unsigned = 10; split: unsigned = 0; splitchar: char = ' '): string; overload;
 {$IFDEF __AFTER_D8__}
+  {$IFNDEF CPU64 }
 function int2str(const value: uint64; base: unsigned = 10; split: unsigned = 0; splitchar: char = ' '): string; overload;
+  {$ENDIF CPU64 }
 {$ENDIF __AFTER_D8__}
 {*
 	Converts unsigned value to a string.
@@ -1175,7 +1190,11 @@ function b64str2dateTime(const date: string; const defValue: tDateTime = 0): tDa
 {*
 	Converts system time into a string.
 }
-function sysTime2str(time: pSYSTEMTIME = nil; const format: wString = ''; locale: LCID = LOCALE_USER_DEFAULT; flags: DWORD = LOCALE_NOUSEROVERRIDE or TIME_NOSECONDS): wString;
+function sysTime2str(time: pSYSTEMTIME = nil; const format: wString = ''; locale: LCID = LOCALE_USER_DEFAULT; flags: DWORD = LOCALE_NOUSEROVERRIDE or TIME_NOSECONDS): wString; overload;
+{*
+	Converts system time into a string.
+}
+function sysTime2str(const time: SYSTEMTIME; const format: wString = ''; locale: LCID = LOCALE_USER_DEFAULT; flags: DWORD = LOCALE_NOUSEROVERRIDE or TIME_NOSECONDS): wString; overload;
 {*
 	Converts system date into a string.
 }
@@ -1339,11 +1358,11 @@ function padChar(pad: char; len: unsigned): string; overload;
   function padChar(pad: aChar; len: unsigned): aString; overload;
 {$ENDIF __BEFORE_DC__ }
 
-
 {*
-  Copies source string into dest pChat. dest must be large enough to store the source.
-  You can limit the number of characters to copy with maxLen parameter.
-  Returns dest.
+	Copies source string into dest pChat. dest must be large enough to store the source.
+
+	@param maxLen limit the number of characters to copy.
+	@return dest.
 }
 function strCopy(dest, source: pChar; maxLen: int = -1): pChar; overload;
 {$IFDEF __BEFORE_DC__ }
@@ -1354,14 +1373,16 @@ function strCopy(dest, source: pChar; maxLen: int = -1): pChar; overload;
 
 
 {*
-  Copies source string into dest pChat. dest must be large enough to store the source.
-  Returns dest.
+	Copies source string into dest pChat. dest must be large enough to store the source.
+
+	@param maxLen limit the number of characters to copy.
+	@return dest.
 }
-function strCopy(dest: pChar; const source: string; maxLen: int = -1): pChar; overload;
+function strCopyS(dest: pChar; const source: string; maxLen: int = -1): pChar; overload;
 {$IFDEF __BEFORE_DC__ }
-  function strCopy(dest: pwChar; const source: wString; maxLen: int = -1): pwChar; overload;
+  function strCopyS(dest: pwChar; const source: wString; maxLen: int = -1): pwChar; overload;
 {$ELSE }
-  function strCopy(dest: paChar; const source: aString; maxLen: int = -1): paChar; overload;
+  function strCopyS(dest: paChar; const source: aString; maxLen: int = -1): paChar; overload;
 {$ENDIF __BEFORE_DC__ }
 
 
@@ -1379,34 +1400,32 @@ function strNew(const source: string): pChar; overload;
 {$ELSE }
   function strNew(const source: aString): paChar; overload;
 {$ENDIF __BEFORE_DC__ }
+{*
+  Allocates memory for a new string. Use unaUtils.strDispose() to release the memory.
+}
+function strNewA(str: paChar): paChar;
 
 {*
-  Returns number of chars being copied.
+	Returns number of chars being copied.
 }
-function str2array(const src: string; var A: array of char): int; {$IFDEF __BEFORE_D6__ }{$ELSE }overload;{$ENDIF __BEFORE_D6__ }
-{$IFDEF __BEFORE_DC__ }
-  {$IFDEF __BEFORE_D6__ }
-    function str2arrayW(const src: wString; var A: array of wChar): int;
-  {$ELSE }
-    function str2array(const src: wString; var A: array of wChar): int; overload;
-  {$ENDIF __BEFORE_D6__ }
-{$ELSE }
-  function str2array(const src: aString; var A: array of aChar): int; overload;
-{$ENDIF __BEFORE_DC__ }
-
-
-function array2str(const A: array of char; out value: string; startPos: int = low(int); length: int = -1): int; overload;
-{$IFDEF __BEFORE_DC__ }
-function array2str(const A: array of wChar; out value: wString; startPos: int = low(int); length: int = -1): int; overload;
-{$ELSE }
-function array2str(const A: array of aChar; out value: aString; startPos: int = low(int); length: int = -1): int; overload;
-{$ENDIF __BEFORE_DC__ }
-
+function str2arrayA(const src: aString; var A: array of aChar): int;
 {*
-  If maxArrayLength is specified, assumed that it includes the last NULL character.
-  Returns number of wide chars being copied.
+	Returns number of chars being copied.
 }
-function array2str(const A: array of wChar; out value: wString; maxArrayLength: int = -1): int; overload;
+function str2arrayW(const src: wString; var A: array of wChar): int;
+{*
+	//
+}
+function array2strA(const A: array of aChar; out value: aString; startPos: int = low(int); length: int = -1): int;
+{*
+	//
+}
+function array2strW(const A: array of wChar; out value: wString; startPos: int = low(int); length: int = -1): int;
+{*
+	If maxArrayLength is specified, assumed that it includes the last NULL character.
+	Returns number of wide chars being copied.
+}
+function array2str(const A: array of wChar; out value: wString; maxArrayLength: int = -1): int;
 
 {*
   Allocates memory for a new string.
@@ -1423,18 +1442,22 @@ function strDisposeW(str: pwChar): bool;
   Returns length of a string.
 }
 function strLenA(str: paChar): unsigned;
+
 {*
-  Allocates memory for a new string. Use unaUtils.strDispose() to release the memory.
-}
-function strNewA(str: paChar): paChar;
-{*
-  Scans the src string for specified character.
-  Returns pointer on position in the string where this character was found, or nil otherwise.
+	Scans the src string for specified character.
+
+	@return pointer on position in the string where this character was found, or nil otherwise.
 }
 function strScanA(const str: paChar; chr: aChar): paChar;
-{
+
+{$IFDEF CPU64 }
+{$ELSE }
+{*
+
 }
 function strPosA(const strSource, strToFind: paChar): paChar;
+{$ENDIF CPU64 }
+
 {*
   Returns position (starting from 1) in the s where one of the characters given in delimiters was found.
   Search is performed from the end of string. Returns length of s if no characters were found.
@@ -1450,7 +1473,7 @@ function lastDelimiter(const delimiters, s: wString): int;
 	<LI>"PAGE"#12"FEED" -- "PAGE/012FEED"</LI>
   </UL>
 }
-function strEscape(const value: aString; const specialCare: aString = ''): aString;
+function strEscape(const value: string; const specialCare: string = ''): string;
 
 {*
   Converts "escaped" value back to "plain" string. Examples:
@@ -1460,7 +1483,7 @@ function strEscape(const value: aString; const specialCare: aString = ''): aStri
     "C:\TEMP//"      --> "C:\TEMP/"
     "PAGE/012FEED"   --> "PAGE"#12"FEED"
 }
-function strUnescape(const value: aString): aString;
+function strUnescape(const value: string): string;
 
 {*
   //
@@ -1470,8 +1493,13 @@ function htmlEscape(const value: aString; strict: bool = true): aString;
 {*
   //
 }
-function urlEncode(const value: aString): aString;
-function urlDecode(const value: aString): aString;
+function urlEncodeA(const value: aString): aString;
+function urlDecodeA(const value: aString): aString;
+function urlEncodeW(const value: wString): wString;
+function urlDecodeW(const value: wString): wString;
+//
+function urlEncode(const value: string): string;
+function urlDecode(const value: string): string;
 
 {*
   Substitues variable fields in the template with given values. Example:
@@ -1481,7 +1509,7 @@ function urlDecode(const value: aString): aString;
   <BR />&nbsp;
   <P />Use the strEscape() function to ensure there are no #9 or #10 characters in the values.
 }
-function formatTemplate(const templ: aString; const vars: aString; unescapeVars: bool = true): aString;
+function formatTemplate(const templ: string; const vars: string; unescapeVars: bool = true): string;
 {*
 }
 function nextToken(const text: wString; var startPos: int): wString;
@@ -1511,6 +1539,8 @@ function guiMessageBox(owner: hWnd; const message, title: wString; flags: int = 
 }
 function guiMessageBox(const message, title: wString; flags: int = MB_OK; owner: hWnd = 0): int; overload;
 
+{$IFNDEF UNAUTILS_NOSHELL }
+
 {$EXTERNALSYM ShellAboutA}
 function ShellAboutA(Wnd: HWND; szApp, szOtherStuff: paChar; Icon: HICON): Integer; stdcall;
 {$EXTERNALSYM ShellAboutW}
@@ -1520,6 +1550,8 @@ function ShellAboutW(Wnd: HWND; szApp, szOtherStuff: pwChar; Icon: HICON): Integ
   Wrapper for ShellAbout function
 }
 function guiAboutBox(const appName, otherStuff: wString; handle: tHandle = 0; icon: hIcon = $FFFFFFFF): int;
+
+{$ENDIF UNAUTILS_NOSHELL }
 
 //	DEBUG
 
@@ -1549,7 +1581,9 @@ const
   c_logModeFlags_critical	= $0001;
   c_logModeFlags_normal		= $0002;
   c_logModeFlags_debug 		= $0004;
+{$IFDEF VC25_OVERLAPPED }
   c_logModeFlags_noOL 		= $0008;
+{$ENDIF VC25_OVERLAPPED }
 
 
 {*
@@ -1569,7 +1603,7 @@ function logMessage(const message: string = ''; flags: int = {$IFDEF DEBUG } c_l
 {*
   Specifies the name of debug log and infoMessageProc procedure to be used by the infoMessage() routine.
 }
-function setInfoMessageMode(const logName: wString = ''; proc: infoMessageProc = nil; logToScreen: int = -1; logToFile: int = -1; logTimeMode: unaInfoMessage_logTimeModeEnum = unaLtm_default; logMemoryInfo: int = -1; logThreadId: int = -1; useWideStrings: bool = false): wString;
+function setInfoMessageMode(const logName: wString = ''; proc: infoMessageProc = nil; logToScreen: int = -1; logToFile: int = -1; logTimeMode: unaInfoMessage_logTimeModeEnum = unaLtm_default; logMemoryInfo: int = -1; logThreadId: int = -1; useWideStrings: bool = false; useSysTime: int = -1): wString;
 
 {$IFDEF DEBUG}
 {*
@@ -1618,41 +1652,41 @@ function colorShift(color: int; op: tunaColorOp): int;
 // 	  -- REGISTRY --
 
 {*
-  Reads data from registry.
+	Reads data from registry.
 }
 function getRegValue(const path: aString; const keyName: aString; var buf; var size: DWORD; rootKey: HKEY = HKEY_CURRENT_USER): long; overload;
 {*
-  Writes data to registry.
+	Writes data to registry.
 }
 function setRegValue(const path: aString; const keyName: aString; const buf; size: DWORD; keyType: int; rootKey: HKEY = HKEY_CURRENT_USER): long; overload;
 {*
-  Reads integer value from registry.
+	Reads integer value from registry.
 }
 function getRegValue(const path: aString; const keyName: aString = ''; defValue: int = 0; rootKey: HKEY = HKEY_CURRENT_USER): int; overload;
 function getRegValue(const path: aString; const keyName: aString = ''; defValue: unsigned = 0; rootKey: HKEY = HKEY_CURRENT_USER): unsigned; overload;
 {*
-  Writes integer value into registry.
+	Writes integer value into registry.
 }
 function setRegValue(const path: aString; const keyName: aString = ''; keyValue: int = 0; rootKey: HKEY = HKEY_CURRENT_USER): long; overload;
 function setRegValue(const path: aString; const keyName: aString = ''; keyValue: unsigned = 0; rootKey: HKEY = HKEY_CURRENT_USER): long; overload;
 {*
-  Reads aString value from registry.
+	Reads aString value from registry.
 }
 function getRegValue(const path: aString; const keyName: aString = ''; const defValue: aString = ''; rootKey: HKEY = HKEY_CURRENT_USER): aString; overload;
 {*
-  Writes string value into registry.
+	Writes string value into registry.
 }
 function setRegValue(const path: aString; const keyName: aString = ''; const keyValue: aString = ''; rootKey: HKEY = HKEY_CURRENT_USER): long; overload;
 
 {*
-  Enables or disables autorun of specified appication (current module will be used by default).
+	Enables or disables autorun of specified appication (current module will be used by default).
 }
 function enableAutorun(doEnable: bool = true; const appPath: wString = ''): bool;
 
 // 	  -- MESSAGES --
 
 {*
-  	Processes messages waiting to be processed by application or window.
+	Processes messages waiting to be processed by application or window.
 
 	@return number of messages being processed.
 }
@@ -1755,6 +1789,13 @@ function getPriority(): int;
 	Returns 0 if successfull.
 }
 function putIntoClipboard(const data: aString; window: hWnd = 0{current task}): int;
+
+{$IFDEF FPC64 }
+  //FPC got it wrong
+  {$EXTERNALSYM GetProcessAffinityMask }
+function GetProcessAffinityMask(hProcess: THandle; var lpProcessAffinityMask, lpSystemAffinityMask: DWORD_PTR): BOOL; stdcall;
+{$ENDIF FPC64 }
+
 {*
 	Returns number of cores.
 }
@@ -1765,7 +1806,7 @@ function getNumCores(): int;
 //	  -- MEMORY --
 
 {*
-  Returns allocated memory size.
+	@return allocated memory size.
 }
 function ams(): int;
 
@@ -1785,16 +1826,23 @@ procedure mfill16(mem: pointer; count: unsigned; value: uint16 = 0);
 
   @return pointer to allocated memory block.
 }
-function malloc(size: unsigned; doFill: bool = false; fill: byte = 0): pointer; overload;
+function malloc(size: unsigned; doFill: bool = false; fill: byte = 0): pointer; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
-  Allocates block of memory.
+	Allocates block of memory.
 
-  @param size size of block to allocate.
-  @param data pointer to a data buffer to be copied into allocated block (must contain at least size bytes).
+	@param size size of block to allocate.
+	@param data pointer to a data buffer to be copied into allocated block (must contain at least size bytes).
 
-  @return pointer to allocated memory block.
+	@return pointer to allocated memory block.
 }
-function malloc(size: unsigned; data: pointer): pointer; overload;
+function malloc(size: unsigned; data: pointer): pointer; overload; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Reallocates block of memory.
+	Has same functionality as ReallocMem() routine.
+
+	@return the resulting pointer.
+}
+procedure mrealloc(var data; newSize: unsigned = 0); {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
 {*
   Compares two memory blocks.
@@ -1805,51 +1853,50 @@ function malloc(size: unsigned; data: pointer): pointer; overload;
   @return true if at least size bytes are equal.
 }
 function mcompare(p1, p2: pointer; size: unsigned): bool;
-
 {*
-	Reallocates block of memory.
-	Has same functionality as ReallocMem() routine.
-
-	@return the resulting pointer.
-}
-procedure mrealloc(var data; newSize: unsigned = 0);
-
-{*
-  Scans memory for a byte value.
-  Count is number of bytes in buf array.
+	Scans memory for a byte value.
+	Count is number of bytes in buf array.
 }
 function mscanb(buf: pointer; count: unsigned; value: uint8): pointer;
 {*
-  Scans memory for a word value.
-  Count is a number of words in buf array.
+	Scans memory for a word value.
+	Count is a number of words in buf array.
 }
 function mscanw(buf: pointer; count: unsigned; value: uint16): pointer;
 {*
-  Scans memory for a double word value.
-  Count is a number of double words in buf array.
+	Scans memory for a double word value.
+	Count is a number of double words in buf array.
 }
 function mscand(buf: pointer; count: unsigned; value: uint32): pointer;
 {*
-  Scans memory for a quad word value.
-  Count is a number of quad words in buf array.
+	Scans memory for a pointer value.
+        Assumes elements are aligned to sizeof(pointer)
+
+	@value value to scan for
+	@len size of buffer in bytes
+}
+function mscanp(buf: pointer; value: pointer; len: unsigned): pointer;
+{*
+	Scans memory for a quad word value.
+	Count is a number of quad words in buf array.
 }
 function mscanq(buf: pointer; count: unsigned; const value: int64): pointer;
 {*
-  Scans memory for array of bytes, pointed by value.
-  bufSize is number of bytes in buf array.
-  valueLen is number of bytes in value array.
+	Scans memory for array of bytes, pointed by value.
+	bufSize is number of bytes in buf array.
+	valueLen is number of bytes in value array.
 }
 function mscanbuf(buf: pointer; bufSize: unsigned; value: pointer; valueLen: unsigned): pointer;
 {*
-  Swaps int16/uint16 values in a buffer. Len is in bytes and should be even.
+	Swaps int16/uint16 values in a buffer. Len is in bytes and should be even.
 }
 procedure mswapbuf16(buf: pointer; len: int);
 {*
-	Swaps low and high bytes.
+	LSB16 <-> MSB16, sorts 2 bytes in reverse order.
 }
 function swap16(w: uint16): uint16;
 {*
-	Swaps bytes.
+	LSB32 <-> MSB32, sorts 4 bytes in reverse order.
 }
 function swap32(w: uint32): uint32;
 
@@ -1859,6 +1906,7 @@ function swap32(w: uint32): uint32;
   <P />Assigns nil value to the object reference.
 }
 procedure freeAndNil(var objRef);{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+
 
 {$IFDEF CHECK_MEMORY_LEAKS }
 
@@ -1886,11 +1934,28 @@ procedure mleaks_stop(produceReport: bool = true);
 
 	@return true if event was sent to signaled state.
 }
-function waitForObject(handle: tHandle; timeout: unsigned = 1): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function waitForObject(handle: tHandle; timeout: tTimeout = 1): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
 
 //        -- QUICK MT-SAFE ACQUISITION --
+{$IFDEF FPC }
+{$ELSE }
 
+{$EXTERNALSYM InterlockedExchangeAdd }
+{$EXTERNALSYM InterlockedIncrement }
+{$EXTERNALSYM InterlockedDecrement }
+{$EXTERNALSYM InterlockedCompareExchange }
+function InterlockedExchangeAdd(var Addend: int; value: int): int;
+function InterlockedIncrement(var Addend: int): int;
+function InterlockedDecrement(var Addend: int): int;
+function InterlockedCompareExchange(var Destination: int; Exchange: int; Comparand: int): int;
+
+{$ENDIF FPC }
+
+{*
+	internal, do not use
+}
+function _acquire32(var a: unaAcquireType): bool;
 {*
 	Tries to acquire an object (interger counter).
 	If acquisition failed, releases the object, so there is no need to call release32() if this function returns false.
@@ -1898,31 +1963,30 @@ function waitForObject(handle: tHandle; timeout: unsigned = 1): bool;{$IFDEF UNA
 	Don't forget to call release32() if this function returns True.
 
 	@param a Object to acquire.
-	@return true if counter was equal 0 exactly at this acquisition attempt..
+	@return true if counter was equal 0 exactly at this acquisition attempt.
 }
-function acquire32Exclusive(var a: unaAcquireType): bool;       (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
+function acquire32Exclusive(var a: unaAcquireType): bool; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Acquires an object (interger counter).
 
-	This acquire always success, simply marking an object as "busy".
-	Don't forget to call release32() when object is no longer needed to be locked.
+	This acquire always succeeds, simply marking an object as "locked".
+	Don't forget to call release32() when object is no longer needed to be marked as "locked".
 
 	@param a Object to acquire.
 	@return True if a was 0 at the moment of acquition.
 }
-function acquire32NonExclusive(var a: unaAcquireType): bool;       (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
+function acquire32NonExclusive(var a: unaAcquireType): bool; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Acquires an object (interger counter).
 
-	This acquire always success, simply marking an object as "busy".
-	Don't forget to call release32() when object is no longer needed to be locked.
+	This acquire always success, simply marking an object as "locked".
+	Don't forget to call release32() when object is no longer needed to be "locked".
 
 	@param a Object to acquire.
 }
 procedure acquire32NE(var a: unaAcquireType); (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
 {*
-	Acquires an object (interger counter) and returns true if counter was
-	equil 0 exactly at this acquisition attempt.
+	Acquires an object (interger counter) and returns true if counter was 0 exactly at this acquisition attempt.
 
 	If acquisition failed, releases the object, so there is no need to call release32() if this function returns false.
 
@@ -1930,19 +1994,18 @@ procedure acquire32NE(var a: unaAcquireType); (* {$IFDEF UNA_OK_INLINE }inline;{
 	@param timeout Time in ms to spend trying to acquire. 0 means give up without waiting.
 	@return True if object was acquired exactly at this acquisition attempt.
 }
-function acquire32(var a: unaAcquireType; timeout: int): bool; overload; (* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
+function acquire32(var a: unaAcquireType; timeout: tTimeout): bool; overload; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
-	Releases object, acquired with acquireObj().
-	If exclusive parameter was false, object must always be released.
+	Releases object, acquired with successfull acquire32XXXXXXX().
+	(If exclusive parameter was false, object must always be released).
 
 	Release always succeeds. Return value simply indicates if object counter
-	reached 0 after release (or not), so it would be possible to maintain a,
-	for example, number of acquired objects.
+	reached 0 after release, so it would be possible to maintain a,	for example, number of acquired objects.
 
 	@param acquire Object to release.
 	@return True if object ref count has reached 0.
 }
-function release32(var a: unaAcquireType): bool;(* {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE } *)
+function release32(var a: unaAcquireType): bool; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
 
 //	  -- HRPC/WINDOWS TIMER --
@@ -1972,18 +2035,23 @@ function hrpc_timeElapsed64(mark: int64): int64;{$IFDEF UNA_OK_INLINE }inline;{$
 }
 function hrpc_timeElapsed64ticks(mark: int64): int64;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
-
-{$EXTERNALSYM timeGetTime }
-{$EXTERNALSYM timeBeginPeriod }
-function timeGetTime(): DWORD; stdcall;
-function timeBeginPeriod(period: UINT): UINT; stdcall;
-
 {*
 	"smart" GetTickCount()
 
 	@return Number of milliseconds since boot, resolution is about 1 ms
 }
 function gtc(): uint64;
+
+
+{$IFDEF UNAUTILS_NOTIME }
+{$ELSE }
+
+{$EXTERNALSYM timeGetTime }
+{$EXTERNALSYM timeBeginPeriod }
+function timeGetTime(): DWORD; stdcall;
+function timeBeginPeriod(period: UINT): UINT; stdcall;
+
+{$ENDIF UNAUTILS_NOTIME }
 
 {*
 	Internal, do not use.
@@ -2014,18 +2082,23 @@ function timeElapsed64U(mark: uint64): uint64;{$IFDEF UNA_OK_INLINE }inline;{$EN
 }
 function timeElapsedU(mark: uint64): unsigned;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
-
 //
 function sanityCheck(var mark: uint64; maxSlice: unsigned = 300; sleepSlice: unsigned = 20; careMessages: bool = true): bool;
 function sanityCheck64(var mark: uint64; maxSlice: int64 = 300000; sleepSlice: unsigned = 20; careMessages: bool = false): bool;
 
+
+
 //	  -- ERROR --
 
 {*
-  Returns Windows system error message for given error code.
-  <P />If errorCode parameter is 0 (default) it will be replaced with Window.GetLastError() value.
+	Returns string describing last error.
+
+	@param errorCode if 0 (default) GetLastError() value will be called (unless avoidGetCall is true)
+	@param avoidGetCall do not call GetLastError()
+	@param includeErorCode show error code as well
+	@returns Windows system error message string for given error code.
 }
-function getSysErrorText(errorCode: DWORD = 0; avoidGetCall: bool = false): wString;
+function getSysErrorText(errorCode: DWORD = 0; avoidGetCall: bool = false; includeErorCode: bool = true): wString;
 
 // 	OTHER
 
@@ -2097,17 +2170,20 @@ function choiceD(value: bool; const true_choice: double = 0; false_choice: doubl
 function choiceE(value: bool; const true_choice: extended = 0; false_choice: extended = 0): extended;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
 {*
-  Returns greatest common divider.
-  <P />For example, if a=11025 and b=1000 the result will be 25.
+	Returns greatest common divider.
+	<P />For example, if a=11025 and b=1000 the result will be 25.
 }
 function gcd(a, b: unsigned): unsigned;
 
-// --  --
+{*
+	Creates NULL DACL.
+}
 function getNullDacl(): PSecurityAttributes;
 
 
 var
-{$IFNDEF NO_ANSI_SUPPORT }
+{$IFDEF NO_ANSI_SUPPORT }
+{$ELSE }
   /// Do host OS supports unicode strings?
   /// true if running on NT or later (wide API seems to be present)
   g_wideApiSupported: bool;
@@ -2138,14 +2214,14 @@ var
 
 var
 {$IFDEF CONSOLE_IO }
-  // for console applications we will try to open console I/O handlers
+  // for console applications we will try to open console I/O
   g_CONIN: tHandle = 0;
   g_CONOUT: tHandle = 0;
 {$ENDIF CONSOLE_IO }
   //
   g_infoLogTimeMode: unaInfoMessage_logTimeModeEnum = {$IFDEF DEBUG}unaLtm_dateTimeDelta{$ELSE}unaLtm_none{$ENDIF};
   g_infoLogToFile: bool = true;
-  g_infoLogToFileName: bool = true;
+//  g_infoLogToFileName: bool = true;
   g_infoLogFileNameW: wString = '';
   g_infoLogFileHandle: tHandle = INVALID_HANDLE_VALUE;
   //
@@ -2254,7 +2330,7 @@ const
 var
   L: unsigned;
   P: aString;
-  j: unsigned;
+  j: uint;
   i: unsigned;
   d: pArray;
 begin
@@ -2357,7 +2433,7 @@ var
   Z: unsigned;
   L: unsigned;
   i: unsigned;
-  j: int;
+  j: integer;
   c: int;
   V: byte;
   D: byte;
@@ -2424,513 +2500,180 @@ begin
     buf := nil;
 end;
 
-// --  --
-function base65encode(data: pointer; len: unsigned): aString;
+// crc32
+
 var
-  sz: int;
-begin
-  if (nil <> data) then begin
-    //
-    sz := (len shl 3);
-    if (0 <> sz mod 5) then
-      sz := sz div 5 + 1
-    else
-      sz := sz div 5;
-    //
-    setLength(result, sz);
-    asm
-	mov	ecx, len
-	or	ecx,ecx
-	jz	@done
-
-	push	esi
-	push	edi
-	push	ebx
-
-	mov	esi, data
-	mov	edi, result
-	{$IFDEF FPC }
-	mov	edi, [{$IFDEF CPU64 }rdi{$ELSE }edi{$ENDIF CPU64 }]
-        {$ELSE }
-	mov	edi, [edi]
-        {$ENDIF FPC }
-
-	mov	ebx, ecx	// EBX = sz
-	mov	dl, 5		// magic value :)
-	sub	dh, dh		// DH = 0 (5 bit value)
-	mov	cl, dh		// CL = 0 (bits left from prev. byte)
-
-  @nextByte:
-	lodsb
-
-	or	cl, cl
-	jz	@noBits		// no bits left
-
-	// CL bits left in AH from prev. conversion
-	mov	dh, al
-	shl	dh, cl
-	or	dh, ah
-	and	dh, $01F
-	// store dh
-	mov	ch, dh
-	add	ch, 'B'
-	cmp	dh, 25
-	jb	@doStore1
-
-	mov	ch, dh
-	sub	ch, 25
-	add	ch, '0'
-
-    @doStore1:
-        {$IFDEF FPC }
-	mov	[{$IFDEF CPU64 }rdi{$ELSE }edi{$ENDIF CPU64 }], ch
-	{$ELSE }
-	mov	[edi], ch
-	{$ENDIF FPC }
-	inc	edi
-
-	mov	ch, dl
-	sub	ch, cl
-	mov	cl, ch
-
-  @noBits:
-	// shift the value
-	mov	ch, 8
-	mov	dh, al
-	mov	ah, al
-
-    @nextShift:
-	cmp	cl, 3
-	ja	@notEnough
-
-	shr	dh, cl
-	shr	ah, cl
-	and	dh, $01F
-	// store dh
-	mov	al, dh
-	add	al, 'B'
-	cmp	dh, 25
-	jb	@doStore2
-
-	mov	al, dh
-	sub	al, 25
-	add	al, '0'
-
-    @doStore2:
-	stosb
-
-    @notEnough:
-	sub	ch, cl
-	cmp	cl, 3
-	ja	@notEnough2
-
-	add	cl, dl
-	mov	cl, dl
-	sub	ch, cl
-    @notEnough2:
-
-	shr	ah, cl
-	//
-	// -- not needed, since 5 never fit twice in 8
-	//cmp	ch, cl
-	//jae	@nextShift
-
-	mov	cl, ch
-	//
-	dec	ebx
-	jnz	@nextByte
-
-	or	cl, cl
-	jz	@nothingLeft
-
-	// store ah
-	mov	al, ah
-	add	al, 'B'
-	cmp	ah, 25
-	jb	@doStore3
-
-	mov	al, ah
-	sub	al, 25
-	add	al, '0'
-
-    @doStore3:
-	stosb
-
-  @nothingLeft:
-	pop	ebx
-	pop	edi
-	pop	esi
-  @done:
-    end;
-  end
-  else
-    result := '';
-end;
-
-// --  --
-function base65encode(const data: aString): aString;
-begin
-  if ('' <> data) then
-    result := base65encode(@data[1], length(data))
-  else
-    result := '';
-end;
-
-// --  --
-function base65decode(const data: aString): aString;
-begin
-  if ('' <> data) then
-    result := base65decode(@data[1], length(data))
-  else
-    result := '';
-end;
-
-// --  --
-function base65decode(data: pointer; len: unsigned): aString;
-var
-  sz: int;
-begin
-  if (nil <> data) then begin
-    //
-    sz := len * 5 shr 3;
-    setLength(result, sz);
-    asm
-	mov	ecx, len
-	or	ecx, ecx
-	jz	@done
-
-	push	esi
-	push	edi
-	push	ebx
-
-	mov	esi, data
-	mov	edi, result
-        {$IFDEF FPC }
-	mov	edi, [{$IFDEF CPU64 }rdi{$ELSE }edi{$ENDIF CPU64 }]
-	{$ELSE }
-	mov	edi, [edi]
-        {$ENDIF FPC }
-
-	mov	ebx, ecx
-	sub	edx, edx
-	sub	ecx, ecx
-
-  @nextValue:
-	//
-	sub	eax, eax
-	lodsb
-	//
-	cmp	al, 'B'
-	jae	@subChar
-
-	cmp	al, '0'
-	jb	@skip
-
-	sub	al, '0'
-	add	al, 25
-	cmp	al, 32
-	jae	@skip
-
-	jmp	@gotValue
-
-    @subChar:
-	sub	al, 'B'
-	cmp	al, 25
-	jae	@skip
-
-	// -- got proper 5 bit value --
-    @gotValue:
-	add	ch, 5		// got new 5 bits
-	shl 	eax, cl		// shift to proper position
-	or	edx, eax
-
-    @storeByte:
-	cmp	ch, 8
-	jb	@notFullByteYet
-
-	mov	al, dl
-	stosb
-
-	shr	edx, 8
-	sub	ch, 8
-	jmp	@storeByte
-
-    @notFullByteYet:
-	mov	cl, ch
-
-    @skip:
-	dec	ebx
-	jnz	@nextValue
-
-        {$IFDEF CPU64 }
-	mov	rdx, result
-	mov	rdx, [rdx]
-	{$ELSE }
-	mov	edx, result
-	mov	edx, [edx]
-        {$ENDIF CPU64 }
-
-	xchg	edx, edi
-	sub	edx, edi
-        {$IFDEF CPU64 }
-	mov	sz, rdx
-	{$ELSE }
-	mov	sz, edx
-        {$ENDIF CPU64 }
-
-	pop	ebx
-	pop	edi
-	pop	esi
-  @done:
-    end;
-    //
-    setLength(result, sz);
-  end
-  else
-    result := '';
-end;
-
-// --  --
-function baseXencode(const data, key: aString; ver: int): aString;
-var
-  x: byte;
-  lenD: int;
-  lenK: int;
-  i: int;
-  j: int;
-begin
-  result := '';
-  lenD := length(data);
-  //
-  if (0 < lenD) then begin
-    //
-    lenK := length(key);
-    x := 0;
-    j := 1;
-    //
-    case (ver) of
-
-      100, 101: begin
-	//
-	setLength(result, lenD);
-	//
-	for i := 1 to lenD do begin
-	  x := x xor byte(data[i]);
-	  //
-	  if (j > lenK) then
-	    j := 1;
-	  //
-	  if (j <= lenK) then
-	    x := x xor byte(key[j]);
-	  inc(j);
-	  //
-	  result[i] := aChar(x);
-	end;
-	//
-	if (100 = ver) then
-	  result := base64encode(result);
-      end;
-
-      else
-	result := data;	// this encryption version is not supported
-    end;
-  end;
-end;
-
-// --  --
-procedure swap8array(p1, p2: pArray);
-var
-  b: uint8;
-begin
-  b := p2[0];
-  p2[0] := p1[0];
-  p1[0] := b;
-end;
-
-// --  --
-function baseXdecode(const data, key: aString; ver: int): aString;
-var
-  x: byte;
-  lenD: int;
-  lenK: int;
-  i: int;
-  j: int;
-begin
-  result := '';
-  lenD := length(data);
-  //
-  if (0 < lenD) then begin
-    //
-    lenK := length(key);
-    x := 0;
-    j := 1;
-    //
-    case (ver) of
-
-      100, 101: begin
-	//
-	if (100 = ver) then
-	  result := base64decode(data)
-	else
-	  result := data;
-	//
-	lenD := length(result);
-	//
-	for i := 1 to lenD do begin
-	  x := x xor byte(result[i]);
-	  //
-	  if (j > lenK) then
-	    j := 1;
-	  //
-	  if (j <= lenK) then
-	    x := x xor byte(key[j]);
-	  inc(j);
-	  //
-	  swap8array(pArray(@result[i]), pArray(@x));
-	end;
-      end;
-
-      else
-	result := data;	// this encryption version is not supported
-    end;
-  end;
-end;
+  // moved here from code segment, as it seems to have exec-only rights under x86_64
+  l_crc32_table: array[byte] of uint32 = (
+    $0000000AA, $077073096, $0EE0E612C, $0990951BA,	// first DWORD must be $000000000, but should remain as it is for compatibility!
+    $0076DC419, $0706AF48F, $0E963A535, $09E6495A3,
+    $00EDB8832, $079DCB8A4, $0E0D5E91E, $097D2D988,
+    $009B64C2B, $07EB17CBD, $0E7B82D07, $090BF1D91,
+       // 10..1F
+    $01DB71064, $06AB020F2, $0F3B97148, $084BE41DE,
+    $01ADAD47D, $06DDDE4EB, $0F4D4B551, $083D385C7,
+    $0136C9856, $0646BA8C0, $0FD62F97A, $08A65C9EC,
+    $014015C4F, $063066CD9, $0FA0F3D63, $08D080DF5,
+       // 20..2F
+    $03B6E20C8, $04C69105E, $0D56041E4, $0A2677172,
+    $03C03E4D1, $04B04D447, $0D20D85FD, $0A50AB56B,
+    $035B5A8FA, $042B2986C, $0DBBBC9D6, $0ACBCF940,
+    $032D86CE3, $045DF5C75, $0DCD60DCF, $0ABD13D59,
+       // 30..3F
+    $026D930AC, $051DE003A, $0C8D75180, $0BFD06116,
+    $021B4F4B5, $056B3C423, $0CFBA9599, $0B8BDA50F,
+    $02802B89E, $05F058808, $0C60CD9B2, $0B10BE924,
+    $02F6F7C87, $058684C11, $0C1611DAB, $0B6662D3D,
+       // 40..4F
+    $076DC4190, $001DB7106, $098D220BC, $0EFD5102A,
+    $071B18589, $006B6B51F, $09FBFE4A5, $0E8B8D433,
+    $07807C9A2, $00F00F934, $09609A88E, $0E10E9818,
+    $07F6A0DBB, $0086D3D2D, $091646C97, $0E6635C01,
+       // 50..5F
+    $06B6B51F4, $01C6C6162, $0856530D8, $0F262004E,
+    $06C0695ED, $01B01A57B, $08208F4C1, $0F50FC457,
+    $065B0D9C6, $012B7E950, $08BBEB8EA, $0FCB9887C,
+    $062DD1DDF, $015DA2D49, $08CD37CF3, $0FBD44C65,
+       // 60..6F
+    $04DB26158, $03AB551CE, $0A3BC0074, $0D4BB30E2,
+    $04ADFA541, $03DD895D7, $0A4D1C46D, $0D3D6F4FB,
+    $04369E96A, $0346ED9FC, $0AD678846, $0DA60B8D0,
+    $044042D73, $033031DE5, $0AA0A4C5F, $0DD0D7CC9,
+       // 70..7F
+    $05005713C, $0270241AA, $0BE0B1010, $0C90C2086,
+    $05768B525, $0206F85B3, $0B966D409, $0CE61E49F,
+    $05EDEF90E, $029D9C998, $0B0D09822, $0C7D7A8B4,
+    $059B33D17, $02EB40D81, $0B7BD5C3B, $0C0BA6CAD,
+       // 80..8F
+    $0EDB88320, $09ABFB3B6, $003B6E20C, $074B1D29A,
+    $0EAD54739, $09DD277AF, $004DB2615, $073DC1683,
+    $0E3630B12, $094643B84, $00D6D6A3E, $07A6A5AA8,
+    $0E40ECF0B, $09309FF9D, $00A00AE27, $07D079EB1,
+       // 90..9F
+    $0F00F9344, $08708A3D2, $01E01F268, $06906C2FE,
+    $0F762575D, $0806567CB, $0196C3671, $06E6B06E7,
+    $0FED41B76, $089D32BE0, $010DA7A5A, $067DD4ACC,
+    $0F9B9DF6F, $08EBEEFF9, $017B7BE43, $060B08ED5,
+       // A0..AF
+    $0D6D6A3E8, $0A1D1937E, $038D8C2C4, $04FDFF252,
+    $0D1BB67F1, $0A6BC5767, $03FB506DD, $048B2364B,
+    $0D80D2BDA, $0AF0A1B4C, $036034AF6, $041047A60,
+    $0DF60EFC3, $0A867DF55, $0316E8EEF, $04669BE79,
+       //  B0..BF
+    $0CB61B38C, $0BC66831A, $0256FD2A0, $05268E236,
+    $0CC0C7795, $0BB0B4703, $0220216B9, $05505262F,
+    $0C5BA3BBE, $0B2BD0B28, $02BB45A92, $05CB36A04,
+    $0C2D7FFA7, $0B5D0CF31, $02CD99E8B, $05BDEAE1D,
+       // C0..CF
+    $09B64C2B0, $0EC63F226, $0756AA39C, $0026D930A,
+    $09C0906A9, $0EB0E363F, $072076785, $005005713,
+    $095BF4A82, $0E2B87A14, $07BB12BAE, $00CB61B38,
+    $092D28E9B, $0E5D5BE0D, $07CDCEFB7, $00BDBDF21,
+       // D0..DF
+    $086D3D2D4, $0F1D4E242, $068DDB3F8, $01FDA836E,
+    $081BE16CD, $0F6B9265B, $06FB077E1, $018B74777,
+    $088085AE6, $0FF0F6A70, $066063BCA, $011010B5C,
+    $08F659EFF, $0F862AE69, $0616BFFD3, $0166CCF45,
+       // E0..EF
+    $0A00AE278, $0D70DD2EE, $04E048354, $03903B3C2,
+    $0A7672661, $0D06016F7, $04969474D, $03E6E77DB,
+    $0AED16A4A, $0D9D65ADC, $040DF0B66, $037D83BF0,
+    $0A9BCAE53, $0DEBB9EC5, $047B2CF7F, $030B5FFE9,
+       // F0..FF
+    $0BDBDF21C, $0CABAC28A, $053B39330, $024B4A3A6,
+    $0BAD03605, $0CDD70693, $054DE5729, $023D967BF,
+    $0B3667A2E, $0C4614AB8, $05D681B02, $02A6F2B94,
+    $0B40BBE37, $0C30C8EA1, $05A05DF1B, $02D02EF8D);
 
 // --
 // CRC32() routine, based on Hagen Reddmann code, some modifications by Lake
 // --
-function CRC32(crc: longWord; data: pointer; dataSize: longWord): longWord; assembler; overload;
-{
-	IN:	EAX = CRC
-		EDX = Data
-		ECX = DataSize
-
-	OUT:    EAX = result
-}
+function CRC32(crc: uint32; data: pointer; dataSize: uint32): uint32; overload;
 asm
+{
+  x64:
+        EAX     - result
+        ECX     - byte count
+        RDX     - data pointer
+        //
+        R8      - CRC32 table pointer
+        RBX     - CRC32 array index
+        //
+        R10     - copy of RBX
+
+  x86:
+        EAX     - result
+        ECX     - byte count
+        EDX     - data pointer
+        //
+        EDI     - CRC32 table pointer
+        EBX     - CRC32 array index
+        //
+        STACK[0] - copy of EDI
+        STACK[4] - copy of EBX
+
+}
+	mov     eax, crc
+	mov     ecx, dataSize
+
+      {$IFDEF CPU64 }
+        or      ecx, ecx
+	jz	@done
+
+	mov     rdx, data
+	or	rdx, rdx
+      {$ELSE }
+	jecxz	@done
+
+	mov     edx, data
 	or	edx, edx
-	jz	@exit
+      {$ENDIF CPU64 }
 
-	jecxz	@exit
+	jz	@done
 
+      {$IFDEF CPU64 }
+        mov     r10, rbx
+        //
+	xor	rbx, rbx
+	mov	r8, offset l_crc32_table
+      {$ELSE }
 	push	ebx
 	push	edi
-
+        //
 	xor	ebx, ebx
-	lea	edi, @crc32table
+	lea     edi, l_crc32_table
+      {$ENDIF CPU64 }
 
   @loop:
 	mov	bl, al
 	shr	eax, 8
 	//
-        {$IFDEF FPC }
-	xor	bl, [{$IFDEF CPU64 }rdx{$ELSE }edx{$ENDIF CPU64 }]
-	{$ELSE }
-	xor	bl, [edx]
-        {$ENDIF FPC }
+      {$IFDEF CPU64 }
+	xor	bl, [rdx]
+	inc	rdx
+	xor	eax, [r8 + rbx * 4]
+      {$ELSE }
+	xor     bl, [edx]
 	inc	edx
+	xor     eax, [edi + ebx * 4]
+      {$ENDIF CPU64 }
 	//
-        {$IFDEF FPC }
-	xor	eax, [{$IFDEF CPU64 }rdi + rbx * 4{$ELSE }edi + ebx * 4{$ENDIF CPU64 }]
-	{$ELSE }
-	xor	eax, [edi + ebx * 4]
-        {$ENDIF FPC }
 	loop	@loop
 
+      {$IFDEF CPU64 }
+        mov     rbx, r10
+      {$ELSE }
 	pop	edi
 	pop	ebx
+      {$ENDIF CPU64 }
 
-  @exit:
-	ret
+    @done:
+	//mov	result, eax
+end {$IFDEF FPC64 }['RAX', 'R10', 'RDX', 'RCX']{$ENDIF FPC64 };
 
-	dd	0, 0 // align
-
-  @crc32table:
-	// 00..0F
-	DD 000000000h, 077073096h, 0EE0E612Ch, 0990951BAh
-	DD 0076DC419h, 0706AF48Fh, 0E963A535h, 09E6495A3h
-	DD 00EDB8832h, 079DCB8A4h, 0E0D5E91Eh, 097D2D988h
-	DD 009B64C2Bh, 07EB17CBDh, 0E7B82D07h, 090BF1D91h
-	// 10..1F
-	DD 01DB71064h, 06AB020F2h, 0F3B97148h, 084BE41DEh
-	DD 01ADAD47Dh, 06DDDE4EBh, 0F4D4B551h, 083D385C7h
-	DD 0136C9856h, 0646BA8C0h, 0FD62F97Ah, 08A65C9ECh
-	DD 014015C4Fh, 063066CD9h, 0FA0F3D63h, 08D080DF5h
-	// 20..2F
-	DD 03B6E20C8h, 04C69105Eh, 0D56041E4h, 0A2677172h
-	DD 03C03E4D1h, 04B04D447h, 0D20D85FDh, 0A50AB56Bh
-	DD 035B5A8FAh, 042B2986Ch, 0DBBBC9D6h, 0ACBCF940h
-	DD 032D86CE3h, 045DF5C75h, 0DCD60DCFh, 0ABD13D59h
-	// 30..3F
-	DD 026D930ACh, 051DE003Ah, 0C8D75180h, 0BFD06116h
-	DD 021B4F4B5h, 056B3C423h, 0CFBA9599h, 0B8BDA50Fh
-	DD 02802B89Eh, 05F058808h, 0C60CD9B2h, 0B10BE924h
-	DD 02F6F7C87h, 058684C11h, 0C1611DABh, 0B6662D3Dh
-	// 40..4F
-	DD 076DC4190h, 001DB7106h, 098D220BCh, 0EFD5102Ah
-	DD 071B18589h, 006B6B51Fh, 09FBFE4A5h, 0E8B8D433h
-	DD 07807C9A2h, 00F00F934h, 09609A88Eh, 0E10E9818h
-	DD 07F6A0DBBh, 0086D3D2Dh, 091646C97h, 0E6635C01h
-	// 50..5F
-	DD 06B6B51F4h, 01C6C6162h, 0856530D8h, 0F262004Eh
-	DD 06C0695EDh, 01B01A57Bh, 08208F4C1h, 0F50FC457h
-	DD 065B0D9C6h, 012B7E950h, 08BBEB8EAh, 0FCB9887Ch
-	DD 062DD1DDFh, 015DA2D49h, 08CD37CF3h, 0FBD44C65h
-	// 60..6F
-	DD 04DB26158h, 03AB551CEh, 0A3BC0074h, 0D4BB30E2h
-	DD 04ADFA541h, 03DD895D7h, 0A4D1C46Dh, 0D3D6F4FBh
-	DD 04369E96Ah, 0346ED9FCh, 0AD678846h, 0DA60B8D0h
-	DD 044042D73h, 033031DE5h, 0AA0A4C5Fh, 0DD0D7CC9h
-	// 70..7F
-	DD 05005713Ch, 0270241AAh, 0BE0B1010h, 0C90C2086h
-	DD 05768B525h, 0206F85B3h, 0B966D409h, 0CE61E49Fh
-	DD 05EDEF90Eh, 029D9C998h, 0B0D09822h, 0C7D7A8B4h
-	DD 059B33D17h, 02EB40D81h, 0B7BD5C3Bh, 0C0BA6CADh
-	// 80..8F
-	DD 0EDB88320h, 09ABFB3B6h, 003B6E20Ch, 074B1D29Ah
-	DD 0EAD54739h, 09DD277AFh, 004DB2615h, 073DC1683h
-	DD 0E3630B12h, 094643B84h, 00D6D6A3Eh, 07A6A5AA8h
-	DD 0E40ECF0Bh, 09309FF9Dh, 00A00AE27h, 07D079EB1h
-	// 90..9F
-	DD 0F00F9344h, 08708A3D2h, 01E01F268h, 06906C2FEh
-	DD 0F762575Dh, 0806567CBh, 0196C3671h, 06E6B06E7h
-	DD 0FED41B76h, 089D32BE0h, 010DA7A5Ah, 067DD4ACCh
-	DD 0F9B9DF6Fh, 08EBEEFF9h, 017B7BE43h, 060B08ED5h
-	// A0..AF
-	DD 0D6D6A3E8h, 0A1D1937Eh, 038D8C2C4h, 04FDFF252h
-	DD 0D1BB67F1h, 0A6BC5767h, 03FB506DDh, 048B2364Bh
-	DD 0D80D2BDAh, 0AF0A1B4Ch, 036034AF6h, 041047A60h
-	DD 0DF60EFC3h, 0A867DF55h, 0316E8EEFh, 04669BE79h
-	// B0..BF
-	DD 0CB61B38Ch, 0BC66831Ah, 0256FD2A0h, 05268E236h
-	DD 0CC0C7795h, 0BB0B4703h, 0220216B9h, 05505262Fh
-	DD 0C5BA3BBEh, 0B2BD0B28h, 02BB45A92h, 05CB36A04h
-	DD 0C2D7FFA7h, 0B5D0CF31h, 02CD99E8Bh, 05BDEAE1Dh
-	// C0..CF
-	DD 09B64C2B0h, 0EC63F226h, 0756AA39Ch, 0026D930Ah
-	DD 09C0906A9h, 0EB0E363Fh, 072076785h, 005005713h
-	DD 095BF4A82h, 0E2B87A14h, 07BB12BAEh, 00CB61B38h
-	DD 092D28E9Bh, 0E5D5BE0Dh, 07CDCEFB7h, 00BDBDF21h
-	// D0..DF
-	DD 086D3D2D4h, 0F1D4E242h, 068DDB3F8h, 01FDA836Eh
-	DD 081BE16CDh, 0F6B9265Bh, 06FB077E1h, 018B74777h
-	DD 088085AE6h, 0FF0F6A70h, 066063BCAh, 011010B5Ch
-	DD 08F659EFFh, 0F862AE69h, 0616BFFD3h, 0166CCF45h
-	// E0..EF
-	DD 0A00AE278h, 0D70DD2EEh, 04E048354h, 03903B3C2h
-	DD 0A7672661h, 0D06016F7h, 04969474Dh, 03E6E77DBh
-	DD 0AED16A4Ah, 0D9D65ADCh, 040DF0B66h, 037D83BF0h
-	DD 0A9BCAE53h, 0DEBB9EC5h, 047B2CF7Fh, 030B5FFE9h
-	// F0..FF
-	DD 0BDBDF21Ch, 0CABAC28Ah, 053B39330h, 024B4A3A6h
-	DD 0BAD03605h, 0CDD70693h, 054DE5729h, 023D967BFh
-	DD 0B3667A2Eh, 0C4614AB8h, 05D681B02h, 02A6F2B94h
-	DD 0B40BBE37h, 0C30C8EA1h, 05A05DF1Bh, 02D02EF8Dh
-	//
-end;
 
 // --  --
-function crc32(data: pointer; len: unsigned; crc: uint32 = $FFFFFFFF): uint32; 
+function crc32(data: pointer; len: unsigned; crc: uint32 = $FFFFFFFF): uint32;
 begin
   result := crc32(crc, data, len);
 end;
@@ -2958,7 +2701,7 @@ end;
 function crc8(data: pointer; len: unsigned): uint8;
 var
   crc: unsigned;
-    i: unsigned;
+    i: uint;
 begin
   crc := crc32(data, len);
   //
@@ -2971,12 +2714,11 @@ begin
 end;
 
 // --  --
-function crc4(data: pointer; len: unsigned): uint8; 
+function crc4(data: pointer; len: unsigned): uint8;
 begin
   result := crc8(data, len);
   result := (result and $0F) xor ((result shr 4) and $0F);
 end;
-
 
 
 // -- UTF8/UTF16/Unicode functions --
@@ -3060,7 +2802,7 @@ end;
 // --  --
 function surrogate2cp(highSurrogate, lowSurrogate: uint16): uint32;
 begin
-  result := highSurrogate shl 10 + lowSurrogate + $10000 - (unicodeHighSurrogateStart shl 10) - unicodeLowSurrogateStart;
+  result := (highSurrogate shl 10) + lowSurrogate + $10000 - (unicodeHighSurrogateStart shl 10) - unicodeLowSurrogateStart;
 end;
 
 function UTF162UTF8(const w: wString): aString;
@@ -3447,12 +3189,13 @@ begin
       // seek file
       SetFilePointer(handle, pos, nil, posMode);
       //
-      if (WriteFile(handle, buf, size, @realSize, nil)) then
+      if (WriteFile(handle, buf, size, @realSize, nil)) then begin
 	//
 	if (size = realSize) then
 	  result := 0
 	else
-	  result := -4
+	  result := -4;
+      end
       else
 	result := -3;
     end
@@ -3914,8 +3657,8 @@ type
   proc_GetLongPathNameW = function (ShortPathName: pwChar; LongPathName: pwChar; cchBuffer: Integer): Integer stdcall;
 
 var
-  pGLPNA: proc_GetLongPathNameA;
-  pGLPNW: proc_GetLongPathNameW;
+  pGLPNA: proc_GetLongPathNameA = nil;
+  pGLPNW: proc_GetLongPathNameW = nil;
 
 // --  --
 function GetLongPathName(shortPathName: wString): wString;
@@ -3957,6 +3700,7 @@ begin
   end;  
 end;
 
+{$IFNDEF UNAUTILS_NOSHELL }
 
 function SHGetMalloc;                   external 'shell32.dll' name 'SHGetMalloc';
 function SHGetDesktopFolder;            external 'shell32.dll' name 'SHGetDesktopFolder';
@@ -3998,7 +3742,7 @@ var
   bufA: paChar;
 {$ENDIF NO_ANSI_SUPPORT }
   //
-  oldErrorMode: cardinal;
+  oldErrorMode: uint;
   //
   rootItemIDList,
   itemIDList: pItemIDList;
@@ -4131,7 +3875,7 @@ begin
 	else
 	  ShGetPathFromIDListA(ItemIDList, BufA);
 {$ENDIF NO_ANSI_SUPPORT }
-        ;
+	;
 	//
 	shellMalloc.Free(ItemIDList);
 	//
@@ -4165,6 +3909,7 @@ begin
   end;
 end;
 
+{$ENDIF UNAUTILS_NOSHELL }
 
 // --  --
 function paramStrW(index: unsigned): wString;
@@ -4351,6 +4096,8 @@ begin
     result := '';
 end;
 
+{$IFNDEF UNAUTILS_NOSHELL }
+
 function SHGetSpecialFolderPathA; external 'shell32.dll' name 'SHGetSpecialFolderPathA';
 function SHGetSpecialFolderPathW; external 'shell32.dll' name 'SHGetSpecialFolderPathW';
 
@@ -4382,11 +4129,18 @@ begin
 {$ENDIF NO_ANSI_SUPPORT }
 end;
 
+{$ENDIF UNAUTILS_NOSHELL }
+
 // --  --
 function getAppDataFolderPath(owner: hWnd; doCreate: bool): wString;
 begin
+{$IFDEF UNAUTILS_NOSHELL }
+  result := 'C:\Documents and Settings\';
+{$ELSE }
   result := addBackSlash(getSpecialFolderPath(CSIDL_APPDATA, owner, doCreate));
+{$ENDIF UNAUTILS_NOSHELL }
 end;
+
 
 // --  --
 function hostName(): wString;
@@ -4396,7 +4150,7 @@ var
   nameA: array[byte] of aChar;
 {$ENDIF NO_ANSI_SUPPORT }
   nameW: array[byte] of wChar;
-  sz: unsigned;
+  sz: DWORD;
 begin
   sz := 255;
 {$IFNDEF NO_ANSI_SUPPORT }
@@ -4408,11 +4162,7 @@ begin
   else begin
     //
     GetComputerNameA(nameA, sz);
-{$IFDEF __BEFORE_D6__ }
     str2arrayW(wString(nameA), nameW);
-{$ELSE }
-    str2array(wString(nameA), nameW);
-{$ENDIF __BEFORE_D6__ }
   end;
 {$ENDIF NO_ANSI_SUPPORT }
   //
@@ -4460,13 +4210,8 @@ begin
 	if (not g_wideApiSupported) then begin
 	  //
 	  move(fda, fdw, sizeOf(fda) - sizeOf(fda.cFileName) - sizeOf(fda.cAlternateFileName));
-          {$IFDEF __BEFORE_D6__ }
 	  str2arrayW(wString(fda.cFileName),          fdw.cFileName);
 	  str2arrayW(wString(fda.cAlternateFileName), fdw.cAlternateFileName);
-          {$ELSE }
-	  str2array(wString(fda.cFileName),          fdw.cFileName);
-	  str2array(wString(fda.cAlternateFileName), fdw.cAlternateFileName);
-          {$ENDIF __BEFORE_D6__ }
 	end;
 {$ENDIF NO_ANSI_SUPPORT }
 	//
@@ -4646,11 +4391,7 @@ begin
     if (not ok) then begin
       // 3.
       res := GetWindowsDirectoryW(tmpPathW, sizeOf(tmpPathW));
-      {$IFDEF __BEFORE_D6__ }
-      str2arrayW(tmpPathW + '\temp\', tmpPathW);
-      {$ELSE }
-      str2array(tmpPathW + '\temp\', tmpPathW);
-      {$ENDIF __BEFORE_D6__ }
+      str2arrayW(wString(tmpPathW + '\temp\'), tmpPathW);
       ok := (0 <> res) and directoryExists(tmpPathW);
     end;
     //
@@ -4683,7 +4424,7 @@ begin
     if (not ok) then begin
       // 3.
       res := GetWindowsDirectoryA(tmpPathA, sizeOf(tmpPathA));
-      str2array(tmpPathA + aString('\temp\'), tmpPathA);
+      str2arrayA(tmpPathA + aString('\temp\'), tmpPathA);
       ok := (0 <> res) and directoryExists(string(tmpPathA));
     end;
     //
@@ -4760,6 +4501,12 @@ begin
 {$ENDIF __BEFORE_DC__ }
 end;
 
+// --  --
+function ptr2str(value: pointer): string;
+begin
+  result := int2str(UIntPtr(value), 16);
+end;
+
 {$IFNDEF CPU64 }
 
 // --  --
@@ -4774,15 +4521,23 @@ const
   c_base_str = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz[]<>&$#';
 
 // -- --
-function abs64(v: int64): int64;
+function abs64U(v: int64): uint64;
 begin
-  if (v < 0) then
-    result := -v
+  if (0 > v) then begin
+    //
+    result := not v;
+{$IFDEF __BEFORE_D7__ }
+    if (result < $7FFFFFFFFFFF) then
+{$ENDIF __BEFORE_D7__ }
+      inc(result);
+  end
   else
     result := v;
 end;
 
 {$IFDEF __AFTER_D8__}
+
+{$IFNDEF CPU64 }
 
 function int2str(const value: uint64; base: unsigned; split: unsigned; splitchar: char): string;
 const
@@ -4801,7 +4556,7 @@ begin
     v := value;
     while (0 <> v) do begin
       //
-      result := digits[abs64(v mod base) + 1] + result;
+      result := digits[v mod base + 1] + result;
       v := v div base;
     end;
   end;
@@ -4819,6 +4574,7 @@ begin
     end;
   end;
 end;
+{$ENDIF CPU64 }
 
 {$ENDIF __AFTER_D8__}
 
@@ -4828,7 +4584,7 @@ const
   digits: string = c_base_str;
 var
   i: int;
-  v: int64;
+  v: uint64;
 begin
   if (0 = value) then
     result := '0'
@@ -4837,10 +4593,10 @@ begin
   //
   if ((1 < base) and (unsigned(length(digits)) > base)) then begin
     //
-    v := value;
+    v := abs64u(value);
     while (0 <> v) do begin
       //
-      result := digits[abs64(v mod base) + 1] + result;
+      result := digits[v mod base + 1] + result;
       v := v div base;
     end;
   end;
@@ -4954,18 +4710,19 @@ function str2intInt64(value: pChar; maxLen: int; defValue: int64; base: unsigned
   end;
 
 var
-  sign: int;
-  sApplied: bool;
+  negative: bool;
   ok: bool;
   b: byte;
-  ofs: int64;
+  ofs: uint64;
   c: char;
+  v: uint64;
 begin
+  //v := uint64(defValue);
   result := defValue;
+  //
   if ((nil <> value) and (#0 <> value) and (0 < maxLen) and (1 < base) and (36 >= base)) then begin
     //
-    sign := 1;
-    sApplied := false;
+    negative := false;
     //
     // trim leading spaces
     while ((0 < maxLen) and (' ' = value^)) do begin
@@ -5012,10 +4769,10 @@ begin
       case (value^) of
 
 	'-':
-	  sign := -1;
+	  negative := true;
 
 	'+':
-	  sign := +1;
+	  negative := false;
 
 	'0':
 	  ;	// skip leading zeroes
@@ -5034,7 +4791,7 @@ begin
     //
     if (ok) then begin
       //
-      result := 0;
+      v := 0;
       ofs := 1;
       while (0 < maxLen) do begin
 	//
@@ -5057,23 +4814,16 @@ begin
 	  //
 	  if (ok) then begin
 	    //
-	    if ((1 = maxLen) and (0 > sign)) then begin
-	      //
-	      ofs := -ofs;
-	      result := -result;
-	      sApplied := true;
-	    end;
-	    //
-	    result := result + ofs * b;
+	    v := v + ofs * b;
 	    ofs := ofs * base;
 	  end
 	  else begin
 	    //
 	    ofs := 1;
-	    result := 0;
+	    v := 0;
 	    ok := true;	// try from next char
 	  end;
-          //
+	  //
 	  dec(maxLen);
 	  //inc(value);
 	end
@@ -5082,9 +4832,15 @@ begin
       end;
       //
       if (ok) then begin
-        //
-        if (not sApplied) then
-          result := sign * result   // already done
+	//
+	if (negative) then begin
+          //
+	  v := not v;
+          inc(v);
+          result := int64(v);
+        end
+        else
+          result := int64(v);
       end
       else
 	result := defValue;
@@ -5174,13 +4930,6 @@ begin
   end;
 end;
 
-
-type
-  RPC_STATUS = long;
-
-//#	define  RPC_ENTRY __stdcall
-
-//function UuidCreate(var Uuid: TUUID): RPC_STATUS; stdcall; external
 
 const
   ole32    = 'ole32.dll';
@@ -5327,6 +5076,12 @@ begin
   end
   else
     result := '';
+end;
+
+// --  --
+function sysTime2str(const time: SYSTEMTIME; const format: wString; locale: LCID; flags: DWORD): wString;
+begin
+  result := sysTime2str(@time, format, locale, flags);
 end;
 
 // --  --
@@ -5488,7 +5243,7 @@ end;
 // --  --
 function str2month(const v: string; def: int): int;
 var
-  m: int;
+  m: integer;
 begin
   result := def;
   //
@@ -5698,7 +5453,7 @@ end;
 // --  --
 function upCase(const value: string): string;
 var
-  i: int;
+  i: integer;
 begin
   setLength(result, length(value));
   //
@@ -5709,7 +5464,7 @@ end;
 // --  --
 function loCase(const value: string): string;
 var
-  i: int;
+  i: integer;
 begin
   setLength(result, length(value));
   //
@@ -5729,7 +5484,8 @@ begin
     if (g_wideApiSupported) then begin
 {$ENDIF NO_ANSI_SUPPORT }
       //
-      result := value;
+      SetLength(result, length(value));
+      move(value[1], result[1], length(value) * sizeof(value[1]));
 {$IFDEF __BEFORE_DC__ }
       CharLowerW(pwChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
 						// There is no extended error information for this function; do not call GetLastError.
@@ -5741,7 +5497,7 @@ begin
 {$IFNDEF NO_ANSI_SUPPORT }
     end
     else
-      result := loCase(string(value));
+      result := waString(loCase(string(value)));
 {$ENDIF NO_ANSI_SUPPORT }
   end
   else
@@ -5757,7 +5513,8 @@ begin
     if (g_wideApiSupported) then begin
 {$ENDIF NO_ANSI_SUPPORT }
       //
-      result := value;
+      SetLength(result, length(value));
+      move(value[1], result[1], length(value) * sizeof(value[1]));
 {$IFDEF __BEFORE_DC__ }
       CharUpperW(pwChar(result));	// from MSDN: There is no indication of success or failure. Failure is rare.
 						// There is no extended error information for this function; do not call GetLastError.
@@ -5769,7 +5526,7 @@ begin
 {$IFNDEF NO_ANSI_SUPPORT }
     end
     else
-      result := upCase(string(value));
+      result := waString(upCase(string(value)));
 {$ENDIF NO_ANSI_SUPPORT }
   end
   else
@@ -6074,7 +5831,7 @@ end;
 // --  --
 function padChar(pad: char; len: unsigned): string;
 var
-  i: int;
+  i: integer;
 begin
   setLength(result, len);
   //
@@ -6158,13 +5915,26 @@ end;
 {$ELSE }
 
 // --  --
-function strCopy(dest, source: paChar; maxLen: int): paChar; assembler;
+function strCopy(dest, source: paChar; maxLen: int): paChar;
+{$IFDEF CPU64 }
+begin
+  maxLen := min(int(strLenA(source)), maxLen);
+  if (0 < maxLen) then
+    move(source^, dest^, maxLen);
+  //
+  dest[maxLen] := #0;
+  result := dest;
+end;
+{$ELSE }
 asm
-        //
-        // EAX = dest
-        // EDX = source
-        // ECX = maxLen
-        //
+	//
+	// EAX = dest
+	// EDX = source
+	// ECX = maxLen
+	mov    eax, dest
+	mov    edx, source
+	mov    ecx, maxLen
+	//
 	PUSH    EDI
 	PUSH    ESI
 	PUSH    EBX
@@ -6174,10 +5944,10 @@ asm
 	MOV     EBX, ECX        // maxLen
 	XOR     AL, AL          // look for #0
 
-        cmp     ecx, -1
-        jne     @@0
+	cmp     ecx, -1
+	jne     @@0
 
-        mov     ecx, 16384      // some sane string size
+	mov     ecx, 16384      // some sane string size
 
 @@0:
 	TEST    ECX, ECX        // maxLen = 0?
@@ -6207,23 +5977,23 @@ asm
 	POP     EBX
 	POP     ESI
 	POP     EDI
+	//
+	//mov     result, eax
 end;
-
+{$ENDIF CPU64 }
 
 {$ENDIF __BEFORE_DC__ }
 
-
 // --  --
-function strCopy(dest: pChar; const source: string; maxLen: int): pChar;
+function strCopyS(dest: pChar; const source: string; maxLen: int): pChar;
 begin
   result := strCopy(dest, pChar(source), maxLen);
 end;
 
-
 {$IFDEF __BEFORE_DC__ }
 
 // --  --
-function strCopy(dest: pwChar; const source: wString; maxLen: int): pwChar;
+function strCopyS(dest: pwChar; const source: wString; maxLen: int): pwChar;
 begin
   result := strCopy(dest, pwChar(source), maxLen);
 end;
@@ -6231,7 +6001,7 @@ end;
 {$ELSE }
 
 // --  --
-function strCopy(dest: paChar; const source: aString; maxLen: int): paChar;
+function strCopyS(dest: paChar; const source: aString; maxLen: int): paChar;
 begin
   result := strCopy(dest, paChar(source), maxLen);
 end;
@@ -6247,7 +6017,7 @@ begin
   len := length(source);
   result := malloc((len + 1) * sizeOf(source[1]));
   //
-  strCopy(result, source, len);
+  strCopyS(result, source, len);
 end;
 
 {$IFDEF __BEFORE_DC__ }
@@ -6264,7 +6034,7 @@ begin
   len := length(source) shl 1;
   result := malloc(len + 2);
   //
-  strCopy(result, source, len shr 1);
+  strCopyS(result, source, len shr 1);
 end;
 
 {$ELSE }
@@ -6277,7 +6047,7 @@ begin
   len := length(source);
   result := malloc(len + 1);
   //
-  strCopy(result, source, len);
+  strCopyS(result, source, len);
 end;
 
 {$ENDIF __BEFORE_DC__ }
@@ -6299,7 +6069,7 @@ begin
 end;
 
 // --  --
-function str2array(const src: string; var A: array of char): int;
+function str2arrayA(const src: aString; var A: array of aChar): int;
 var
   l: int;
 begin
@@ -6314,15 +6084,8 @@ begin
     A[l] := #0;
 end;
 
-
-{$IFDEF __BEFORE_DC__ }
-
 // --  --
-{$IFDEF __BEFORE_D6__ }
 function str2arrayW(const src: wString; var A: array of wChar): int;
-{$ELSE }
-function str2array(const src: wString; var A: array of wChar): int;
-{$ENDIF __BEFORE_D6__ }
 var
   l: int;
 begin
@@ -6330,36 +6093,16 @@ begin
   result := min(high(A) - l, length(src));
   if (0 < result) then begin
     //
-    move(src[1], A[l], result * sizeOf(src[1]));
+    move(src[1], A[l], result * sizeof(src[1]));
     A[l + result] := #0;
   end
   else
     A[l] := #0;
 end;
 
-{$ELSE }
 
 // --  --
-function str2array(const src: aString; var A: array of aChar): int;
-var
-  l: int;
-begin
-  l := low(A);
-  result := min(high(A) - l, length(src));
-  if (0 < result) then begin
-    //
-    move(src[1], A[l], result * sizeOf(src[1]));
-    A[l + result] := #0;
-  end
-  else
-    A[l] := #0;
-end;
-
-{$ENDIF __BEFORE_DC__ }
-
-
-// --  --
-function array2str(const A: array of char; out value: string; startPos, length: int): int;
+function array2strA(const A: array of aChar; out value: aString; startPos, length: int): int;
 var
   sz: int;
   maxArrayLengthBytes: int;
@@ -6387,11 +6130,8 @@ begin
     value := '';
 end;
 
-
-{$IFDEF __BEFORE_DC__ }
-
 // --  --
-function array2str(const A: array of wChar; out value: wString; startPos, length: int): int;
+function array2strW(const A: array of wChar; out value: wString; startPos, length: int): int;
 var
   sz: int;
   maxArrayLengthBytes: int;
@@ -6418,40 +6158,6 @@ begin
   else
     value := '';
 end;
-
-{$ELSE }
-
-// --  --
-function array2str(const A: array of aChar; out value: aString; startPos, length: int): int;
-var
-  sz: int;
-  maxArrayLengthBytes: int;
-begin
-  if (low(int) = startPos) then
-    startPos := low(A)
-  else
-    startPos := max(low(A), startPos);
-  //
-  sz := sizeOf(A[low(A)]);
-  if (0 > length) then
-    length := (high(A) - startPos) * sz
-  else
-    length := min(length, (high(A) - startPos) * sz);
-  //
-  result := length div sz;		//
-  maxArrayLengthBytes := length * sz;	//
-  //
-  if (0 < result) then begin
-    //
-    setLength(value, result);
-    move(A[startPos], value[1], maxArrayLengthBytes);
-  end
-  else
-    value := '';
-end;
-
-{$ENDIF __BEFORE_DC__ }
-
 
 // --  --
 function array2str(const A: array of wChar; out value: wString; maxArrayLength: int): int;
@@ -6474,7 +6180,19 @@ end;
 
 
 // --  --
-function strLenA(str: paChar): unsigned; assembler;
+function strLenA(str: paChar): unsigned;
+{$IFDEF CPU64 }
+begin
+  result := 0;
+  if (nil <> str) then begin
+    //
+    while (str^ <> #0) do begin
+      //
+      inc(str);
+      inc(result);
+    end;
+  end;
+{$ELSE }
 asm
   // IN:	EAX = str
   // OUT:	EAX = result
@@ -6487,6 +6205,10 @@ asm
 	SUB     EAX,ECX
 	MOV     EDI,EDX
 end;
+{$ENDIF CPU64 }
+{$IFDEF CPU64 }
+end;
+{$ENDIF CPU64 }
 
 // --  --
 function strAllocA(size: uint): paChar;
@@ -6507,6 +6229,32 @@ begin
   mrealloc(str);
   result := true;
 end;  
+
+{$IFDEF CPU64 }
+
+// --  --
+function strScanA(const str: paChar; chr: aChar): paChar;
+var
+  ofs: int;
+begin
+  result := nil;
+  if (nil <> str) then begin
+    //
+    ofs := 0;
+    while (#0 <> str[ofs]) do begin
+      //
+      if (chr = str[ofs]) then begin
+	//
+	result := paChar(@str[ofs]);
+	break;
+      end;
+      //
+      inc(ofs);
+    end;
+  end;
+end;
+
+{$ELSE }
 
 // --  --
 function strScanA(const str: paChar; chr: aChar): paChar; assembler;
@@ -6554,11 +6302,7 @@ asm
 	SUB     ECX,ESI
 	JBE     @@2
 	MOV     EDI,EBX
-        {$IFDEF FPC }
-	LEA     EBX,[{$IFDEF CPU64 }RSI-1{$ELSE }ESI-1{$ENDIF CPU64 }]
-	{$ELSE }
 	LEA     EBX,[ESI-1]
-        {$ENDIF FPC }
 @@1:    MOV     ESI,EDX
 	LODSB
 	REPNE   SCASB
@@ -6570,17 +6314,15 @@ asm
 	POP     EDI
 	MOV     ECX,EAX
 	JNE     @@1
-        {$IFDEF FPC }
-	LEA     EAX,[{$IFDEF CPU64 }RDI-1{$ELSE }EDI-1{$ENDIF CPU64 }]
-	{$ELSE }
 	LEA     EAX,[EDI-1]
-        {$ENDIF FPC }
 	JMP     @@3
 @@2:    XOR     EAX,EAX
 @@3:    POP     EBX
 	POP     ESI
 	POP     EDI
 end;
+
+{$ENDIF CPU64 }
 
 // --  --
 function lastDelimiter(const delimiters, s: wString): int;
@@ -6600,13 +6342,13 @@ const
   escapeChar = '/';
 
 // --  --
-function strEscape(const value, specialCare: aString): aString;
+function strEscape(const value, specialCare: string): string;
 var
   s: int;
   p: int;
   len: int;
 
-  procedure add(const subStr: aString);
+  procedure add(const subStr: string);
   begin
     if (p > s) then
       result := result + copy(value, s, p - s) + subStr
@@ -6616,9 +6358,9 @@ var
     s := p + 1;
   end;
 
-  function tri(): aString;
+  function tri(): string;
   begin
-    result := aString(adjust(int2str(byte(value[p])), 3, '0'));
+    result := adjust(int2str(byte(value[p])), 3, '0');
   end;
 
 begin
@@ -6630,11 +6372,13 @@ begin
     //
     case(value[p]) of
 
-      #13: add(escapeChar + 'r');
-      #10: add(escapeChar + 'n');
-      #9:  add(escapeChar + 't');
+      #13: 	  add(escapeChar + 'r');
+      #10: 	  add(escapeChar + 'n');
+      #9:  	  add(escapeChar + 't');
       escapeChar: add(escapeChar + escapeChar);
-      else
+
+      else begin
+	//
 	if (0 < pos(value[p], specialCare)) then
 	  add(escapeChar + tri())
 	else
@@ -6644,21 +6388,24 @@ begin
 	    else
 	      // just skip to next char
 	  end;
-    end;
+      end;
+
+    end; // case
     //
     inc(p);
   end;
+  //
   add('');
 end;
 
 // --  --
-function strUnescape(const value: aString): aString;
+function strUnescape(const value: string): string;
 var
   s: int;
   p: int;
   len: int;
 
-  procedure add(const subStr: aString);
+  procedure add(const subStr: string);
   begin
     if (p > s) then
       result := result + copy(value, s, p - s) + subStr
@@ -6670,7 +6417,7 @@ var
 
 var
   prefix: bool;
-  val: aString;
+  val: string;
   d: int;
 begin
   s := 1;
@@ -6693,11 +6440,11 @@ begin
 	't': add(#9);
 
 	'0'..'2': begin
-          //
+	  //
 	  val := copy(value, p, 3);
 	  inc(p, 2);
 	  s := p + 1;
-	  add(aChar(str2IntByte(string(val), 0)));
+	  add( char(str2intByte(string(val), 0)) );
 	end;
 
 	else
@@ -6790,9 +6537,9 @@ begin
 end;
 
 // --  --
-function urlEncode(const value: aString): aString;
+function urlEncodeA(const value: aString): aString;
 var
-  i: int;
+  i: integer;
 begin
   result := '';
   //
@@ -6815,7 +6562,7 @@ begin
 end;
 
 // --  --
-function urlDecode(const value: aString): aString;
+function urlDecodeA(const value: aString): aString;
 var
   i: int;
 begin
@@ -6845,14 +6592,46 @@ begin
 end;
 
 // --  --
-function formatTemplate(const templ: aString; const vars: aString; unescapeVars: bool): aString;
+function urlEncodeW(const value: wString): wString;
+begin
+  result := wString(urlEncodeA(aString(value)));
+end;
+
+// --  --
+function urlDecodeW(const value: wString): wString;
+begin
+  result := wString(urlDecodeA(aString(value)));
+end;
+
+// --  --
+function urlEncode(const value: string): string;
+begin
+{$IFDEF __STRANSI__ }
+  result := urlEncodeA(value)
+{$ELSE }
+  result := urlEncodeW(value);
+{$ENDIF __STRANSI__ }
+end;
+
+// --  --
+function urlDecode(const value: string): string;
+begin
+{$IFDEF __STRANSI__ }
+  result := urlDecodeA(value)
+{$ELSE }
+  result := urlDecodeW(value);
+{$ENDIF __STRANSI__ }
+end;
+
+// --  --
+function formatTemplate(const templ: string; const vars: string; unescapeVars: bool): string;
 var
   s: int;
   p: int;
   len: int;
 
   // --  --
-  procedure add(const subStr: aString);
+  procedure add(const subStr: string);
   begin
     if (p > s) then
       result := result + copy(templ, s, p - s) + subStr
@@ -6863,12 +6642,12 @@ var
   end;
 
 var
-  vname: aString;
+  vname: string;
   vmode: bool;
   vlen: int;
   i: int;
   vs: int;
-  uVars: aString;
+  uVars: string;
 begin
   result := '';
   s := 1;
@@ -6877,7 +6656,7 @@ begin
   vlen := length(vars);
   vmode := false;
   vname := '';
-  uVars := aString(upCase(string(vars)));
+  uVars := upCase(vars);
   //
   while (p <= len) do begin
     //
@@ -6888,14 +6667,13 @@ begin
 	s := p + 1;
 	if ('' = vname) then begin
 	  //
-	  add('%');
+	  add('%')
 	end
 	else begin
 	  //
-	  vname := aString(upCase(string(vname)) + #9);
+	  vname := upCase(vname) + #9;
 	  //
 	  i := pos(vname, uVars);
-	  //
 	  if (1 <= i) then begin
 	    // skip variable name
 	    inc(i, length(vname) - 1);
@@ -7127,6 +6905,7 @@ begin
     result := defValue;
 end;
 
+{$IFNDEF UNAUTILS_NOSHELL }
 
 // --  --
 function ShellAboutA; external 'shell32.dll' name 'ShellAboutA';
@@ -7148,6 +6927,8 @@ begin
 {$ENDIF NO_ANSI_SUPPORT }
   ;
 end;
+
+{$ENDIF UNAUTILS_NOSHELL }
 
 // --  --
 function guiMessageBox(owner: hWnd; const message, title: wString; flags: int): int;
@@ -7249,40 +7030,37 @@ function ams(): int;
   {$ELSE }
 var
   mms: TMemoryManagerState;
-  i: int;
+  i: integer;
   {$ENDIF FPC }
   {$ENDIF UNAUTILS_DEBUG_MEM }
 {$ENDIF __AFTER_D9__ }
 begin
   {$IFDEF __AFTER_D9__ }	// Delphi 2006 or later
     //
+    {$IFDEF UNAUTILS_DEBUG_MEM }
+      // a bit faster
+      result := g_allocMemSize;
+    {$ELSE }
+      GetMemoryManagerState(mms);
+      result := 0;
+      for i := 0 to high(mms.SmallBlockTypeStates) do
+	inc(result, mms.SmallBlockTypeStates[i].AllocatedBlockCount * mms.SmallBlockTypeStates[i].UseableBlockSize);
+      //
+      inc(result, mms.TotalAllocatedMediumBlockSize);
+      inc(result, mms.TotalAllocatedLargeBlockSize);
+    {$ENDIF UNAUTILS_DEBUG_MEM }
+  {$ELSE }
     {$IFDEF FPC }
       result := GetFPCHeapStatus().CurrHeapUsed;
     {$ELSE }
-      {$IFDEF UNAUTILS_DEBUG_MEM }
-        // a bit faster
-        result := g_allocMemSize;
-      {$ELSE }
-        GetMemoryManagerState(mms);
-        result := 0;
-        for i := 0 to high(mms.SmallBlockTypeStates) do
-          inc(result, mms.SmallBlockTypeStates[i].AllocatedBlockCount * mms.SmallBlockTypeStates[i].UseableBlockSize);
-        //
-        inc(result, mms.TotalAllocatedMediumBlockSize);
-        inc(result, mms.TotalAllocatedLargeBlockSize);
-      {$ENDIF UNAUTILS_DEBUG_MEM }
+      result := allocMemSize;
     {$ENDIF FPC }
-  {$ELSE }
-    result := allocMemSize;
   {$ENDIF __AFTER_D9__ }
 end;
 
 {$IFDEF VC25_OVERLAPPED }
-
   {$I unaUtilsOL.inc }
-
 {$ENDIF VC25_OVERLAPPED }
-
 
 // --  --
 function infoMessage(const message: string; logToScreen: int; logToFile: int; logTimeMode: unaInfoMessage_logTimeModeEnum; logMemoryInfo: int; logThreadId: int; flags: int): bool;
@@ -7375,7 +7153,7 @@ begin
 	else
 	  te := timeElapsed32U(g_infoLogTimeMark);
 	//
-	data := data + getTime(st) + '+' + adjust(int2str(te, 10, 3), choice(unaLtm_dateTimeDelta64 = logTimeMode, 12, int(8)), ' ') + ' ';
+	data := data + getTime(st) + ', ' + adjust(int2str(te, 10, 3), choice(unaLtm_dateTimeDelta64 = logTimeMode, 10, int(6)), ' ');
 	g_infoLogTimeMark := timeMarkU();
       end;
 
@@ -7385,32 +7163,30 @@ begin
     end;
     //
     if (1 = logMemoryInfo) then
-      data := data + adjust(' <' + int2str(ams(), 10, 3) + '>', 12, ' ');
+      data := data + adjust(', <' + int2str(ams(), 10, 3) + '>', 12, ' ');
     //
     if (1 = logThreadId) then
-      data := data + '[' + adjust(int2str(GetCurrentThreadId(), 16), 5, '0') + '] ';
+      data := data + ', [' + adjust(int2str(GetCurrentThreadId(), 16), 5, '0') + ']';
     //
-    data := data + message;
+    data := data + ', ' + message;
     //
     if (0 < logToScreen) then begin
       //
       stdout := GetStdHandle(DWORD(STD_OUTPUT_HANDLE));
-      case (stdout) of
-
-	0,
-	INVALID_HANDLE_VALUE:
-	  guiMessageBox(data, 'Information message', MB_OK);
-
-	else begin
-	  //
-	  {$IFDEF CONSOLE }
-	  if (2 = logToScreen) then	// do not add CRLF?
-	    writeToFile(stdout, aString(data))
-	  else
-	    writeToFile(stdout, aString(data + #13#10));
-	  {$ENDIF CONSOLE }
-	  //
-	end;
+      if ((0 = stdout) or (INVALID_HANDLE_VALUE = stdout)) then begin
+        //
+        {$IFDEF UNA_SERVICE }
+        ; // service module has no access to user's desktop
+        {$ELSE }
+        guiMessageBox(data, 'Information message', MB_OK);
+        {$ENDIF UNA_SERVICE }
+      end
+      else begin
+        //
+        if (2 = logToScreen) then	// do not add CRLF?
+          writeToFile(stdout, aString(data))
+        else
+          writeToFile(stdout, aString(data + #13#10));
       end;
     end;
     //
@@ -7423,26 +7199,26 @@ begin
       data := data + #13#10;
       if (g_infoLogUseWideStrings) then begin
 	//
-	{$IFDEF VC25_IOCP }
+	{$IFDEF VC25_OVERLAPPED }
 	if (0 <> (flags and c_logModeFlags_noOL)) then
-	{$ENDIF VC25_IOCP }
+	{$ENDIF VC25_OVERLAPPED }
 	  writeToFile(g_infoLogFileNameW + '.nol', @data[1], length(data) * sizeOf(data[1]), 0, 2)
-	{$IFDEF VC25_IOCP }
+	{$IFDEF VC25_OVERLAPPED }
 	else
-	  write2file(g_infoLogFileHandle, {$IFDEF VC25_OVERLAPPED }g_logOLOffs,{$ENDIF } @data[1], length(data) * sizeOf(data[1]))
-	{$ENDIF VC25_IOCP }
+	  write2file(g_infoLogFileHandle, g_logOLOffs, @data[1], length(data) * sizeOf(data[1]));
+	{$ENDIF VC25_OVERLAPPED }
       end
       else begin
 	//
 	dataA := aString(data);
-	{$IFDEF VC25_IOCP }
+	{$IFDEF VC25_OVERLAPPED }
 	if (0 <> (flags and c_logModeFlags_noOL)) then
-	{$ENDIF VC25_IOCP }
+	{$ENDIF VC25_OVERLAPPED }
 	  writeToFile(g_infoLogFileNameW + '.nol', @dataA[1], length(dataA), 0, 2)
-	{$IFDEF VC25_IOCP }
+	{$IFDEF VC25_OVERLAPPED }
 	else
-	  write2file(g_infoLogFileHandle, {$IFDEF VC25_OVERLAPPED }g_logOLOffs,{$ENDIF } @dataA[1], length(dataA));
-	{$ENDIF VC25_IOCP }
+	  write2file(g_infoLogFileHandle, g_logOLOffs, @dataA[1], length(dataA));
+	{$ENDIF VC25_OVERLAPPED }
       end;
     end;
     //
@@ -7463,7 +7239,7 @@ begin
 end;
 
 // --  --
-function setInfoMessageMode(const logName: wString; proc: infoMessageProc; logToScreen: int; logToFile: int; logTimeMode: unaInfoMessage_logTimeModeEnum; logMemoryInfo: int; logThreadId: int; useWideStrings: bool): wString;
+function setInfoMessageMode(const logName: wString; proc: infoMessageProc; logToScreen: int; logToFile: int; logTimeMode: unaInfoMessage_logTimeModeEnum; logMemoryInfo: int; logThreadId: int; useWideStrings: bool; useSysTime: int): wString;
 begin
   result := '';
   //
@@ -7481,6 +7257,9 @@ begin
   //
   g_infoLogFileNameW := result;
   if ('' <> g_infoLogFileNameW) then begin
+    //
+    if ((0 <> g_infoLogFileHandle) and (INVALID_HANDLE_VALUE <> g_infoLogFileHandle)) then
+      CloseHandle(g_infoLogFileHandle);
     //
     g_infoLogFileHandle := fileCreate(g_infoLogFileNameW, false, true, {$IFDEF VC25_OVERLAPPED }FILE_FLAG_OVERLAPPED{$ELSE }0{$ENDIF VC25_OVERLAPPED });
     {$IFDEF VC25_OVERLAPPED }
@@ -7508,6 +7287,9 @@ begin
     g_infoLogThreadId := (0 < logThreadId);
   //
   g_infoLogUseWideStrings := useWideStrings;
+  //
+  if (-1 <> useSysTime) then
+    g_infoLogUseSystemTime := (0 <> useSysTime);
   //
   g_infoLogTimeMark := timeMarkU();
 end;
@@ -7758,7 +7540,7 @@ begin
     bufA := malloc(size);
     try
       result := GetEnvironmentVariableA(paChar(aString(name)), bufA, size);
-      strCopy(buf, string(bufA), size);
+      strCopy(buf, pwChar(wString(bufA)), size);
     finally
       mrealloc(bufA);
     end;
@@ -7788,7 +7570,6 @@ end;
 
 // --  --
 function execApp(const moduleAndParams: wString; waitForExit: bool; showFlags: WORD; redirectFromWOW64: bool): int;
-
 {$IFDEF FPC }
   {$DEFINE NEED_STARTUPINFO }
 {$ENDIF FPC }
@@ -7808,8 +7589,10 @@ var
   pi: PROCESS_INFORMATION;
   exitCode: DWORD;
   //
-  cmdLine: wString;
-  //
+  cmdLine: array[0..MAX_PATH] of wChar;
+{$IFNDEF NO_ANSI_SUPPORT }
+  cmdLineA: array[0..MAX_PATH] of aChar;
+{$ENDIF NO_ANSI_SUPPORT }
   ok: bool;
 begin
   fillChar(sia, sizeOf(sia), #0);
@@ -7822,26 +7605,34 @@ begin
   //
   fillChar(pi, sizeOf(pi), #0);
   //
-  if (redirectFromWOW64) then
-    cmdLine := getEnvVar('windir') + '\Sysnative\' + moduleAndParams
+  if (g_isWOW64 and redirectFromWOW64) then
+    str2arrayW(getEnvVar('windir') + '\Sysnative\' + moduleAndParams, cmdLine)
   else
-    cmdLine := moduleAndParams;
+    str2arrayW(moduleAndParams, cmdLine);
   //
-{$IFNDEF NO_ANSI_SUPPORT }
-  if (g_wideApiSupported) then
+{$IFDEF NO_ANSI_SUPPORT }
+{$ELSE }
+  if (g_wideApiSupported) then begin
 {$ENDIF NO_ANSI_SUPPORT }
-    ok := CreateProcessW(nil, pwChar(cmdLine), nil, nil, false, 0, nil, nil, siw, pi)
-{$IFNDEF NO_ANSI_SUPPORT }
-  else
-    ok := CreateProcessA(nil, paChar(aString(cmdLine)), nil, nil, false, 0, nil, nil, sia, pi);
+    //
+    ok := CreateProcessW(nil, pwChar(@cmdLine), nil, nil, false, 0, nil, nil, siw, pi);
+{$IFDEF NO_ANSI_SUPPORT }
+{$ELSE }
+  end
+  else begin
+    //
+    str2arrayA(aString(cmdLine), cmdLineA);
+    ok := CreateProcessA(nil, paChar(@cmdLineA), nil, nil, false, 0, nil, nil, sia, pi);
+  end;
 {$ENDIF NO_ANSI_SUPPORT }
-  ;
   //
+  {$IFDEF CPU64 }
+  {$ELSE }
+  result := -2;
+  {$ENDIF CPU64 }
   if (ok) then begin
     //
     if (waitForExit) then begin
-      //
-      result := -2;
       //
       repeat
 	//
@@ -7864,8 +7655,13 @@ begin
       until (false);
       //
     end
-    else
+    else begin
+      //
+      CloseHandle(pi.hProcess);
+      CloseHandle(pi.hThread);
+      //
       result := 0;
+    end;
   end
   else
     result := GetLastError();
@@ -8164,10 +7960,15 @@ begin
   result := GetThreadPriority(GetCurrentThread());
 end;
 
+{$IFDEF FPC64 }
+  // FPC got it defined wrong
+function GetProcessAffinityMask; external kernel32 name 'GetProcessAffinityMask';
+{$ENDIF FPC64 }
+
 // --  --
 function getNumCores(): int;
 var
-  pam, sam: DWORD;
+  pam, sam: DWORD_PTR;
 begin
   if (GetProcessAffinityMask(GetCurrentProcess(), pam, sam)) then begin
     //
@@ -8181,7 +7982,6 @@ begin
   else
     result := -1;
 end;
-
 
 // --  --
 function putIntoClipboard(const data: aString; window: hWnd): int;
@@ -8203,6 +8003,7 @@ begin
 	lptstrCopy := GlobalLock(hglbCopy);
 	move(data[1], lptstrCopy^, sz);	// copy all characters, including #0
 	GlobalUnlock(hglbCopy);
+        //
 	// put data into clipboard
 	SetClipboardData(CF_TEXT, hglbCopy);
 	//
@@ -8215,88 +8016,175 @@ begin
 end;
 
 // --  --
-function waitForObject(handle: tHandle; timeout: unsigned): bool;
+function waitForObject(handle: tHandle; timeout: tTimeout): bool;
 begin
-  result := (WAIT_OBJECT_0 = WaitForSingleObject(handle, timeout));
+  if (INFINITE = unsigned(timeout)) then
+    result := (WAIT_OBJECT_0 = WaitForSingleObject(handle, INFINITE))
+  else
+    result := (WAIT_OBJECT_0 = WaitForSingleObject(handle, choice(0 > timeout, -timeout, timeout)));
+  //
+end;
+
+{$IFDEF FPC }
+  // FPC got 'em somewhere
+{$ELSE }
+
+  {$IFDEF CPU64 }
+
+// --  --
+// The function returns the initial value of the Addend parameter.
+function InterlockedExchangeAdd(var Addend: int; value: int): int;
+asm                             //  RCX          RDX
+        .NOFRAME
+        mov     rax, value
+  lock  xadd    [Addend], rax           //      TEMP <= [Addend] + RAX
+                                        //       RAX <= [Addend]
+                                        //      [Addend] <= TEMP
 end;
 
 // --  --
-function _acquire32(var a: unaAcquireType; ex: bool): bool;
-begin
-  asm
-  {$IFDEF CPU64 }
-	xor	rcx, rcx
-	mov	ecx, a
-	xor	rax, rax
-	inc	rax
+// The function returns the resulting incremented value.
+function InterlockedIncrement(var Addend: int): int;
+asm                           //  RCX
+        .NOFRAME
+        mov     rax, 1
+  lock  xadd    [Addend], rax
+        inc     rax
+end;
 
-   lock	xadd 	[rcx], rax
+// --  --
+// The function returns the resulting decremented value.
+function InterlockedDecrement(var Addend: int): int;
+asm                           //  RCX
+        .NOFRAME
+        mov     rax, -1
+  lock  xadd    [Addend], rax
+        dec     rax
+end;
 
-	cmp	rax, 0
-	setz 	al
-	neg	al
-	sbb	rax, rax
-	mov	result, rax
+// --  --
+// The function returns the initial value of the Destination parameter.
+function InterlockedCompareExchange(var Destination: int; Exchange: int; Comparand: int): int;
+asm                                   //RCX               RDX            R8
+        .NOFRAME
+        mov     rax, Comparand
+  lock  cmpxchg [Destination], Exchange // (RAX == [Destination]) ?
+                                        //   YEP: [Destination] <= Exchange
+                                        //  NOPE: RAX <= [Destination]
+end;
+
   {$ELSE }
-	mov	ecx, a
-	xor	eax, eax
-	inc	eax
 
-   lock	xadd 	[ecx], eax
+// --  --
+// The function returns the initial value of the Addend parameter.
+function InterlockedExchangeAdd(var Addend: int; value: int): int;
+asm                             //  EAX          EDX
+        mov     ecx, eax
+        mov     eax, edx
+  lock  xadd    [ecx], eax   //      TEMP <= [ecx] + EAX
+                             //       EAX <= [ecx]
+                             //     [ecx] <= TEMP
+end;
 
-	cmp	eax, 0
-	setz 	al
-	neg	al
-	sbb	eax, eax
-	mov	result, eax
+// --  --
+// The function returns the resulting incremented value.
+function InterlockedIncrement(var Addend: int): int;
+asm                           //  EAX
+        mov     edx, 1
+  lock  xadd    [Addend], edx
+        inc     edx
+        mov     eax, edx
+end;
+
+// --  --
+// The function returns the resulting decremented value.
+function InterlockedDecrement(var Addend: int): int;
+asm                           //  EAX
+        mov     edx, -1
+  lock  xadd    [Addend], edx
+        dec     edx
+        mov     eax, edx
+end;
+
+// --  --
+// The function returns the initial value of the Destination parameter.
+function InterlockedCompareExchange(var Destination: int; Exchange: int; Comparand: int): int;
+asm                                   //EAX               EDX            ECX
+        xchg    eax, ecx
+  lock  cmpxchg [ecx], edx      // (EAX == [ecx]) ?
+                                //   YEP: [ecx] <= edx
+                                //  NOPE: EAX <= [ecx]
+end;
+
   {$ENDIF CPU64 }
-  end;
-  //
-  if (not result and ex) then
-    release32(a);
+
+{$ENDIF FPC }
+
+// --  --
+function _acquire32(var a: unaAcquireType): bool;
+begin
+  result := (1 = InterlockedIncrement(a));
 end;
 
 // --  --
 function acquire32Exclusive(var a: unaAcquireType): bool;
 begin
-  result := _acquire32(a, true);
+  result := _acquire32(a);
+  //
+  if (not result) then
+    release32(a);
 end;
 
 // --  --
 function acquire32NonExclusive(var a: unaAcquireType): bool;
 begin
-  result := _acquire32(a, false);
+  result := _acquire32(a);
 end;
 
 // --  --
 procedure acquire32NE(var a: unaAcquireType);
 begin
-  _acquire32(a, false);
+  _acquire32(a);
 end;
 
 // --  --
-function acquire32(var a: unaAcquireType; timeout: int): bool;
+function acquire32(var a: unaAcquireType; timeout: tTimeout): bool;
 var
   tm: uint64;
+  inf: bool;
 begin
   tm := 0;
-  repeat
-    if (0 > timeout) then
-      timeout := 10000;	// seems like INFINITE was passed
+  //
+  inf := false;
+  //
+  if (0 > timeout) then begin
     //
-    result := _acquire32(a, true);
-    if (not result and (0 < timeout)) then begin
+    if (INFINITE = unsigned(timeout)) then
+      inf := true  		// wait till success
+    else
+      timeout := -timeout;
+  end;
+  //
+  repeat
+    //
+    result := acquire32Exclusive(a);
+    if ( not result and (inf or (0 < timeout)) ) then begin
       //
       if (0 = tm) then
 	tm := timeMarkU();
       //
-      sleep(1 + timeout shr 8);
+      if (inf) then
+	sleep(30)
+      else
+	sleep(1 + timeout shr 8);
       //
-      if (timeout < timeElapsed64U(tm)) then
-	break;
-    end;
+      if (not inf and (unsigned(timeout) < timeElapsed64U(tm))) then
+	break; // timed out
+    end
+    else
+      break;
     //
-  until (result or (0 >= timeout));
+  until (result);
 end;
 
 // --  --
@@ -8310,36 +8198,7 @@ begin
   end;
   {$ENDIF DEBUG }
   //
-  asm
-  {$IFDEF CPU64 }
-	xor	rcx, rcx
-	mov	ecx, a
-	xor	rax, rax
-	dec	rax
-
-   lock	xadd 	[rcx], rax
-
-	cmp	rax, 1
-	setz 	al
-	neg	al
-	sbb	rax, rax
-
-	mov	result, rax
-  {$ELSE }
-	mov	ecx, a
-	xor	eax, eax
-	dec	eax
-
-   lock	xadd 	[ecx], eax
-
-	cmp	eax, 1
-	setz 	al
-	neg	al
-	sbb	eax, eax
-
-	mov	result, eax
-  {$ENDIF CPU64 }
-  end;
+  result := (0 = InterlockedDecrement(a));
 end;
 
 // --  --
@@ -8445,14 +8304,17 @@ var
   {xx $DEFINE _GTC_WRAP_EMULATE_ }
 {$ENDIF DEBUG }
 
-
 {$IFDEF _GTC_WRAP_EMULATE_ }
   g_gtc_init: unsigned = $FFFF0000;
   g_gtc_prevEmul: uint32;
 {$ENDIF _GTC_WRAP_EMULATE_ }
 
+{$IFNDEF UNAUTILS_NOTIME }
+
 function timeGetTime; external 'winmm.dll' name 'timeGetTime';
 function timeBeginPeriod; external 'winmm.dll' name 'timeBeginPeriod';
+
+{$ENDIF UNAUTILS_NOTIME }
 
 // --  --
 function gtc(): uint64;
@@ -8471,7 +8333,11 @@ begin
   if (g_gtc_is64) then
     result := g_gtc64()
   else
+  {$IFDEF UNAUTILS_NOTIME }
+    result := GetTickCount() + g_gtc_loops;
+  {$ELSE}
     result := timeGetTime() + g_gtc_loops;
+  {$ENDIF UNAUTILS_NOTIME }
 {$ELSE }
   if (0 = g_gtc_prevEmul) then
     g_gtc_prevEmul := timeGetTime();
@@ -8479,10 +8345,17 @@ begin
   gtc := timeGetTime() - g_gtc_prevEmul;
   g_gtc_prevEmul := timeGetTime();
   asm
+    {$IFDEF CPU64 }
+	mov	rax, gtc
+	add	g_gtc_init, rax
+    {$ELSE }
 	mov	eax, gtc
 	add	g_gtc_init, eax
-  end;
+    {$ENDIF CPU64 }
+  end{$IFDEF CPU64 }['RAX']{$ENDIF CPU64 };
+  //
   result := g_gtc_init + g_gtc_loops;
+  //
 {$ENDIF _GTC_WRAP_EMULATE_ }
   //
   if (not g_gtc_is64) then begin
@@ -8491,31 +8364,33 @@ begin
     //
     if (0 = g_gtc_prev) then begin
       //
+{$IFDEF UNAUTILS_NOTIME }
+      g_gtc_prev := GetTickCount();
+{$ELSE }
       timeBeginPeriod(1);	// get max out of it
       g_gtc_prev := timeGetTime();
+{$ENDIF UNAUTILS_NOTIME }
     end;
     //
     if (result < g_gtc_prev) then begin
       //
+      {$IFDEF FPC64 }
       asm
-      {$IFDEF CPU64 }
-	push	rax
-
 	lea	rax, result
 	add	rax, 4
-	inc	[rax]
-
-	pop	rax
+	inc	dword ptr [rax]
+      end{$IFDEF FPC64 }['RAX']{$ENDIF FPC64 };
       {$ELSE }
-	push	eax
-
-	lea	eax, result
-	add	eax, 4
-	inc	dword ptr[eax]
-
-	pop	eax
+        {$IFDEF CPU64 }
+        result := result + $100000000;
+        {$ELSE }
+        asm
+          lea	eax, result
+          add	eax, 4
+          inc	dword ptr [eax]
+        end;
       {$ENDIF CPU64 }
-      end;
+      {$ENDIF FPC64 }
       //
       // try to adjust loop counter
       markGTCLoop(loop);
@@ -8526,7 +8401,7 @@ end;
 // --  --
 procedure markGTCLoop(loop: uint64);
 begin
-  if (_acquire32(g_gtc_loopsAcq, true)) then try
+  if (acquire32Exclusive(g_gtc_loopsAcq)) then try
     //
     // make sure we make it once
     if (loop = g_gtc_loops) then
@@ -8536,7 +8411,6 @@ begin
     release32(g_gtc_loopsAcq);
   end;
 end;
-
 
 // --  --
 function timeMarkU(): uint64;
@@ -8570,8 +8444,6 @@ begin
   result := unsigned(timeElapsed64U(mark));
 end;
 
-
-
 // --  --
 function sanityCheck(var mark: uint64; maxSlice, sleepSlice: unsigned; careMessages: bool): bool;
 begin
@@ -8599,7 +8471,7 @@ begin
 end;
 
 // --  --
-function getSysErrorText(errorCode: DWORD; avoidGetCall: bool): wString;
+function getSysErrorText(errorCode: DWORD; avoidGetCall, includeErorCode: bool): wString;
 var
 {$IFNDEF NO_ANSI_SUPPORT }
   bufA: array[0..4096] of aChar;
@@ -8635,6 +8507,8 @@ begin
       result := string(bufA);
 {$ENDIF NO_ANSI_SUPPORT }
     ;
+    if (includeErorCode) then
+      result := '[' + int2str(errorCode) + '] - ' + result;
   end
   else
     result := 'System Error Code: ' + int2str(errorCode);
@@ -8848,6 +8722,44 @@ begin
 end;
 
 // --  --
+function switchFileName(var index: int; mustExists: bool): wString;
+var
+  pw: wString;
+begin
+  result := '';
+  repeat
+    //
+    pw := paramStrW(index);
+    inc(index);
+    //
+    if ('' <> pw) then begin
+      //
+      if (mustExists) then begin
+	//
+	if (fileExists(pw)) then begin
+	  //
+	  result := pw;
+	  break;
+	end;
+      end
+      else begin
+	//
+	if ( ('/' <> pw[1]) and ('\' <> pw[1]) ) then begin
+	  //
+	  // could be a file name, let return it
+	  result := pw;
+	  break;
+	end;
+      end;
+    end
+    else
+      break;
+    //
+  until (pw = '');
+end;
+
+
+// --  --
 function gcd(a, b: unsigned): unsigned;
 begin
   while ((0 < a) and (0 < b)) do begin
@@ -8864,7 +8776,12 @@ end;
 // --  --
 function float2str(const value: extended): string;
 begin
-  result := int2str(trunc(value)) + '.' + adjust(int2str(trunc(frac(value) * 1000000000)), 9, '0');
+  result := adjust(int2str(trunc(abs(frac(value)) * 1000000000)), 9, '0');
+  //
+  while ( (result <> '0') and ('0' = result[length(result)]) )  do
+    delete(result, length(result), 1);
+  //
+  result := int2str(trunc(value)) + '.' + result;
 end;
 
 // -------------
@@ -8878,12 +8795,12 @@ type
   pExceptionRecord = ^tExceptionRecord;
   tExceptionRecord = record
     //
-    ExceptionCode: Cardinal;
-    ExceptionFlags: Cardinal;
+    ExceptionCode: uint;
+    ExceptionFlags: uint;
     ExceptionRecord: PExceptionRecord;
     ExceptionAddress: Pointer;
-    NumberParameters: Cardinal;
-    ExceptionInformation: array[0..14] of Cardinal;
+    NumberParameters: uint;
+    ExceptionInformation: array[0..14] of uint;
   end;
 
 {$ENDIF FPC }
@@ -9003,16 +8920,13 @@ begin
 	dwBuildNumber  := ver.dwBuildNumber;
 	dwPlatformId   := ver.dwPlatformId;
 	//
-	{$IFDEF __BEFORE_D6__ }
-	  str2arrayW(wString(ver.szCSDVersion), szCSDVersion);
-	{$ELSE }
-	  str2array(wString(ver.szCSDVersion), szCSDVersion);
-	{$ENDIF __BEFORE_D6__ }
+	str2arrayW(wString(ver.szCSDVersion), szCSDVersion);
       end;
     end;
   end;
   //
 {$IFDEF NO_ANSI_SUPPORT }
+  //
   if (ok and (g_osVersion.dwMajorVersion < 5)) then
     // looks like we are running under Win98/95, notify about possible problems
     guiMessageBox('This code was compiled with no ANSI API support, and it seems that you are running the ANSI version of Windows.'#13#10 +
@@ -9050,11 +8964,6 @@ begin
   if (assigned(isWow64proc)) then
     if (not isWow64proc(GetCurrentProcess(), g_isWOW64)) then
       g_isWOW64 := false;	// isWow64proc fails, probably that means we are not under WOW64
-  //
-{$IFDEF CPU64 }
-  g_inInc64 := GetProcAddress(GetModuleHandle(kernel32), 'InterlockedIncrement64');
-  g_inDec64 := GetProcAddress(GetModuleHandle(kernel32), 'InterlockedDecrement64');
-{$ENDIF CPU64 }
   //
   g_gtc64 := GetProcAddress(GetModuleHandle(kernel32), 'GetTickCount64');
   g_gtc_is64 := false; //assigned(g_gtc64); -- dont use g_gtc64 since its resolution is poor
@@ -9372,25 +9281,30 @@ end;
 
 {$ENDIF CHECK_MEMORY_LEAKS }
 
-
-
 // --  --
 procedure mfill16(mem: pointer; count: unsigned; value: uint16);
-begin
-  asm
+asm
+{$IFDEF CPU64 }
+        mov     r10, rdi
+        //
+	mov	rdi, mem
+	mov	rcx, count
+	mov	ax, value
+  rep	stosw
+        //
+        mov     rdi, r10
+{$ELSE }
 	push	edi
 	//
 	mov	edi, mem
 	mov	ax, value
 	mov	ecx, count
-	//
-  @loop:
-	stosw
-	loop	@loop
+    rep	stosw
 	//
 	pop	edi
-  end;
-end;
+{$ENDIF CPU64 }
+end{$IFDEF FPC64 }['R10', 'RCX', 'RAX']{$ENDIF FPC64 };
+
 
 
 {$IFDEF UNAUTILS_MEM_USE_HEAP_CALLS }
@@ -9412,7 +9326,7 @@ begin
     if (nil <> result) then begin
       //
     {$IFDEF LOG_UNAUTILS_MALLOCS }
-      logMessage('MA: ' + adjust(int2str(size), 6) + ' -> ' + adjust(int2str(unsigned(result), 16), 8), c_logModeFlags_noOL or g_infoLogMessageFlags);
+      logMessage('MA: ' + adjust(int2str(size), 6) + ' -> ' + adjust(int2str(unsigned(result), 16), 8), {$IFDEF VC25_OVERLAPPED } c_logModeFlags_noOL or {$ENDIF VC25_OVERLAPPED } g_infoLogMessageFlags);
     {$ENDIF LOG_UNAUTILS_MALLOCS }
       //
 {$IFDEF UNAUTILS_DEBUG_MEM }
@@ -9512,7 +9426,7 @@ end;
 {$ENDIF UNAUTILS_DEBUG_MEM }
 
 // --  --
-procedure rm(var p: pointer; size: int);
+procedure rm(var p: pointer; size: int); {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {$IFDEF LOG_UNAUTILS_MALLOCS }
 var
   pbefore: pointer;
@@ -9545,16 +9459,19 @@ begin
   end;
   //
 {$ELSE }
+  //
   reallocMem(p, size);
+  //
 {$ENDIF UNAUTILS_MEM_USE_HEAP_CALLS }
   //
 {$IFDEF LOG_UNAUTILS_MALLOCS }
+  //
   if (nil <> pbefore) then
     s := 'RM: ' + adjust(int2str(unsigned(pbefore), 16), 8) + ' / ' + adjust('?', 6) + ' -> ' + adjust(int2str(size), 6) + ' / ' + adjust(int2str(unsigned(p), 16), 8)
   else
     s := 'RM: ' + adjust(int2str(unsigned(pbefore), 16), 8) + ' / ' + adjust(int2str(0), 6) +                     ' -> ' + adjust(int2str(size), 6) + ' / ' + adjust(int2str(unsigned(p), 16), 8);
   //
-  logMessage(s, c_logModeFlags_noOL or g_infoLogMessageFlags);
+  logMessage(s, {$IFDEF VC25_OVERLAPPED }c_logModeFlags_noOL or {$ENDIF VC25_OVERLAPPED } g_infoLogMessageFlags);
   //
 {$ENDIF LOG_UNAUTILS_MALLOCS }
 end;
@@ -9576,6 +9493,34 @@ begin
   __reallocML(unsigned(old), unsigned(data), newSize);
 {$ENDIF CHECK_MEMORY_LEAKS_UNA_ONLY }
 end;
+
+{$IFDEF CPU64 }
+
+// --  --
+function mcompare(p1, p2: pointer; size: unsigned): bool;
+var
+  ofs: int;
+begin
+  if ( (nil <> p1) and (nil <> p2) and (0 < size) ) then begin
+    //
+    result := true;
+    ofs := 0;
+    while (ofs < size) do begin
+      //
+      if (pArray(p1)[ofs] <> pArray(p2)[ofs]) then begin
+	//
+	result := false;
+	break;
+      end
+      else
+	inc(ofs);
+    end;
+  end
+  else
+    result := (p1 = p2);
+end;
+
+{$ELSE }
 
 // --  --
 function mcompare(p1, p2: pointer; size: unsigned): bool; assembler;
@@ -9604,6 +9549,36 @@ asm
 @@exit: pop     edi
 	pop     esi
 end;
+{$ENDIF CPU64 }
+
+
+{$IFDEF CPU64 }
+
+// --  --
+function mscanb(buf: pointer; count: unsigned; value: uint8): pointer;
+var
+  ofs: int;
+begin
+  if ( (nil <> buf) and (0 < count) ) then begin
+    //
+    result := nil;
+    ofs := 0;
+    while (ofs < count) do begin
+      //
+      if (pArray(buf)[ofs] = value) then begin
+	//
+	result := @pArray(buf)[ofs];
+	break;
+      end
+      else
+	inc(ofs);
+    end;
+  end
+  else
+    result := nil;
+end;
+
+{$ELSE }
 
 // --  --
 function mscanb(buf: pointer; count: unsigned; value: uint8): pointer; assembler;
@@ -9638,6 +9613,37 @@ asm
 	pop	edi
   @exit:
 end;
+
+{$ENDIF CPU64 }
+
+
+{$IFDEF CPU64 }
+
+// --  --
+function mscanw(buf: pointer; count: unsigned; value: uint16): pointer;
+var
+  ofs: int;
+begin
+  if ( (nil <> buf) and (0 < count) ) then begin
+    //
+    result := nil;
+    ofs := 0;
+    while (ofs < count) do begin
+      //
+      if (pUint16Array(buf)[ofs] = value) then begin
+	//
+	result := @pUint16Array(buf)[ofs];
+	break;
+      end
+      else
+	inc(ofs);
+    end;
+  end
+  else
+    result := nil;
+end;
+
+{$ELSE }
 
 // --  --
 function mscanw(buf: pointer; count: unsigned; value: uint16): pointer; assembler;
@@ -9688,6 +9694,36 @@ asm
   @exit:
 end;
 
+{$ENDIF CPU64 }
+
+{$IFDEF CPU64 }
+
+// --  --
+function mscand(buf: pointer; count: unsigned; value: uint32): pointer;
+var
+  ofs: int;
+begin
+  if ( (nil <> buf) and (0 < count) ) then begin
+    //
+    result := nil;
+    ofs := 0;
+    while (ofs < count) do begin
+      //
+      if (pUint32Array(buf)[ofs] = value) then begin
+	//
+	result := @pUint32Array(buf)[ofs];
+	break;
+      end
+      else
+	inc(ofs);
+    end;
+  end
+  else
+    result := nil;
+end;
+
+{$ELSE }
+
 // --  --
 function mscand(buf: pointer; count: unsigned; value: uint32): pointer; assembler;
 {
@@ -9733,6 +9769,29 @@ asm
 
   @exit:
 end;
+
+{$ENDIF CPU64 }
+
+// --  --
+function mscanp(buf: pointer; value: pointer; len: unsigned): pointer;
+var
+  c: int;
+  a: pPtrArray absolute buf;
+begin
+  result := nil;
+  //
+  c := len div sizeof(pointer);
+  while (0 < c) do begin
+    //
+    dec(c);
+    if (UIntPtr(a[c]) = UIntPtr(value)) then begin
+      //
+      result := @a[c];
+      break;
+    end;
+  end;
+end;
+
 
 // --  --
 function mscanq(buf: pointer; count: unsigned; const value: int64): pointer;
@@ -9844,17 +9903,15 @@ end;
 
 // --  --
 procedure mswapbuf16(buf: pointer; len: int);
-begin
-    asm
+asm
 {$IFDEF CPU64 }
-	push	ecx
-	push	esi
+        mov     r10, rsi
 
-	mov	esi, buf
-	mov	ecx, len
+	mov	rsi, buf
+	mov	rcx, len
 
   @loophere:
-	cmp	ecx, 2
+	cmp	rcx, 2
 	jb	@stoploop
 
 	mov	ax, [rsi]
@@ -9862,15 +9919,13 @@ begin
 	xchg	al, ah
 	mov	[rsi], ax
 	mov	[rsi], ax
-	inc	esi
-	inc	esi
-	dec	ecx
-	dec	ecx
+	inc	rsi
+	inc	rsi
+	dec	rcx
+	dec	rcx
 	jmp	@loophere
 
   @stoploop:
-	pop	esi
-	pop	ecx
 {$ELSE }
 	push	ecx
 	push	esi
@@ -9897,31 +9952,38 @@ begin
 	pop	esi
 	pop	ecx
 {$ENDIF CPU64 }
-    end;
-end;
+end{$IFDEF FPC64 }['R10', 'RCX', 'RAX']{$ENDIF FPC64 };
 
 // --  --
 function swap16(w: uint16): uint16;
 asm
+{$IFDEF CPU64 }
+	mov	ax, w
+{$ENDIF CPU64 }
+        //
 	xchg	al, ah
-end;
+end{$IFDEF FPC64 } ['RAX'] {$ENDIF FPC64 };
 
 // --  --
 function swap32(w: uint32): uint32;
 asm
+{$IFDEF CPU64 }
+	mov	eax, w
+{$ENDIF CPU64 }
+        //
 	xchg    al, ah
 	rol	eax, 16
 	xchg    al, ah
-end;
+end{$IFDEF FPC64 } ['RAX'] {$ENDIF FPC64 };
 
 // --  --
 procedure freeAndNil(var objRef);
 var
-  ref: tObject;
+  ref: tObject absolute objRef;
 begin
-  ref := tObject(objRef);
-  pointer(objRef) := nil;
+  //ref := tObject(objRef);
   ref.free();
+  pointer(objRef) := nil;
 end;
 
 
@@ -9983,7 +10045,6 @@ initialization
   //
 {$ENDIF CONSOLE_IO }
 
-
 {$IFDEF CHECK_MEMORY_LEAKS }
   //
   mleaks_start(300);
@@ -10000,14 +10061,19 @@ initialization
 {$IFDEF DEBUG }
   setInfoMessageMode('', nil, {$IFDEF CONSOLE }-1{$ELSE }0{$ENDIF }, 1);
 {$ELSE }
-  setInfoMessageMode('<none>', nil, {$IFDEF CONSOLE }1{$ELSE }0{$ENDIF CONSOLE }, 0);
+  //
+  {$IFDEF UNA_FORCE_RELEASE_LOG }
+    setInfoMessageMode('', nil, {$IFDEF CONSOLE }1{$ELSE }0{$ENDIF CONSOLE }, 1, unaLtm_timeDelta, 1, 1);
+    logMessage('UnaUtils: Log forced in release version via UNA_FORCE_RELEASE_LOG');
+  {$ELSE }
+    setInfoMessageMode('<none>', nil, {$IFDEF CONSOLE }1{$ELSE }0{$ENDIF CONSOLE }, 0);
+  {$ENDIF UNA_FORCE_RELEASE_LOG }
 {$ENDIF DEBUG }
   //
-  {$IFDEF LOG_UNAUTILS_INFOS }
+{$IFDEF LOG_UNAUTILS_INFOS }
   logMessage('unaUtils - DEBUG is defined');
-  //
   logMessage(#13#10'unaUtils - >> initializing >>');
-  {$ENDIF LOG_UNAUTILS_INFOS }
+{$ENDIF LOG_UNAUTILS_INFOS }
 
 {$IFDEF UNA_PROFILE }
   profId_unaUtils_base64encode := profileMarkRegister('unaUtils.base64encode()');
@@ -10016,6 +10082,7 @@ initialization
   {$IFDEF LOG_UNAUTILS_INFOS }
   logMessage('unaUtils - profiling is enabled.');
   {$ENDIF LOG_UNAUTILS_INFOS }
+  //
 {$ENDIF UNA_PROFILE }
 
   //
@@ -10027,11 +10094,16 @@ initialization
 // --  --
 finalization
   //
+{$IFDEF UNA_FORCE_RELEASE_LOG }
+  logMessage('UnaUtils: finalization');
+{$ENDIF UNA_FORCE_RELEASE_LOG }
+  //
 {$IFDEF LOG_UNAUTILS_INFOS }
   logMessage(#13#10'unaUtils - << finalizing <<');
 {$ENDIF LOG_UNAUTILS_INFOS }
   //
 {$IFDEF CHECK_MEMORY_LEAKS }
+  //
   mleaks_stop();
   //
   {$IFDEF VC25_OVERLAPPED }
@@ -10051,9 +10123,9 @@ finalization
     g_infoLogFileHandle := INVALID_HANDLE_VALUE
   end;
   //
-  {$IFDEF VC25_OVERLAPPED }
+{$IFDEF VC25_OVERLAPPED }
   releaseOLs();
-  {$ENDIF VC25_OVERLAPPED }
+{$ENDIF VC25_OVERLAPPED }
 
 {$IFDEF CONSOLE_IO }
   // for console applications we will close console I/O handles
@@ -10066,12 +10138,15 @@ finalization
 {$ENDIF CONSOLE_IO }
 
 {$IFDEF UNAUTILS_DEBUG_MEM }
+  //
   DeleteCriticalSection(g_memLock);
 {$ENDIF UNAUTILS_DEBUG_MEM }
   //
 {$IFDEF UNAUTILS_MEM_USE_HEAP_CALLS }
+  //
   HeapDestroy(g_heap);
   g_heap := INVALID_HANDLE_VALUE;
 {$ENDIF UNAUTILS_MEM_USE_HEAP_CALLS }
+  //
 end.
 

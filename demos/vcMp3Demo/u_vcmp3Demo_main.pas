@@ -235,7 +235,7 @@ type
     procedure enumEngineDevices();
     procedure myOnEncoderDataAvail(sender: tObject; data: pointer; size: unsigned; var copyToStream: bool);
     procedure myOnDecoderDataAvail(sender: tObject; data: pointer; size: unsigned; var copyToStream: bool);
-    procedure myOnSocksEvent(sender: tObject; event: unaSocketEvent; id, connId: unsigned; data: pointer; size: unsigned);
+    procedure myOnSocksEvent(sender: tObject; event: unaSocketEvent; id, connId: tConID; data: pointer; size: uint);
   public
     { Public declarations }
   end;
@@ -372,7 +372,8 @@ begin
     clear();
     //
     for i := -1 to unaWaveInDevice.getDeviceCount() - 1 do begin
-      unaWaveInDevice.getCaps(unsigned(i), inCaps);
+      //
+      unaWaveInDevice.getCaps(uint(i), inCaps);
       items.add(inCaps.szPname);
     end;
     itemIndex := 0;
@@ -395,7 +396,7 @@ begin
     //
     for i := -1 to unaWaveOutDevice.getDeviceCount() - 1 do begin
       //
-      unaWaveOutDevice.getCaps(unsigned(i), outCaps);
+      unaWaveOutDevice.getCaps(uint(i), outCaps);
       items.add(outCaps.szPname);
     end;
     //
@@ -596,7 +597,7 @@ begin
 end;
 
 // --  --
-procedure Tc_form_main.myOnSocksEvent(sender: tObject; event: unaSocketEvent; id, connId: unsigned; data: pointer; size: unsigned);
+procedure Tc_form_main.myOnSocksEvent(sender: tObject; event: unaSocketEvent; id, connId: tConID; data: pointer; size: uint);
 var
   e: tIPComponentEnum;
   asynch: bool;
@@ -1060,9 +1061,9 @@ end;
 procedure Tc_form_main.a_decode_startExecute(Sender: TObject);
 var
   ok: bool;
-  freq: int;
-  volume: int;
-  pan: int;
+  freq: int32;
+  volume: int32;
+  pan: int32;
   flags: DWORD;
 begin
   a_decode_start.enabled := false;

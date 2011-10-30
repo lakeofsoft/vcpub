@@ -2637,7 +2637,7 @@ begin
 	r_vorbis_commentheader_out    := GetProcAddress(r_module, 'vorbis_commentheader_out');
 	//
 	r_refCount := 1;	// also, makes it non-zero (see below mscand)
-	if (nil <> mscand(@api, sizeof(tLibvorbisAPI) shr 2, 0)) then begin
+	if (nil <> mscanp(@api, nil, sizeof(tLibvorbisAPI))) then begin
 	  //
 	  // something is missing, close the library
 	  FreeLibrary(r_module);

@@ -362,7 +362,7 @@ function Tc_form_common_audioConfig.do_load_Config(doLoad: bool; waveIn: unavclW
 begin
   if (nil <> waveIn) then begin
     //
-    f_waveInId := waveIn.deviceId;
+    f_waveInId := int(waveIn.deviceId);
     f_waveInSDMode := waveIn.silenceDetectionMode;
   end
   else begin
@@ -372,7 +372,7 @@ begin
   end;
   //
   if (nil <> waveOut) then
-    f_waveOutId := waveOut.deviceId
+    f_waveOutId := int(waveOut.deviceId)
   else
     f_waveOutId := -1;
   //
@@ -632,9 +632,9 @@ begin
     //
     try
       // load configuration
-      c_comboBox_waveIn.itemIndex  := choice(doLoad, f_config.get('wave.in.deviceIdIndex',  deviceId2index(f_waveInId, f_includeMapper)), deviceId2index(f_waveInId, f_includeMapper));
+      c_comboBox_waveIn.itemIndex  := integer(choice(doLoad, f_config.get('wave.in.deviceIdIndex',  deviceId2index(f_waveInId, f_includeMapper)), deviceId2index(f_waveInId, f_includeMapper)));
       f_waveInId := index2deviceId(c_comboBox_waveIn);
-      c_comboBox_waveOut.itemIndex := choice(doLoad, f_config.get('wave.out.deviceIdIndex', deviceId2index(f_waveOutId, f_includeMapper)), deviceId2index(f_waveOutId, f_includeMapper));
+      c_comboBox_waveOut.itemIndex := integer(choice(doLoad, f_config.get('wave.out.deviceIdIndex', deviceId2index(f_waveOutId, f_includeMapper)), deviceId2index(f_waveOutId, f_includeMapper)));
       f_waveOutId := index2deviceId(c_comboBox_waveOut);
       //
       c_comboBox_inCodecMode.itemIndex  := choice(doLoad, f_config.get('codec.in.driverModeIndex', driverMode2index(f_inOutDriver.r_in.r_mode)), driverMode2index(f_inOutDriver.r_in.r_mode));
@@ -1026,7 +1026,7 @@ begin
   if (0 <= f_waveInId) then begin
     //
     f_mixer.enumDevices();
-    mxId := f_mixer.getMixerId(f_waveInId, true{IN});
+    mxId := f_mixer.getMixerId(uint(f_waveInId), true{IN});
   end
   else
     mxId := 0;

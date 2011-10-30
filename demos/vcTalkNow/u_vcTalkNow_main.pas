@@ -148,12 +148,12 @@ type
     procedure c_button_configAudioSrvClick(sender: tObject);
     procedure c_button_configAudioClnClick(sender: tObject);
     //
-    procedure ipServerPacketEvent(sender: TObject; connId, cmd: Cardinal; data: Pointer; len: Cardinal);
+    procedure ipServerPacketEvent(sender: TObject; connId: Cardinal; cmd: Cardinal; data: Pointer; len: Cardinal);
     procedure ipServerSocketEvent(sender: tObject; connId: Cardinal; event: unaSocketEvent; data: Pointer; len: Cardinal);
     //
-    procedure ipClientClientDisconnect(sender: TObject; connectionId: Cardinal; connected: LongBool);
+    procedure ipClientClientDisconnect(sender: TObject; connId: Cardinal; connected: LongBool);
     procedure ipClientSocketEvent(sender: tObject; connId: Cardinal; event: unaSocketEvent; data: Pointer; len: Cardinal);
-    procedure ipClientPacketEvent(sender: TObject; connId, cmd: Cardinal; data: Pointer; len: Cardinal);
+    procedure ipClientPacketEvent(sender: TObject; connId: Cardinal; cmd: Cardinal; data: Pointer; len: Cardinal);
     //
     procedure mi_help_aboutClick(Sender: TObject);
     procedure mi_options_autoActivateSrvClick(Sender: TObject);
@@ -214,6 +214,10 @@ var
 begin
   f_config := unaIniFile.create();
   loadControlPosition(self, f_config);
+  //
+  {$IFDEF __AFTER_D7__ }
+  doubleBuffered := True;
+  {$ENDIF __AFTER_D7__ }
   //
   f_monitorClient := TunaGridMonitor.create(self);
   f_monitorClient.parent := c_panel_clientGraph;
@@ -608,18 +612,6 @@ begin
 end;
 
 // --  --
-procedure Tc_form_main.ipClientClientDisconnect(sender: tObject; connectionId: cardinal; connected: longBool);
-begin
-  // since client may be disconnected explicitly, we need to care about closing other devices
-  if (c_timer_update.enabled) then begin
-    //
-    // this may not work, because it may happen _before_ waveIn get active = true
-    //
-    //waveIn_client.close(100);	// do not hammer client components with long timeouts..
-    //
-    f_waveIn_clientShouldBeClosed := true;
-  end;  
-end;
 
 // --  --
 procedure Tc_form_main.c_timer_updateTimer(Sender: TObject);
@@ -661,7 +653,7 @@ begin
 end;
 
 // --  --
-procedure Tc_form_main.ipServerPacketEvent(sender: TObject; connId: cardinal; cmd: unsigned; data: pointer; len: unsigned);
+procedure Tc_form_main.ipServerPacketEvent(sender: TObject; connId: tConID; cmd: uint; data: pointer; len: uint);
 begin
   if (not (csDestroying in ComponentState)) then begin
     //
@@ -675,7 +667,7 @@ begin
 end;
 
 // --  --
-procedure Tc_form_main.ipClientPacketEvent(sender: TObject; connId: cardinal; cmd: unsigned; data: pointer; len: unsigned);
+procedure Tc_form_main.ipClientPacketEvent(sender: TObject; connId: tConID; cmd: uint; data: pointer; len: uint);
 begin
   if (not (csDestroying in componentState)) then begin
     //
@@ -788,7 +780,7 @@ begin
 end;
 
 // --  --
-procedure Tc_form_main.ipServerSocketEvent(sender: TObject; connId: Cardinal; event: unaSocketEvent; data: Pointer; len: Cardinal);
+procedure Tc_form_main.ipServerSocketEvent(sender: TObject; connId: tConID; event: unaSocketEvent; data: Pointer; len: uint);
 begin
   case (event) of
 
@@ -822,16 +814,29 @@ begin
 end;
 
 // --  --
-procedure Tc_form_main.ipClientDataSent(sender: TObject; connId: Cardinal; data: Pointer; len: Cardinal);
+procedure Tc_form_main.ipClientClientDisconnect(sender: TObject; connId: Cardinal; connected: LongBool);
+begin
+  // since client may be disconnected explicitly, we need to care about closing other devices
+  if (c_timer_update.enabled) then begin
+    //
+    // this may not work, because it may happen _before_ waveIn get active = true
+    //
+    //waveIn_client.close(100);	// do not hammer client components with long timeouts..
+    //
+    f_waveIn_clientShouldBeClosed := true;
+  end;
+end;
+
+procedure Tc_form_main.ipClientDataSent(sender: TObject; connId: tConID; data: Pointer; len: uint);
 begin
   if (not (csDestroying in componentState)) then
     f_monitorClient.setValue(1, len);
 end;
 
 // --  --
-procedure Tc_form_main.ipServerDataSent(sender: TObject; connId: Cardinal; data: Pointer; len: Cardinal);
+procedure Tc_form_main.ipServerDataSent(sender: TObject; connId: tConID; data: Pointer; len: uint);
 begin
-  if (not (csDestroying in componentState)) then 
+  if (not (csDestroying in componentState)) then
     f_monitorServer.setValue(1, len);
 end;
 

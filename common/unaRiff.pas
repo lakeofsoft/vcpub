@@ -29,6 +29,7 @@
   @Author Lake
   @Version 2.5.2008.07
   @Version 2.5.2009.09 some cleanup
+  @Version 2.5.2011.10 x64 compatibility fixes
 }
 
 unit
@@ -41,14 +42,14 @@ uses
 
 type
   // --  --
-  fourCC = array[0..3] of aChar;
+  fourCC = packed array[0..3] of aChar;
 
   // --  --
   punaRIFFHeader = ^unaRIFFHeader;
   unaRIFFHeader = packed record
     //
     r_id: fourCC;
-    r_size: unsigned;	// size of data right after this field (including r_type)
+    r_size: uint32;	// size of data right after this field (including r_type)
     r_type: fourCC;
   end;
 
@@ -256,7 +257,7 @@ begin
   if (isContainer) then begin
     //
     f_subChunks.clear();
-    maxSize := min(f_header.r_size + 8, f_maxSize64);
+    maxSize := min(int(f_header.r_size) + 8, f_maxSize64);
     //
     ofs := sizeOf(f_header^);
     while (ofs + 8 <= maxSize) do begin
@@ -269,7 +270,7 @@ begin
 	f_subChunks.add(chunk);
 	//
 	if (nil <> chunk.f_header) then
-	  inc(ofs, min(chunk.f_header.r_size + 8, chunk.f_maxSize64))
+	  inc(ofs, min(int(chunk.f_header.r_size) + 8, chunk.f_maxSize64))
 	else
 	  inc(ofs, min(8, chunk.f_maxSize64));
 	//

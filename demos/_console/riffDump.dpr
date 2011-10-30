@@ -7,7 +7,7 @@
 	  RIFF dump demo application
 
 	----------------------------------------------
-	  Copyright (c) 2002-2010 Lake of Soft
+	  Copyright (c) 2002-2011 Lake of Soft
 		     All rights reserved
 
 	  http://lakeofsoft.com/
@@ -206,7 +206,6 @@ end;
 // --  --
 procedure displayChunkHeader(const pad: string; chunk: unaRIFFChunk);
 var
-  str: string;
   cddaHdr: pCDDA_header;
   waveHdr: PWAVEFORMATEX;
   bmpHdr: PBitmapInfoHeader;
@@ -222,8 +221,7 @@ begin
 	//
 	cddaHdr := pointer(chunk.dataBuf);
 	//
-        str := getFormatTagDetailsStr(cddaHdr.r_formatTag);
-	logMessage(pad + '  Format tag    : ' + int2str(cddaHdr.r_formatTag) + str);
+	logMessage(pad + '  Format tag    : ' + int2str(cddaHdr.r_formatTag) + getFormatTagDetailsStr(cddaHdr.r_formatTag));
 	logMessage(pad + '  Track #       : ' + int2str(cddaHdr.r_trackNum));
 	logMessage(pad + '  Serial (?)    : 0x' + int2str(cddaHdr.r_serial, 16));
 	logMessage(pad + '  Starting pos  : ' + int2str(cddaHdr.r_startPos_sec));
@@ -241,8 +239,7 @@ begin
 	  //
 	  waveHdr := pointer(chunk.dataBuf);
 	  //
-	  str := getFormatTagDetailsStr(waveHdr.wFormatTag);
-	  logMessage(pad + '  Format tag         : ' + int2str(waveHdr.wFormatTag) + str);
+	  logMessage(pad + '  Format tag         : ' + int2str(waveHdr.wFormatTag) + getFormatTagDetailsStr(waveHdr.wFormatTag));
 	  logMessage(pad + '  Number of channels : ' + int2str(waveHdr.nChannels));
 	  logMessage(pad + '  Samples per second : ' + int2str(waveHdr.nSamplesPerSec));
 	  logMessage(pad + '  Bits per sample    : ' + int2str(waveHdr.wBitsPerSample));
@@ -317,9 +314,8 @@ begin
       //
       waveHdr := pointer(chunk.dataBuf);
       //
-      str := getFormatTagDetailsStr(waveHdr.wFormatTag);
       logMessage(pad + 'WAVE HEADER');
-      logMessage(pad + '  Format tag         : ' + int2str(waveHdr.wFormatTag) + str);
+      logMessage(pad + '  Format tag         : ' + int2str(waveHdr.wFormatTag) + getFormatTagDetailsStr(waveHdr.wFormatTag));
       logMessage(pad + '  Number of channels : ' + int2str(waveHdr.nChannels));
       logMessage(pad + '  Samples per second : ' + int2str(waveHdr.nSamplesPerSec));
       logMessage(pad + '  Bits per sample    : ' + int2str(waveHdr.wBitsPerSample));
@@ -460,7 +456,7 @@ var
   riff: unaRIFile;
   nameW: wideString;
 begin
-  logMessage('RIFF dump, version 2.5.4  Copyright (c) 2002-2009 Lake of Soft');
+  logMessage('RIFF dump, version 2.5.4  Copyright (c) 2002-2011 Lake of Soft');
   //
   if (0 < paramCount) then begin
     // file name

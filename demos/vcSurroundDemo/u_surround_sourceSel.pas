@@ -163,7 +163,7 @@ type
     f_waveIn: unaWaveInDevice;
     f_subChunk: pointer;
     //
-    procedure onWaveDA(sender: tObject; data: pointer; size: unsigned);
+    procedure onWaveDA(sender: tObject; data: pointer; size: uint);
   protected
     procedure updateSamplingRate(value: unsigned); override;
     function getIsActive(): bool; override;
@@ -380,7 +380,7 @@ begin
 end;
 
 // --  --
-procedure unaASLive.onWaveDA(sender: tObject; data: pointer; size: unsigned);
+procedure unaASLive.onWaveDA(sender: tObject; data: pointer; size: uint);
 begin
   size := min(size, f_chunkSizeInSamples shl 1);
   if ((0 < size) and (acquire(false, 20))) then try
@@ -406,7 +406,7 @@ end;
 // --  --
 procedure unaASWAV.AfterConstruction();
 begin
-  f_riff := unaRiffStream.create(f_param, false, true, c_form_main.waveOut.acm);
+  f_riff := unaRiffStream.create(f_param, false, true, c_form_main.waveOut.acm2);
   f_riff.loop := true;
   //f_riff.
   //

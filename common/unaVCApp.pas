@@ -265,7 +265,7 @@ begin
 {$ELSE }
     if (app.hasGUI) then begin
       //
-      if (result) then
+      if (result and (nil <> f_chooseButton)) then
 	f_chooseButton.enable(false);
       //
     end;
@@ -285,8 +285,8 @@ begin
     result := inherited stop();
 {$IFDEF CONSOLE }
 {$ELSE }
-  if (app.hasGUI) then
-    if (result) then
+  if (result and app.hasGUI) then
+    if (nil <> f_chooseButton) then
       f_chooseButton.enable(true);
 {$ENDIF CONSOLE }
 end;
