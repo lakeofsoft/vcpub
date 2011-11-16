@@ -1257,6 +1257,7 @@ type
     function getDecoder(): string;
     procedure setDecoder(const value: string);
     procedure doOnFC(forced: bool);
+    function getBitrate: int;
   protected
     {*
 	Called when new format was detected in read().
@@ -1368,6 +1369,10 @@ type
     {*
     }
     property libOK: bool read f_libOK;
+    {*
+        Current bitrate. May change from frame to frame.
+    }
+    property bitrate: int read getBitrate;
   end;
 
 
@@ -2150,6 +2155,17 @@ end;
 procedure unaLibmpg123Decoder.formatChange(rate, channels, encoding: int);
 begin
   // not much here, just a placeholder for ovewrites
+end;
+
+// --  --
+function unaLibmpg123Decoder.getBitrate(): int;
+var
+  fi: mpg123_frameinfo;
+begin
+  if (MPG123_OK = proto.r_mpg123_info(f_mh, fi)) then
+    result := fi.r_bitrate
+  else
+    result := 0;
 end;
 
 // --  --

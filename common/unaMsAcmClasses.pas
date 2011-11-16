@@ -7291,9 +7291,9 @@ begin
     //
     if (c_waveOut_unpause_after < f_inProgress) then begin
       //
-  {$IFDEF DEBUG_LOG_JITTER }
-      logMessage('WaveOut unpaused.');
-  {$ENDIF DEBUG_LOG_JITTER }
+    {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
+      logMessage(className + '.addHeader() - WaveOut unpaused.');
+    {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
       //
       waveOutRestart(f_handle);
       f_paused := false;
@@ -7554,15 +7554,22 @@ begin
 	      if (not mmNoError(addHeader(h))) then begin
 		//
 		InterlockedDecrement(int(f_inProgress));
+  	      {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
+	        logMessage(className + '.doWrite() - prepareHeader() fails');
+	      {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
 	      end
 	      else begin
 		//
 		if (assigned(f_onACF)) then
 		  f_onACF(self, pointer(h.lpData), size);
 		//
-		if (f_inProgress < 5) then begin
+		if (f_inProgress < 4) then begin
 		  //
-		  // repeat the same chunk to fill the queue
+		  // repeat the same chunk to fill up the queue
+                {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
+                  logMessage(className + '.doWrite() - have to repeat the same chunk to fill up the queue (inprogress=' + int2str(f_inProgress) + ')');
+                {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
+                  //
 		  doWrite(buf, size);
 		end;
 	      end;

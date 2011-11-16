@@ -956,7 +956,7 @@ begin
   if ((nil <> consumer) and lockList_r(f_consumers, false, 1005 {$IFDEF DEBUG }, '.doAddConsumer()'{$ENDIF DEBUG })) then begin
     //
   {$IFDEF LOG_UNAVC_PIPE_INFOS }
-      logMessage(name + ':' + className + '.doAddConsumer(' + consumer.name + ':' + consumer.className + ')');
+    logMessage(name + ':' + className + '.doAddConsumer(' + consumer.name + ':' + consumer.className + ')');
   {$ENDIF LOG_UNAVC_PIPE_INFOS }
     try
       //
@@ -971,13 +971,15 @@ begin
       if (0 > consumer.getProviderIndex(self)) then
 	consumer.addProvider(self);
       //
-      if (newProvider) then begin
+      if (forceNewFormat or newProvider) then begin
 	//
 	if (forceNewFormat) then
 	  f_formatCRC := 0;	// ensure format will be applied on all new consumers
 	//
 	checkIfFormatProvider(active);
-	checkIfAutoActivate(active);
+        //
+        if (newProvider) then
+	  checkIfAutoActivate(active);
       end;
       //
       result := true;

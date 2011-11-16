@@ -1359,6 +1359,7 @@ begin
       //
       control := conn.getControl(i);
       if ((control.f_controlClass = cclass) and (control.f_controlType = ctype)) then begin
+        //
 	result := control;
 	break;
       end;

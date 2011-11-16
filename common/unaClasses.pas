@@ -483,7 +483,7 @@ type
     }
     function add(item: int32): int; overload;
     function add(item: int64): int; overload;
-    function add(item: pointer): int; overload;
+    function add(item: pointer{$IFDEF CPU64}; itsok: bool = false{$ENDIF CPU64}): int; overload;
     {*
       Inserts an item at specified position (index parameter) in the list.
       Does nothing if index is bigger than count.
@@ -1657,7 +1657,8 @@ type
     //
     function getSize(): int;
     function read(buf: pointer; size: int; remove: bool = true): int;
-    procedure newData(buf: pointer; size: int);
+    procedure setBufData(buf: pointer; size: int);
+    procedure addData(buf: pointer; size: int);
     //
     property data: pointer read f_buf;
   end;
@@ -1695,6 +1696,13 @@ type
     function firstChunkSize(): int;
     function firstChunk(): unaStreamChunk;
     function firstChunkRemove(): bool;
+    //
+    {*
+        Moves all chunks into first one.
+
+        @return first chunk size ( = stream size)
+    }
+    function compressChunks(): int;
     //
     {*
 	Number of chunks to keep in memory for later re-use.
@@ -2843,24 +2851,24 @@ begin
     result := doAdd(@v);
   end
   else
-    result := add(pointer(item))
+    result := add(pointer(item){$IFDEF CPU64}, true{$ENDIF CPU64})
 end;
 
 // --  --
 function unaList.add(item: int64): int;
 begin
   if (uldt_int64 <> dataType) then
-    result := add(pointer(item))
+    result := add(pointer(item){$IFDEF CPU64}, true{$ENDIF CPU64})
   else
     result := doAdd(@item);
 end;
 
 // --  --
-function unaList.add(item: pointer): int;
+function unaList.add(item: pointer{$IFDEF CPU64}; itsok: bool{$ENDIF CPU64}): int;
 begin
 {$IFDEF CPU64 }
   {$IFDEF LOG_UNACLASSES_INFOS }
-  if (uldt_int32 = dataType) then
+  if (not itsok and (uldt_int32 = dataType)) then
     logMessage(className + '.add(pointer) - trying to store a x64 pointer in 32 bits?');
   {$ENDIF LOG_UNACLASSES_INFOS }
 {$ENDIF CPU64 }
@@ -3006,10 +3014,10 @@ begin
 
       uldt_int32: begin
 	//
-	if (UIntPtr(a) > UIntPtr(b)) then
+	if (int32(a) > int32(b)) then
 	  result := 1
 	else
-	  if (UIntPtr(a) = UIntPtr(b)) then
+	  if (int32(a) = int32(b)) then
 	    result := 0
 	  else
 	    result := -1;
@@ -3654,7 +3662,7 @@ begin
           //
 	  p := mscanq(listPtr, count, IntPtr(item));
 	  if (nil <> p) then
-	    result := (UIntPtr(p) - UIntPtr(listPtr)) shr 4;
+	    result := (UIntPtr(p) - UIntPtr(listPtr)) shr 3;
         end;
   {$ENDIF CPU64 }
 
@@ -3662,7 +3670,7 @@ begin
 	  // 64 bits per item
 	  p := mscanq(listPtr, count, pInt64(item)^);
 	  if (nil <> p) then
-	    result := (UIntPtr(p) - UIntPtr(listPtr)) shr 4;
+	    result := (UIntPtr(p) - UIntPtr(listPtr)) shr 3;
 	  //
 	end;
 
@@ -8737,13 +8745,30 @@ end;
 { unaStreamChunk }
 
 // --  --
+procedure unaStreamChunk.addData(buf: pointer; size: int);
+begin
+  if ((nil <> buf) and (0 < size)) then begin
+    //
+    if (f_bufSize < f_dataSize + size) then begin
+      //
+      mrealloc(f_buf, f_dataSize + size);
+      f_bufSize := f_dataSize + size;
+    end;
+    //
+    move(buf^, pArray(f_buf)[f_dataSize], size);
+    //
+    inc(f_dataSize, size);
+  end;
+end;
+
+// --  --
 constructor unaStreamChunk.create(buf: pointer; size: int);
 begin
   inherited create();
   //
   f_buf := nil;
   f_bufSize := 0;
-  newData(buf, size);
+  setBufData(buf, size);
 end;
 
 // --  --
@@ -8761,7 +8786,21 @@ begin
 end;
 
 // --  --
-procedure unaStreamChunk.newData(buf: pointer; size: int);
+function unaStreamChunk.read(buf: pointer; size: int; remove: bool): int;
+begin
+  result := min(size, getSize());
+  if (0 < result) then begin
+    //
+    if (nil <> buf) then
+      move(pArray(f_buf)[f_offset], buf^, result);
+    //
+    if (remove) then
+      inc(f_offset, result);
+  end;
+end;
+
+// --  --
+procedure unaStreamChunk.setBufData(buf: pointer; size: int);
 begin
   if (f_bufSize < size) then begin
     //
@@ -8776,20 +8815,6 @@ begin
   //
   f_dataSize := size;
   f_offset := 0;
-end;
-
-// --  --
-function unaStreamChunk.read(buf: pointer; size: int; remove: bool): int;
-begin
-  result := min(size, getSize());
-  if (0 < result) then begin
-    //
-    if (nil <> buf) then
-      move(pArray(f_buf)[f_offset], buf^, result);
-    //
-    if (remove) then
-      inc(f_offset, result);
-  end;
 end;
 
 
@@ -8831,6 +8856,34 @@ begin
   end;
   //
   result := inherited clear2();
+end;
+
+// --  --
+function unaMemoryStream.compressChunks(): int;
+var
+  chRoot, ch: unaStreamChunk;
+begin
+  if (1 < f_chunks.count) then begin
+    //
+    if (enter(false)) then try
+      //
+      chRoot := f_chunks[0];
+      while (1 < f_chunks.count) do begin
+        //
+        ch := f_chunks[1];
+        chRoot.addData(ch.f_buf, ch.f_dataSize);
+        //
+        ch.f_offset := ch.f_dataSize;
+        //
+        f_chunks.removeByIndex(1);
+        f_emptyChunks.add(ch);
+      end;
+    finally
+      leaveWO();
+    end;
+  end;
+  //
+  result := firstChunkSize();
 end;
 
 // --  --
@@ -8983,7 +9036,7 @@ begin
 	      freeAndNil(chunk);
 	    end;
 	    //
-	    f_chunks.removeByIndex(i)
+	    f_chunks.removeByIndex(i);
 	  end
 	  else
 	    inc(i);
@@ -9043,7 +9096,7 @@ begin
 	  until (i >= f_emptyChunks.count);
 	  //
 	  f_emptyChunks.removeByIndex(i - 1);
-	  chunk.newData(buf, size);
+	  chunk.setBufData(buf, size);
 	end
 	else
 	  chunk := unaStreamChunk.create(buf, size);

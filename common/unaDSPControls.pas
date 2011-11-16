@@ -92,11 +92,11 @@ type
     }
     function getAvailableDataLen(index: integer): uint; override;
     {*
-      Returns active state of the pipe.
+        Returns active state of the pipe.
     }
     function isActive(): bool; override;
     {*
-      Applies new format of the stream to the pipe.
+        Applies new format of the stream to the pipe.
     }
     function applyFormat(data: pointer; len: uint; provider: unavclInOutPipe = nil; restoreActiveState: bool = false): bool; override;
     {*
@@ -146,6 +146,7 @@ type
     f_pen: array[0..3] of hPen;
     f_penColor: array[0..3] of tColor;
     //
+    f_fftCache: pComplexFloatArray;
     f_amp: pFloatArray;
     f_ampMax: double;
     //
@@ -332,7 +333,7 @@ begin
 	move(data^, f_localFormat^, len);
       //
       with (punavclWavePipeFormatExchange(data).r_formatM) do
-	f_fft.setFormat(formatOriginal.pcmSamplesPerSecond, formatOriginal.pcmBitsPerSample, formatOriginal.pcmNumChannels);
+	fft.setFormat(formatOriginal.pcmSamplesPerSecond, formatOriginal.pcmBitsPerSample, formatOriginal.pcmNumChannels);
       //
     finally
       leaveWO();
@@ -378,11 +379,19 @@ end;
 function TunadspFFTPipe.doWrite(data: pointer; len: uint; provider: pointer): uint;
 begin
   // copy new data locally
-  if (0 < len) then
-    move(data^, f_dataProxy, unaUtils.min(sizeof(f_dataProxy), len));
+  if (0 < len) then begin
+    //
+    if (active and enter(false, 100)) then try
+      //
+      move(data^, f_dataProxy, min(sizeof(f_dataProxy), int(len)));
+    finally
+      leaveWO();
+    end;
+  end;
   //
   // pass data to consumers
   onNewData(data, len, self);
+  //
   result := len;
 end;
 
@@ -435,7 +444,7 @@ procedure TunadspFFTPipe.onTimer(sender: tObject);
 begin
   if (active and enter(true, 100)) then
     try
-      f_fft.fft_complex_forward(@f_dataProxy, f_channel);
+      fft.fft_complex_forward(@f_dataProxy, f_channel);
     finally
       leaveRO();
     end;
@@ -489,6 +498,7 @@ begin
   //
   freeAndNil(f_pipe);
   mrealloc(f_amp);
+  mrealloc(f_fftCache);
 end;
 
 // --  --
@@ -636,170 +646,177 @@ begin
   //
   h := clientRect.bottom - clientRect.top;
   w := clientRect.right - clientRect.left;
+  nmaxH := 0;
   //
   if (f_pipe.fft.acquire(true, 10)) then try
     //
     if ((0 < h) and (0 < f_bandWidth) and (nil <> f_amp) and f_pipe.fft.fftReady) then begin
       //
       nmaxH := f_pipe.fft.windowSize shr 1;
-      if (drawGrid) then begin
-	//
-	// draw grid
-	fMax := f_pipe.fft.sampleRate shr 1;
-	r := fMax / 2000;
-	w2 := int(bandWidth + bandGap) * nmaxH;
-	//
-	windows.selectObject(dc, f_pen[3]);
-	SetTextColor(dc, bandColorGrid);
-	//
-	f := 0;
-	i := 0;
-	while (f < fMax) do begin
-	  //
-	  moveToEx(dc, trunc(i * w2/r), 0, nil);
-	  lineTo  (dc, trunc(i * w2/r), h);
-	  //
-	  if (0 = i) then
-	    s := 'kHz'
-	  else
-	    s := int2str(trunc(f/1000));
-	  //
-	  TextOut(dc, trunc(i * w2/r) + 4, 4, pchar(s), length(s));
-	  //
-	  f := f + 2000;
-	  inc(i);
-	end;
-	//
-	i := 0;
-	r := h / 10;
-	while (i < 10) do begin
-	  //
-	  moveToEx(dc, 0, trunc(i * r), nil);
-	  lineTo  (dc, w, trunc(i * r));
-	  //
-	  inc(i);
-	end;
-      end;
-      //
-      // draw FFT bands
-      //
-      limit := 0.00001; // f_pipe.fft.dataC[0].re / 10000;
-      abs2min := limit * limit * f_pipe.fft.windowSize * f_pipe.fft.windowSize;
-      //
-      x := 0;
-      r := h / 3.01;
-      f_ampMax := f_ampMax * 0.97;
-      fpeak := 0;
-      //
-      for i := 1 to nmaxH - 1 do begin
-	//
-	abs2 := (f_pipe.fft.dataC[i].re * f_pipe.fft.dataC[i].re) + (f_pipe.fft.dataC[i].im * f_pipe.fft.dataC[i].im);
-	f := (2.0 * sqrt(abs2) / f_pipe.fft.windowSize);
-	if (fpeak < f) then
-	  fpeak := f;
-	//
-	if (abs2min < abs2) then begin
-	  //
-	  f_amp[i] := log2(2 + f * 4) - 1;
-	  if (f_ampMax < f_amp[i] * 1.2) then
-	    f_ampMax := f_amp[i] * 1.2;
-	end
-	else begin
-	  //
-	  if (1 < f_fallbackf) then
-	    f_amp[i] := f_amp[i] / f_fallbackf * f_ampMax
-	  else
-	    f_amp[i] := 0;
-	end;
-      end;
-      //
-      //f_ampMax := log2(2 + fpeak * 4) - 1;
-      //
-      if (f_ampMax < limit) then
-	f_ampMax := limit;
-      //
       for i := 1 to nmaxH - 1 do
-	f_amp[i] := f_amp[i] / f_ampMax;
-      //
-      case (drawStyle) of
-
-	unaFFTDraw_Solid: begin
-	  //
-	  for i := 1 to nmaxH - 1 do begin
-	    for j := 0 to f_bandWidth - 1 do begin
-	      for k := 0 to 2 do begin
-		//
-		windows.selectObject(dc, f_pen[k]);
-		moveToEx(dc, x + j, trunc(h - r * f_amp[i] * (k + 0)), nil);
-		lineTo  (dc, x + j, trunc(h - r * f_amp[i] * (k + 1)));
-	      end;
-	    end;
-	    //
-	    inc(x, bandWidth);
-	    inc(x, bandGap);
-	  end;
-	end;
-
-	unaFFTDraw_Line: begin
-	  //
-	  windows.selectObject(dc, f_pen[2]);
-	  moveToEx(dc, 0, h, nil);
-	  for i := 1 to nmaxH - 1 do begin
-	    for j := 0 to f_bandWidth - 1 do begin
-	      //
-	      lineTo  (dc, x + j, trunc(h - r * f_amp[i] * (2 + 1)));
-	    end;
-	    //
-	    inc(x, bandWidth);
-	    inc(x, bandGap);
-	  end;
-	end;
-
-	unaFFTDraw_Dots: begin
-	  //
-	  for i := 1 to nmaxH - 1 do begin
-	    for j := 0 to f_bandWidth - 1 do begin
-	      //
-	      setPixel(dc, x + j, trunc(h - r * f_amp[i] * (0 + 1)), bandColorLow);
-	      setPixel(dc, x + j, trunc(h - r * f_amp[i] * (1 + 1)), bandColorMed);
-	      setPixel(dc, x + j, trunc(h - r * f_amp[i] * (2 + 1)), bandColorTop);
-	    end;
-	    //
-	    inc(x, bandWidth);
-	    inc(x, bandGap);
-	  end;
-	end;
-
-      end; // case
-      //
-      if (drawGrid) then begin
-	//
-	inc(f_dbUpdate);
-	if (6 < f_dbUpdate) then begin
-	  //
-	  if (0 < fpeak) then
-	    fpeak := 0 - 10 * log10(1 / fpeak)
-	  else
-	    fpeak := -60;
-	  //
-	  f_dbPeak := f_dbPeak + (fpeak - f_dbPeak) / 3;
-	  //
-	  f_dbUpdate := 0;
-	end;
-	//
-	fdbStep := (60 + f_dbPeak) / 10;
-	//
-	SetTextColor(dc, bandColorGrid);
-	for i := 1 to 9 do begin
-	  //
-	  s := '   ' + int2str(trunc(f_dbPeak - i * fdbStep)) + ' dB   ';
-	  TextOut(dc, w - 70, i * h div 10 - 8, pchar(s), length(s));
-	end;
-      end;
+	f_fftCache[i] := f_pipe.fft.dataC[i];
     end;
     //
   finally
     f_pipe.fft.releaseRO();
+  end;
+  //
+  if (0 < nmaxH) then begin
+    //
+    if (drawGrid) then begin
+      //
+      // draw grid
+      fMax := f_pipe.fft.sampleRate shr 1;
+      r := fMax / 2000;
+      w2 := int(bandWidth + bandGap) * nmaxH;
+      //
+      windows.selectObject(dc, f_pen[3]);
+      SetTextColor(dc, bandColorGrid);
+      //
+      f := 0;
+      i := 0;
+      while (f < fMax) do begin
+        //
+        moveToEx(dc, trunc(i * w2/r), 0, nil);
+        lineTo  (dc, trunc(i * w2/r), h);
+        //
+        if (0 = i) then
+          s := 'kHz'
+        else
+          s := int2str(trunc(f/1000));
+        //
+        TextOut(dc, trunc(i * w2/r) + 4, 4, pchar(s), length(s));
+        //
+        f := f + 2000;
+        inc(i);
+      end;
+      //
+      i := 0;
+      r := h / 10;
+      while (i < 10) do begin
+        //
+        moveToEx(dc, 0, trunc(i * r), nil);
+        lineTo  (dc, w, trunc(i * r));
+        //
+        inc(i);
+      end;
+    end;
+    //
+    // draw FFT bands
+    //
+    limit := 0.00001; // f_fftCache[0].re / 10000;
+    abs2min := limit * limit * f_pipe.fft.windowSize * f_pipe.fft.windowSize;
+    //
+    x := 0;
+    r := h / 3.01;
+    f_ampMax := f_ampMax * 0.97;
+    fpeak := 0;
+    //
+    for i := 1 to nmaxH - 1 do begin
+      //
+      abs2 := (f_fftCache[i].re * f_fftCache[i].re) + (f_fftCache[i].im * f_fftCache[i].im);
+      f := (2.0 * sqrt(abs2) / f_pipe.fft.windowSize);
+      if (fpeak < f) then
+        fpeak := f;
+      //
+      if (abs2min < abs2) then begin
+        //
+        f_amp[i] := log2(2 + f * 4) - 1;
+        if (f_ampMax < f_amp[i] * 1.2) then
+          f_ampMax := f_amp[i] * 1.2;
+      end
+      else begin
+        //
+        if (1 < f_fallbackf) then
+          f_amp[i] := f_amp[i] / f_fallbackf * f_ampMax
+        else
+          f_amp[i] := 0;
+      end;
+    end;
+    //
+    //f_ampMax := log2(2 + fpeak * 4) - 1;
+    //
+    if (f_ampMax < limit) then
+      f_ampMax := limit;
+    //
+    for i := 1 to nmaxH - 1 do
+      f_amp[i] := f_amp[i] / f_ampMax;
+    //
+    case (drawStyle) of
+
+      unaFFTDraw_Solid: begin
+        //
+        for i := 1 to nmaxH - 1 do begin
+          for j := 0 to f_bandWidth - 1 do begin
+            for k := 0 to 2 do begin
+              //
+              windows.selectObject(dc, f_pen[k]);
+              moveToEx(dc, x + j, trunc(h - r * f_amp[i] * (k + 0)), nil);
+              lineTo  (dc, x + j, trunc(h - r * f_amp[i] * (k + 1)));
+            end;
+          end;
+          //
+          inc(x, bandWidth);
+          inc(x, bandGap);
+        end;
+      end;
+
+      unaFFTDraw_Line: begin
+        //
+        windows.selectObject(dc, f_pen[2]);
+        moveToEx(dc, 0, h, nil);
+        for i := 1 to nmaxH - 1 do begin
+          for j := 0 to f_bandWidth - 1 do begin
+            //
+            lineTo  (dc, x + j, trunc(h - r * f_amp[i] * (2 + 1)));
+          end;
+          //
+          inc(x, bandWidth);
+          inc(x, bandGap);
+        end;
+      end;
+
+      unaFFTDraw_Dots: begin
+        //
+        for i := 1 to nmaxH - 1 do begin
+          for j := 0 to f_bandWidth - 1 do begin
+            //
+            setPixel(dc, x + j, trunc(h - r * f_amp[i] * (0 + 1)), bandColorLow);
+            setPixel(dc, x + j, trunc(h - r * f_amp[i] * (1 + 1)), bandColorMed);
+            setPixel(dc, x + j, trunc(h - r * f_amp[i] * (2 + 1)), bandColorTop);
+          end;
+          //
+          inc(x, bandWidth);
+          inc(x, bandGap);
+        end;
+      end;
+
+    end; // case
+    //
+    if (drawGrid) then begin
+      //
+      inc(f_dbUpdate);
+      if (6 < f_dbUpdate) then begin
+        //
+        if (0 < fpeak) then
+          fpeak := 0 - 10 * log10(1 / fpeak)
+        else
+          fpeak := -60;
+        //
+        f_dbPeak := f_dbPeak + (fpeak - f_dbPeak) / 3;
+        //
+        f_dbUpdate := 0;
+      end;
+      //
+      fdbStep := (60 + f_dbPeak) / 10;
+      //
+      SetTextColor(dc, bandColorGrid);
+      for i := 1 to 9 do begin
+        //
+        s := '   ' + int2str(trunc(f_dbPeak - i * fdbStep)) + ' dB   ';
+        TextOut(dc, w - 70, i * h div 10 - 8, pchar(s), length(s));
+      end;
+    end;
   end;
 end;
 
@@ -859,6 +876,9 @@ begin
   //
   mrealloc(f_amp, sizeof(f_amp[0]) * (1 shl value));
   fillChar(f_amp^, sizeof(f_amp[0]) * (1 shl value), #0);
+  //
+  mrealloc(f_fftCache, sizeof(f_fftCache[0]) * (1 shl value));
+  //
   f_ampMax := 0;
 end;
 

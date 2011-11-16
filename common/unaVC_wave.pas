@@ -123,6 +123,7 @@ type
     f_formatExt: PWAVEFORMATEXTENSIBLE;	//
     //
     f_acm2: unaMsAcm;
+    f_loaded: bool;
     f_driver: unaMsAcmDriver;
     f_device: unaMsAcmStreamDevice;
     f_onAcmReq: tunaOnAcmReq;
@@ -1214,6 +1215,10 @@ end;
 // --  --
 procedure unavclInOutWavePipe.createDevice();
 begin
+  doAcmReq(1, f_acm2);
+  //
+  fillPCMFormatExt(f_formatExt);
+  //
   destroyOldDevice();
   //
   createDriver();
@@ -1318,11 +1323,14 @@ begin
   end
   else begin
     //
-    // default behavior
-    case (req) of
+    if (f_loaded) then begin
+      //
+      // default behavior
+      case (req) of
 
-      1: acm := setAcm();       // create
+        1: acm := setAcm();       // create
 
+      end;
     end;
   end;
 end;
@@ -1748,10 +1756,6 @@ begin
   //
   f_applyFormatTagImmunable := false;
   //
-  doAcmReq(1, f_acm2);
-  //
-  fillPCMFormatExt(f_formatExt);
-  //
   f_deviceWasCreated := false;
   f_needToUnloadDriver := false;
   //
@@ -1771,6 +1775,8 @@ end;
 // --  --
 procedure unavclInOutWavePipe.loaded();
 begin
+  f_loaded := true;
+  //
   createDevice();
   //
   inherited;

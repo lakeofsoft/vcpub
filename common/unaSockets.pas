@@ -2560,10 +2560,8 @@ begin
       if (0 < subsize) then begin
 	//
 	err := WinSock.sendto(f_socket, pArray(data)[offset], subsize, flags, addr, sizeof(addr));
-	if (SOCKET_ERROR <> err) then begin
-	  //
+	if (SOCKET_ERROR <> err) then
 	  inc(offset, err)
-	end
 	else begin
 	  //
 	  result := checkError(err, true {$IFDEF DEBUG}, self._classID + '.sendto()'{$ENDIF});

@@ -204,6 +204,16 @@ function max(A, B: unsigned): unsigned; overload;{$IFDEF UNA_OK_INLINE }inline;{
 }
 function max(A, B: double): double;	overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
+{*
+        signed shift left
+}
+function sshl(v: int; c: int): int;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+
+{*
+        signed shift right
+}
+function sshr(v: int; c: int): int;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+
 //	ENCODING
 
 {*
@@ -409,7 +419,7 @@ function fileTruncate(handle: tHandle; pos: unsigned = 0; posMode: unsigned = FI
 	Writes data into a file specified by name at specified position.
 	Creates the file if it does not exists.
 
-	@return 0 if operation has been completed successfully, or buf = nil, or size &lt; 1;
+	@return 0 if operation has been completed successfully, or buf = nil, or size < 1;
 	@return -1 if no file name was given;
 	@return -2 if there was some error in opening the file;
 	@return -3 if operation has been failed for some reason;
@@ -420,7 +430,7 @@ function writeToFile(const name: wString; buf: pointer; size: unsigned; pos: uns
 	Writes data into a file specified by name at specified position.
 	Creates the file if it does not exists.
 
-	@return 0 if operation has been completed successfully, or buf = nil, or size &lt; 1;
+	@return 0 if operation has been completed successfully, or buf = nil, or size < 1;
 	@return -1 if no file name was given;
 	@return -2 if there was some error in opening the file;
 	@return -3 if operation has been failed for some reason;
@@ -431,7 +441,7 @@ function writeToFile(const name: wString; const buf: aString; pos: unsigned = 0;
 	Writes data into a file specified by handle at specified position.
 	Creates the file if it does not exists.
 
-	@return 0 if operation has been completed successfully, or buf = nil, or size &lt; 1;
+	@return 0 if operation has been completed successfully, or buf = nil, or size < 1;
 	@return -1 if no file name was given;
 	@return -2 if there was some error in opening the file;
 	@return -3 if operation has been failed for some reason;
@@ -442,7 +452,7 @@ function writeToFile(handle: tHandle; buf: pointer; size: unsigned; pos: unsigne
 	Writes data into a file specified by handle at specified position.
 	Creates the file if it does not exists.
 
-	@return 0 if operation has been completed successfully, or buf = nil, or size &lt; 1;
+	@return 0 if operation has been completed successfully, or buf = nil, or size < 1;
 	@return -1 if no file name was given;
 	@return -2 if there was some error in opening the file;
 	@return -3 if operation has been failed for some reason;
@@ -1080,15 +1090,15 @@ function int2str(value: int; base: unsigned = 10; split: unsigned = 0; splitchar
 }
 function int2str(const value: int64; base: unsigned = 10; split: unsigned = 0; splitchar: char = ' '): string; overload;
 {$IFDEF __AFTER_D8__}
-  {$IFNDEF CPU64 }
 function int2str(const value: uint64; base: unsigned = 10; split: unsigned = 0; splitchar: char = ' '): string; overload;
-  {$ENDIF CPU64 }
 {$ENDIF __AFTER_D8__}
 {*
 	Converts unsigned value to a string.
 	See int2str(int) for description of other parameters.
 }
+  {$IFNDEF CPU64 }
 function int2str(value: unsigned; base: unsigned = 10; split: unsigned = 0; splitchar: char = ' '): string; overload;
+  {$ENDIF CPU64 }
 {*
 	Converts word value to string.
 	See int2str(int) for description of other parameters.
@@ -2323,6 +2333,33 @@ begin
     result := A;
 end;
 
+// -- signed shift left --
+function sshl(v: int; c: int): int;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+begin
+  if (0 < c) then
+    result := int((unsigned(v) shl c) or (unsigned(v) and $80000000))
+  else
+    result := v;
+end;
+
+// -- signed shift right --
+function sshr(v: int; c: int): int;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+begin
+  if (0 < c) then begin
+    //
+    result := int(unsigned(v) shr c);
+    if (0 > v) then
+    {$IFDEF CPU64 }
+      result := int(unsigned(result) or ($FFFFFFFFFFFFFFFF shl (64 - c)));
+    {$ELSE }
+      result := int(unsigned(result) or ($FFFFFFFF shl (32 - c)));
+    {$ENDIF CPU64 }
+  end
+  else
+    result := v;
+end;
+
+
 // --  --
 function base64encode(data: pointer; size: unsigned): aString;
 const
@@ -3017,6 +3054,11 @@ begin
 end;
 
 
+var
+  g_thousandSeparatorA: aChar = ' ';
+  g_thousandSeparatorW: wChar = ' ';
+  g_thousandSeparator: char = ' ';
+
 
 // -- FILES --
 
@@ -3026,20 +3068,33 @@ function WriteFile; external kernel32 name 'WriteFile';
 
 // --  --
 function fileSize2str(sz: int64): string;
+var
+  kb, mb, gb, tb, pb: int64;
 begin
   if (1023 < sz) then begin
     //
-    if ($40000000 - 1 < sz) then
-      result := int2str(sz shr 30, 10, 3, ' ') + '.'  + adjust(copy(int2str((sz shr 20) and $FFFF), 1, 2), 2, '0', true, true)  + ' GB'
-    else
-      if ($100000 - 1 < sz) then
-	result := int2str(sz shr 20, 10, 3, ' ') + '.'  + adjust(copy(int2str((sz shr 10) and $FFFF), 1, 2), 2, '0', true, true)  + ' MB'
-      else
-	result := int2str(sz shr 10, 10, 3, ' ') + '.'  + adjust(copy(int2str((sz shr  0) and $FFFF), 1, 2), 2, '0', true, true)  + ' KB';
+    pb := (sz                                                        ) shr 50;
+    tb := (sz - (pb shl 50)                                          ) shr 40;
+    gb := (sz - (pb shl 50) - (tb shl 40)                            ) shr 30;
+    mb := (sz - (pb shl 50) - (gb shl 30) - (tb shl 40)              ) shr 20;
+    kb := (sz - (pb shl 50) - (mb shl 20) - (gb shl 30) - (tb shl 40)) shr 10;
     //
+    if (0 < pb) then
+      result := int2str(pb) + g_thousandSeparator + adjust(int2str(trunc(tb/1024*100)), 2, '0') + ' PB'
+    else
+      if (0 < tb) then
+        result := int2str(tb) + g_thousandSeparator + adjust(int2str(trunc(gb/1024*100)), 2, '0') + ' TB'
+      else
+        if (0 < gb) then
+          result := int2str(gb) + g_thousandSeparator + adjust(int2str(trunc(mb/1024*100)), 2, '0') + ' GB'
+        else
+          if (0 < mb) then
+            result := int2str(mb) + g_thousandSeparator + adjust(int2str(trunc(kb/1024*100)), 2, '0') + ' MB'
+          else
+            result := int2str(kb) + ' KB';
   end
   else
-    result := int2str(sz) + ' byte' + choice(1 < sz, 's', '');
+    result := int2str(sz) + ' byte' + choice((1 < sz) or (0 = sz), 's', '');
 end;
 
 // --  --
@@ -4471,13 +4526,6 @@ begin
   result := not (ord(false) = value);
 end;
 
-
-var
-  g_thousandSeparatorA: aChar = ' ';
-  g_thousandSeparatorW: wChar = ' ';
-  g_thousandSeparator: char = ' ';
-
-
 // --  --
 procedure fillLocale();
 var
@@ -4537,14 +4585,12 @@ end;
 
 {$IFDEF __AFTER_D8__}
 
-{$IFNDEF CPU64 }
-
 function int2str(const value: uint64; base: unsigned; split: unsigned; splitchar: char): string;
 const
   digits: string = c_base_str;
 var
   i: int;
-  v: int64;
+  v: uint64;
 begin
   if (0 = value) then
     result := '0'
@@ -4574,7 +4620,6 @@ begin
     end;
   end;
 end;
-{$ENDIF CPU64 }
 
 {$ENDIF __AFTER_D8__}
 
@@ -4624,11 +4669,16 @@ begin
   result := int2str(unsigned(value), base, split, splitchar);
 end;
 
+{$IFDEF CPU64 }
+{$ELSE }
+
 // -- --
 function int2str(value: unsigned; base: unsigned; split: unsigned; splitchar: char): string;
 begin
-  result := int2str(int64(value), base, split, splitchar);
+  result := int2str(uint64(value), base, split, splitchar);
 end;
+
+{$ENDIF CPU64 }
 
 // --  --
 function intArray2str(value: pInt32Array): string;
@@ -7168,7 +7218,10 @@ begin
     if (1 = logThreadId) then
       data := data + ', [' + adjust(int2str(GetCurrentThreadId(), 16), 5, '0') + ']';
     //
-    data := data + ', ' + message;
+    if ('' <> data) then
+      data := data + ', ' + message
+    else
+      data := message;
     //
     if (0 < logToScreen) then begin
       //
@@ -8022,7 +8075,6 @@ begin
     result := (WAIT_OBJECT_0 = WaitForSingleObject(handle, INFINITE))
   else
     result := (WAIT_OBJECT_0 = WaitForSingleObject(handle, choice(0 > timeout, -timeout, timeout)));
-  //
 end;
 
 {$IFDEF FPC }

@@ -63,7 +63,7 @@ type
     f_fftReady: bool;
     //
     procedure samplesToDataProxy(samples: pointer; channel: unsigned);
-    procedure dataProxyToRI();
+    procedure dataProxyToC();
     procedure setSteps(value: unsigned);
   public
     constructor create(windowSize: unsigned = 1024);
@@ -253,7 +253,7 @@ begin
 end;
 
 // --  --
-procedure unaDspFFT.dataProxyToRI();
+procedure unaDspFFT.dataProxyToC();
 var
   i: unsigned;
 begin
@@ -299,9 +299,9 @@ begin
     f_fftReady := false;
     try
       samplesToDataProxy(samples, channel);
-      dataProxyToRI();
+      dataProxyToC();
       //
-      f_fft.fft(data, dataC);
+      f_fft.fft(dataC, dataC);
     finally
       f_fftReady := true;
     end;
@@ -344,10 +344,19 @@ end;
 
 // --  --
 procedure unaDspFFT.setFormat(sps, bits, channels: int);
+var
+  i: int;
 begin
   f_bits := bits;
   f_channels := channels;
   f_sps := sps;
+  //
+  for i := 0 to windowSize - 1 do begin
+    //
+    f_dataProxy[i] := 0;
+    f_dataC[i].re := 0;
+    f_dataC[i].im := 0;
+  end;
 end;
 
 // --  --
