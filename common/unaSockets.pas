@@ -2594,7 +2594,6 @@ begin
 end;
 
 
-
 { unaMulticastSocket }
 
 // --  --
@@ -2628,7 +2627,11 @@ begin
 	//
 	if (0 <> (c_unaMC_send and ioFlags)) then begin
 	  //
-	  self.TTL := ttl;
+          if (0 > ttl) then
+            self.TTL := 0
+          else
+	    self.TTL := ttl;
+          //
 	  prepareSenderAddr(groupAddr);
 	end;
       end;

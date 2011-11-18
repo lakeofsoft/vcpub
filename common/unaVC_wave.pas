@@ -310,7 +310,7 @@ type
 
         Used mostly to disable default ACM enumeration.
     }
-    procedure doAcmReq(req: uint; var acm: unaMsAcm);
+    procedure doAcmReq(req: uint; var acm: unaMsAcm); virtual;
     //
     // -- properties --
     //
@@ -1217,7 +1217,8 @@ procedure unavclInOutWavePipe.createDevice();
 begin
   doAcmReq(1, f_acm2);
   //
-  fillPCMFormatExt(f_formatExt);
+  if (nil = f_formatExt) then
+    fillPCMFormatExt(f_formatExt);
   //
   destroyOldDevice();
   //
