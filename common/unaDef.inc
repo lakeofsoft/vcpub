@@ -26,9 +26,9 @@
 	----------------------------------------------
 *)
 
-{xx $DEFINE DEBUG }		// define for debug version
-
-{xx $DEFINE UNA_SERVICE }	// define for service module
+{xx $DEFINE DEBUG       }      	// debug version
+{xx $DEFINE UNA_SERVICE }	// service module
+{xx $DEFINE FMX         }       // FireMonkey
 
 
 {$IFDEF UNA_NEED_ANSI }
@@ -535,6 +535,11 @@
 {$EXTENDEDSYNTAX ON }   // $X+ turn on extended syntax
 {$MINENUMSIZE 4 }	// $Z+ or $Z4 set enum element size to 4 bytes
 
+{$IFDEF __AFTER_DC__ }
+  {xx $RTTI EXPLICIT METHODS([]) PROPERTIES([]) FIELDS([])} // ends up in internal error :)
+  {$WEAKLINKRTTI ON}
+{$ENDIF __AFTER_DC__ }
+
 {$P+}	// short string? who still needs them..
 {$V+}	// short string? who still needs them..
 
@@ -543,13 +548,13 @@
 {$ELSE }
   //
   {$IFDEF VCX_DEMO }
-    {$DESCRIPTION 'VC25EOCT11' }        // Evaluation version
+    {$DESCRIPTION 'VC25EDEC11' }        // Evaluation version
   {$ELSE }
     //
     {$IFDEF VC25_ENTERPRISE }
-      {$DESCRIPTION 'VC25XOCT11' }	// Enterprise
+      {$DESCRIPTION 'VC25XDEC11' }	// Enterprise
     {$ELSE }
-      {$DESCRIPTION 'VC25POCT11' }      // Pro version
+      {$DESCRIPTION 'VC25PDEC11' }      // Pro version
     {$ENDIF}
     //
   {$ENDIF VCX_DEMO }
@@ -571,4 +576,5 @@
 {$IFDEF WIN64 }		// defined by dcc64 only
   {$DEFINE CPU64 }
 {$ENDIF CPUX64 }
+
 

@@ -31,6 +31,7 @@
 
   @Author Lake
   @Version 2.5.2008.07 Still here
+  @Version 2.5.2011.12 x64 compatibility
 }
 
 unit
@@ -40,7 +41,7 @@ interface
 
 
 uses
-  Windows, unaTypes;
+  Windows, unaTypes, Math;
 
 type
   // --  --
@@ -114,20 +115,23 @@ function waveMix(const chunk1, chunk2, chunk3: unaPCMChunk; doAdd: bool = true):
 
 {*
   Calculates volume. Calculation is done by adding squares of samples and then dividing result on number of samples and applying square root.
-  <BR />buf is a pointer to PCM samples
-  <BR />samples is a number of samples.
-  <BR />bits should have the value as described in waveMix() routine
-  <BR />For multi-channel streams specify the channel number you wish to get the power of and total number of channels in the stream.
-  <BR />Size of buffer can be calculated as (samples * bits * numChannels) shr 3
-  <BR />Resulting value is from 0 (silence) to 32768 (loudest possible sound).
-  <BR />Assumption sound has "natural" source is in effect. That means you can get useless results for signals, that are not sound by nature (constant non-zero signal for example).
+  Assuming data has "natural" source. That means you can get useless results for signals, that are not sound by nature (constant non-zero signal for example).
+
+  @param buf pointer to PCM samples
+  @param samples number of samples.
+  @param bits should have the value as described in waveMix() routine
+  @param channel For multi-channel streams specifies the channel number you wish to get the power of
+  @param numChannels total number of channels in the stream
+
+  @return value is from 0 (silence) to 32768 (loudest possible sound)
 }
 function waveGetVolume(buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0; deltaMethod: bool = false): unsigned;
 
 {*
   Returns Logarithmic volume.
-  <BR />Input range is from 0 to 32768.
-  <BR />Result range is from 0 to 300.
+
+  @param volume range is from 0 to 32768
+  @result range is from 0 to 300
 }
 function waveGetLogVolume(volume: int): unsigned;
 
@@ -140,16 +144,19 @@ function waveGetLogVolume100(volume: int): unsigned;
 
 {*
   Extracts specified channel from PCM chunk.
-  <BR />dest must be large enough to store required data (one channel).
-  <BR />channel specifies which channel to extract (0, 1, 2... )
-  <BR />Returns number of samples stored in dest buffer.
+
+  @param dest must be large enough to store required data (one mono channel)
+  @param channel specifies which channel to extract (0, 1, 2... )
+
+  @return number of samples stored in dest buffer
 }
 function waveExtractChannel(buf, dest: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned;
 
 {*
   Replaces PCM data for specified channel with new one. Old data for this channel will be lost.
-  <BR />channel specifies which channel to replace (0, 1, 2... )
-  <BR />Returns number of samples stored in dest buffer.
+
+  @param channel specifies which channel to replace (0, 1, 2... )
+  @return number of samples stored in dest buffer
 }
 function waveReplaceChannel(buf, source: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned;
 
@@ -174,7 +181,7 @@ function waveReverse(buf: pointer; samples: unsigned; bits: unsigned; numChannel
   5 channels => mono; 5 channels; 10 channels; 15 channels ...
   6 channels => mono; 3 channels; 6 channels; 12 channels ...
   ...
-  i.e. number of dst channels must divide on number of src channels without a remainder
+  i.e. (number of dst channels) mod (number of src channels) must be 0
 
   @param bufSrc source samples
   @param bufDst destination samples (buffer must be already allocated)
@@ -185,6 +192,7 @@ function waveReverse(buf: pointer; samples: unsigned; bits: unsigned; numChannel
   @param bitsDst number of bits per sample in destination stream
   @param rateSrc sampling rate of source stream
   @param rateDst sampling rate of destination stream
+
   @return number of bytes produced by the function.
 }
 function waveResample(bufSrc, bufDst: pointer; samples, numChannelsSrc, numChannelsDst, bitsSrc, bitsDst, rateSrc, rateDst: unsigned): unsigned; overload;
@@ -318,12 +326,29 @@ end;
 // -- --
 {$IFDEF CPU64 }
 
-procedure saveSample(_BL: int; sample: int32; var buf: pointer);
+// --  --
+function saturate(sample: int): int32; {$IFDEF DEBUG }{$ELSE } inline; {$ENDIF DEBUG }
 begin
+  if (sample > high(LongInt)) then
+    result := high(LongInt)
+  else
+    if (sample < low(LongInt)) then
+      result := low(LongInt)
+    else
+      result := sample;
+end;
+
+// --  --
+procedure saveSample(_BL: int; sample: int; var buf: pointer);
+var
+  s: int32;
+begin
+  s := saturate(sample);
+  //
   case (_BL) of
-     8: begin pByte(buf)^  := sample div (1 shl 24) + $80; inc( pByte(buf)); end;
-    16: begin pInt16(buf)^ := sample div (1 shl 16);       inc(pInt16(buf)); end;
-    32: begin pInt32(buf)^ := sample;                      inc(pInt32(buf)); end;
+     8: begin pByte(buf)^  := s div (1 shl 24) + $80; inc( pByte(buf)); end;
+    16: begin pInt16(buf)^ := s div (1 shl 16);       inc(pInt16(buf)); end;
+    32: begin pInt32(buf)^ := s;                      inc(pInt32(buf)); end;
   end;
 end;
 
@@ -408,9 +433,10 @@ end;
 
 {$IFDEF CPU64 }
 
+// --  --
 function waveMix(buf1, buf2, buf3: pointer; samples: unsigned; bits1, bits2, bits3: unsigned; doAdd: bool; numChannels: unsigned): unsigned;
 var
-  s1, s2: int32;
+  s1, s2: int64;
   cnt: unsigned;
 begin
   result := 0;
@@ -420,7 +446,7 @@ begin
     while (0 < cnt) do begin
       //
       s1 := loadSample(bits1, buf1);
-      s2 := loadSample(bits1, buf1);
+      s2 := loadSample(bits2, buf2);
       if (doAdd) then
         s1 := s1 + s2
       else
@@ -509,7 +535,6 @@ end;
 
 {$ENDIF CPU64 }
 
-
 // --  --
 function waveMix(const chunk1, chunk2, chunk3: unaPCMChunk; doAdd: bool = true): unsigned;
 var
@@ -527,9 +552,37 @@ end;
 
 {$IFDEF CPU64 }
 
+// --  --
 function waveGetVolume(buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned; channel: unsigned; deltaMethod: bool): unsigned;
+var
+  w: double;
+  s, sampleSize_1: int32;
+  smp_prev, smp: int64;
 begin
-  result := 0;  // TODO
+  if ((7 < bits) and (0 < samples) and (0 < numChannels) and (channel < numChannels)) then begin
+    //
+    sampleSize_1 := (numChannels - 1) * bits shr 3;
+    w := 0;
+    buf := @pArray(buf)[channel * bits shr 3];
+    smp_prev := 0;
+    for s := 1 to samples do begin
+      //
+      smp := loadSample(bits, buf);
+      if (0 < sampleSize_1) then
+        buf := @pArray(buf)[sampleSize_1];
+      //
+      if (deltaMethod) then
+        smp := smp_prev - smp;
+      //
+      smp_prev := abs(smp);
+      //
+      w := w + smp_prev / samples;
+    end;
+    //
+    result := trunc(w / 32768);
+  end
+  else
+    result := 0;
 end;
 
 {$ELSE }
@@ -631,9 +684,30 @@ end;
 
 {$IFDEF CPU64 }
 
+// --  --
 function waveExtractChannel(buf, dest: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned;
+var
+  s, samp: int32;
+  sampleSize_1: int;
 begin
-  result := 0;  // TODO
+  if ((7 < bits) and (0 < numChannels) and (0 < samples) and (channel < numChannels)) then begin
+    //
+    sampleSize_1 := (numChannels - 1) * bits shr 3;
+    buf := @pArray(buf)[channel * bits shr 3];
+    //
+    for s := 1 to samples do begin
+      //
+      samp := loadSample(bits, buf);
+      saveSample(bits, samp, dest);
+      //
+      if (0 < sampleSize_1) then
+        buf := @pArray(buf)[sampleSize_1];
+    end;
+    //
+    result := samples;
+  end
+  else
+    result := 0;
 end;
 
 {$ELSE }
@@ -717,9 +791,30 @@ end;
 
 {$IFDEF CPU64 }
 
+// --  --
 function waveReplaceChannel(buf, source: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned = 1; channel: unsigned = 0): unsigned;
+var
+  s, samp: int32;
+  sampleSize_1: int;
 begin
-  result := 0;  // TODO
+  if ((7 < bits) and (0 < numChannels) and (0 < samples) and (channel < numChannels)) then begin
+    //
+    sampleSize_1 := (numChannels - 1) * bits shr 3;
+    buf := @pArray(buf)[channel * bits shr 3];
+    //
+    for s := 1 to samples do begin
+      //
+      samp := loadSample(bits, source);
+      saveSample(bits, samp, buf);
+      //
+      if (0 < sampleSize_1) then
+        buf := @pArray(buf)[sampleSize_1];
+    end;
+    //
+    result := samples;
+  end
+  else
+    result := 0;
 end;
 
 {$ELSE }
@@ -805,7 +900,8 @@ end;
 
 function waveReverse(buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned): unsigned;
 begin
-  result := 0;  // TODO
+  // todo
+  result := 0;
 end;
 
 {$ELSE }
@@ -913,9 +1009,18 @@ end;
 
 {$IFDEF CPU64 }
 
+// --  --
 function waveGetLogVolume(volume: int): unsigned;
 begin
-  result := 0;  // TODO
+  if (volume <= 0) then
+    result := 0
+  else
+    if (volume >= 32768) then
+      result := 300
+    else begin
+      //
+      result := trunc( sqrt(volume) * 1.6573068070938 );
+    end;
 end;
 
 {$ELSE }
@@ -943,33 +1048,19 @@ asm
 
 	push	ecx		// allocate 4 bytes on stack
 
-        {$IFDEF CPU64 }
-	fild	dword ptr [rsp]	// push volume on stack
-	fwait
-	mov	dword ptr [rsp], 32
-	fidiv	dword ptr [rsp]	// ST(0) := volume / 32
-        {$ELSE }
 	fild	dword ptr [esp]	// push volume on stack
 	fwait
 	mov	dword ptr [esp], 32
 	fidiv	dword ptr [esp]	// ST(0) := volume / 32
-        {$ENDIF CPU64 }
 
 	{ log.10(X) = log.2(X) * log.10(2) }
 
 	fyl2x		// ST(1) <- ST(1) * log.2(ST(0))
 			// and pops FPU stack
-        {$IFDEF CPU64 }
-	mov	dword ptr [rsp], 100
-	fimul	dword ptr [rsp]
-
-	fistp 	dword ptr [rsp]	// convert ST(0) into integer are pop FPU stack
-        {$ELSE }
 	mov	dword ptr [esp], 100
 	fimul	dword ptr [esp]
 
 	fistp 	dword ptr [esp]	// convert ST(0) into integer are pop FPU stack
-        {$ENDIF CPU64 }
 
 	fwait
 
@@ -985,22 +1076,31 @@ begin
   result := waveGetLogVolume(volume) div 3;
 end;
 
+const
+  const_dstChannelMul = 100;
+
 {$IFDEF CPU64 }
 
 // --  --
 function waveResample(bufSrc, bufDst: pointer; samples, numChannelsSrc, numChannelsDst, bitsSrc, bitsDst, rateSrc, rateDst: unsigned): unsigned;
+var
+  nextSrc, nextDst, step: double;
+  s, cs, cd, moreChannels: int32;
+  samp: int32;
+  buf2: pointer;
 begin
+  result := 0;
+  //
   if ((nil = bufSrc) or
       (nil = bufDst) or
-      (1 > bitsSrc) or
-      (1 > bitsDst) or
+      (8 > bitsSrc) or
+      (8 > bitsDst) or
       (1 > numChannelsSrc) or
       (1 > numChannelsDst) or
       (1 > samples) or
       (1 > rateSrc) or
       (1 > rateDst)) then
     // invalid params
-    result := 0
   else begin
     //
     if ((rateDst = rateSrc) and
@@ -1011,12 +1111,36 @@ begin
       result := samples * numChannelsSrc * bitsSrc shr 3;
       if ((bufSrc <> bufDst) and (0 < result)) then
 	move(bufSrc^, bufDst^, result);
-      //
     end
     else begin
       //
-      // RESAMPLE: TODO
-      result := 0
+      nextSrc := 0.0;
+      nextDst := 0.0;
+      step := rateSrc / rateDst;
+      moreChannels := numChannelsDst div numChannelsSrc;
+      //
+      for s := 1 to samples do begin
+        //
+        nextSrc := nextSrc + 1;
+        while (nextSrc >= nextDst) do begin
+          //
+          buf2 := bufSrc;
+          for cs := 1 to numChannelsSrc do begin
+            //
+            samp := loadSample(bitsSrc, buf2);
+            for cd := 1 to moreChannels do begin
+              //
+              saveSample(bitsDst, samp, bufDst);
+              inc(result, bitsDst shr 3);
+            end;
+          end;
+          //
+          nextDst := nextDst + step;
+        end;
+        //
+        // go to next sample
+        bufSrc := @pArray(bufSrc)[numChannelsSrc * bitsSrc shr 3];
+      end;
     end
   end;
 end;
@@ -1025,8 +1149,6 @@ end;
 
 // --  --
 function waveResample(bufSrc, bufDst: pointer; samples, numChannelsSrc, numChannelsDst, bitsSrc, bitsDst, rateSrc, rateDst: unsigned): unsigned;
-const
-  const_dstChannelMul = 100;
 var
   step: double;
   next: double;
@@ -1085,7 +1207,7 @@ begin
 	xor	edx, edx	// EDX is a sample counter in dest buffer
 
 	// --------- loop ends here ------
-	
+
   @loop:
 	push	ecx	// save ECX
 
@@ -1228,7 +1350,7 @@ begin
     else
       result := 0;
     //
-  end;    
+  end;
 end;
 
 // --  --
@@ -1277,7 +1399,7 @@ function waveWriteToChunk(var chunk: unaPCMChunk; buf: pointer; size: unsigned; 
 begin
   if ((nil <> buf) and (0 < size) and (size > bufOffs) and (chunk.chunkBufSize > chunk.chunkDataLen)) then begin
     //
-    result := min(chunk.chunkBufSize - chunk.chunkDataLen, size - bufOffs);
+    result := unaUtils.min(chunk.chunkBufSize - chunk.chunkDataLen, size - bufOffs);
     if (0 < result) then begin
       move(pChar(buf)[bufOffs], pChar(chunk.chunkData)[chunk.chunkDataLen], result);
       inc(chunk.chunkDataLen, result);
@@ -1311,9 +1433,48 @@ end;
 
 {$IFDEF CPU64 }
 
+// --  --
 function waveModifyVolume100(volume: unsigned; buf: pointer; samples: unsigned; bits: unsigned; numChannels: unsigned; channel: int): unsigned;
+var
+  buf2: pointer;
+  s, sampleSize_1: int32;
+  smp: int64;
 begin
-  result := 0;  // TODO
+  if ((0 < samples) and
+      (0 < bits) and
+      (0 < numChannels) and
+      ((0 > channel) or (int(numChannels) > channel))) then begin
+    //
+    if (100 <> volume) then begin
+      //
+      if (0 > channel) then
+        sampleSize_1 := 0
+      else begin
+        //
+        sampleSize_1 := (numChannels - 1) * bits shr 3;
+        buf := @pArray(buf)[channel * bits shr 3];
+      end;
+      //
+      for s := 1 to samples do begin
+        //
+        buf2 := buf;
+        smp := trunc(loadSample(bits, buf2) * int64(volume) / 100);
+        if (smp > high(int32)) then
+          smp := high(int32)
+        else
+          if (smp < low(int32)) then
+            smp := low(int32);
+        //
+        saveSample(bits, smp, buf);
+        if (0 < sampleSize_1) then
+          buf := @pArray(buf)[sampleSize_1];
+      end;
+    end;
+    //
+    result := samples;
+  end
+  else
+    result := 0;
 end;
 
 {$ELSE }
@@ -1407,3 +1568,4 @@ end;
 
 
 end.
+

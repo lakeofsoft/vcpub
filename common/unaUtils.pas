@@ -74,6 +74,7 @@ unit
   unaUtils;
 
 {$IFDEF CPU64 }
+  //
   {$IFDEF CHECK_MEMORY_LEAKS }
     Memory leak checks for x86_64 are not supported.
   {$ENDIF CHECK_MEMORY_LEAKS }
@@ -1687,6 +1688,9 @@ function getRegValue(const path: aString; const keyName: aString = ''; const def
 	Writes string value into registry.
 }
 function setRegValue(const path: aString; const keyName: aString = ''; const keyValue: aString = ''; rootKey: HKEY = HKEY_CURRENT_USER): long; overload;
+{$IFDEF NO_ANSI_SUPPORT }
+function setRegValue(const path: wString; const keyName: wString = ''; const keyValue: wString = ''; rootKey: HKEY = HKEY_CURRENT_USER): long; overload;
+{$ENDIF NO_ANSI_SUPPORT }
 
 {*
 	Enables or disables autorun of specified appication (current module will be used by default).
@@ -1901,14 +1905,17 @@ function mscanbuf(buf: pointer; bufSize: unsigned; value: pointer; valueLen: uns
 	Swaps int16/uint16 values in a buffer. Len is in bytes and should be even.
 }
 procedure mswapbuf16(buf: pointer; len: int);
+
 {*
 	LSB16 <-> MSB16, sorts 2 bytes in reverse order.
 }
-function swap16(w: uint16): uint16;
+function swap16(w: uint16): uint16; overload;
+function swap16(w: int16): int16; overload;
 {*
 	LSB32 <-> MSB32, sorts 4 bytes in reverse order.
 }
-function swap32(w: uint32): uint32;
+function swap32(w: uint32): uint32; overload;
+function swap32(w: int32): int32; overload;
 
 
 {*
@@ -2629,9 +2636,9 @@ function CRC32(crc: uint32; data: pointer; dataSize: uint32): uint32; overload;
 asm
 {
   x64:
-        EAX     - result
-        ECX     - byte count
+        RCX     - result
         RDX     - data pointer
+        R8      - byte count
         //
         R8      - CRC32 table pointer
         RBX     - CRC32 array index
@@ -2650,19 +2657,16 @@ asm
         STACK[4] - copy of EBX
 
 }
-	mov     eax, crc
-	mov     ecx, dataSize
-
       {$IFDEF CPU64 }
+        mov     eax, crc
+        mov     ecx, dataSize
         or      ecx, ecx
 	jz	@done
 
-	mov     rdx, data
 	or	rdx, rdx
       {$ELSE }
 	jecxz	@done
 
-	mov     edx, data
 	or	edx, edx
       {$ENDIF CPU64 }
 
@@ -7448,6 +7452,24 @@ begin
     end
 end;
 
+{$IFDEF NO_ANSI_SUPPORT }
+
+// --  --
+function setRegValueW(const path, keyName: wString; const buf; size: DWORD; keyType: int; rootKey: HKEY): long;
+var
+  key: HKEY;
+begin
+  result := RegCreateKeyExW(rootKey, pwChar(path), 0{reserved}, nil{class, must be NULL}, REG_OPTION_NON_VOLATILE, KEY_WRITE, nil{security}, key, nil);
+  if (ERROR_SUCCESS = result) then
+    try
+      result := RegSetValueExW(key, pwChar(keyName), 0{reserved}, DWORD(keyType), pointer(@buf), size);
+    finally
+      RegCloseKey(key);
+    end
+end;
+
+{$ENDIF NO_ANSI_SUPPORT }
+
 // --  --
 function getRegValue(const path, keyName: aString; defValue: int; rootKey: HKEY): int;
 var
@@ -7516,6 +7538,25 @@ begin
   end;
 end;
 
+{$IFDEF NO_ANSI_SUPPORT }
+
+// --  --
+function setRegValue(const path: wString; const keyName: wString; const keyValue: wString; rootKey: HKEY): long;
+var
+  zero: wChar;
+begin
+  if ('' <> keyValue) then
+    result := setRegValueW(path, keyName, keyValue[1], (Length(keyValue) + 1) * sizeof(keyValue[1]), REG_SZ, rootKey)
+  else begin
+    //
+    zero := #0;
+    result := setRegValueW(path, keyName, zero, sizeof(zero), REG_SZ, rootKey)
+  end;
+end;
+
+{$ENDIF NO_ANSI_SUPPORT }
+
+
 // --  --
 function enableAutorun(doEnable: bool; const appPath: wString): bool;
 const
@@ -7531,7 +7572,7 @@ begin
     path := trimS(appPath, true);
   //
   if (doEnable) then
-    result := (ERROR_SUCCESS = setRegValue(c_run_path, aString(path), aString(path), HKEY_LOCAL_MACHINE))
+    result := (ERROR_SUCCESS = setRegValue(aString(c_run_path), aString(path), aString(path), HKEY_LOCAL_MACHINE))
   else begin
     //
     res :=  RegCreateKeyEx(HKEY_LOCAL_MACHINE, c_run_path, 0{reserved}, nil{class, must be NULL}, REG_OPTION_NON_VOLATILE, KEY_WRITE, nil{security}, key, nil);
@@ -10017,6 +10058,13 @@ asm
 end{$IFDEF FPC64 } ['RAX'] {$ENDIF FPC64 };
 
 // --  --
+function swap16(w: int16): int16;
+begin
+  result := int16(swap16(uint16(w)));
+end;
+
+
+// --  --
 function swap32(w: uint32): uint32;
 asm
 {$IFDEF CPU64 }
@@ -10027,6 +10075,12 @@ asm
 	rol	eax, 16
 	xchg    al, ah
 end{$IFDEF FPC64 } ['RAX'] {$ENDIF FPC64 };
+
+// --  --
+function swap32(w: int32): int32;
+begin
+  result := int32(swap32(uint32(w)));
+end;
 
 // --  --
 procedure freeAndNil(var objRef);

@@ -1140,6 +1140,9 @@ implementation
 
 uses
   unaPlacebo, unaUtils, unaWave,
+{$IFDEF VCX_DEMO }
+  unaBaseXcode,
+{$ENDIF VCX_DEMO }
   Classes;
 
 

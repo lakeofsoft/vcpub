@@ -1781,7 +1781,6 @@ type
   //
   // -- unaResourceStream --
   //
-
   {*
     This stream is stored in resource.
   }
@@ -1814,7 +1813,6 @@ type
   //
   // -- unaMappedMemory --
   //
-
   {*
 	This is wrapper class for the Windows mapped memory mechanism.
   }
@@ -1908,7 +1906,6 @@ type
   //
   // -- unaMappedFile --
   //
-
   {*
 	This is wrapper class for the Windows mapped files mechanism.
   }
@@ -4730,10 +4727,16 @@ end;
 
 // --  --
 procedure unaStringList.setText(const value: string);
+
+  // --  --
+  function isCRLF(c: char): bool;
+  begin
+    result := (c = #13) or (#10 = c);
+  end;
+
 var
-  s: aString;
-  p: paChar;
-  pStart: paChar;
+  pCur,
+  pStart: int;
 begin
   if (lock(false)) then try
     //
@@ -4741,24 +4744,26 @@ begin
     //
     if ('' <> value) then begin
       //
-      s := aString(value);
-      p := @s[1];
-      pStart := p;
+      pCur := 1;
+      pStart := pCur;
       //
-      while (p^ <> #0) do begin
+      while (pCur <= length(value)) do begin
 	//
-	if ((p^ in [#13, #10]) or (#0 = p[1])) then begin
+	if ( isCRLF(value[pCur]) or (pCur = length(value)) ) then begin
 	  //
-	  add(copy(string(pStart), 1, unsigned(p) - unsigned(pStart)));
+          if (not isCRLF(value[pCur])) then
+            inc(pCur);
+          //
+	  add(copy(value, pStart, pCur - pStart));
 	  //
-	  inc(p);
-	  if ((p <> #0) and (p^ in [#13, #10])) then
-	    inc(p);
+	  inc(pCur);
+          if ( (pCur <= length(value)) and isCRLF(value[pCur]) ) then
+	    inc(pCur);
 	  //
-	  pStart := p;
+	  pStart := pCur;
 	end
 	else
-	  inc(p);
+	  inc(pCur);
       end;
     end;
     //
@@ -10070,30 +10075,33 @@ end;
 // --  --
 function lockNonEmptyList_r(list: unaList; ro: bool; timeout: tTimeout {$IFDEF DEBUG }; const reason: string{$ENDIF DEBUG }): bool;
 begin
-{$IFDEF LOG_UNACLASSES_ERRORS }
-  if (nil = list) then
-    logMessage('lockNonEmptyList_r() - list is nil!');
-{$ENDIF LOG_UNACLASSES_ERRORS }
-  //
-  if (0 < list.count) then begin
+  if (nil = list) then begin
     //
-    if (lockList_r(list, ro, timeout {$IFDEF DEBUG }, reason{$ENDIF DEBUG })) then begin
-      //
-      result := (0 < list.count);
-      if (not result) then begin
-	//
-	// make sure list is not locked when false is returned
-	if (ro) then
-	  unlockListRO(list)
-	else
-	  unlockListWO(list);
-      end;
-    end
-    else
-      result := false;
+{$IFDEF LOG_UNACLASSES_ERRORS }
+    logMessage('lockNonEmptyList_r(' + reason + ') - list is nil!');
+{$ENDIF LOG_UNACLASSES_ERRORS }
+    result := false;
   end
   else
-    result := false;	// list is empty, no reason to lock
+    if (0 < list.count) then begin
+      //
+      if (lockList_r(list, ro, timeout {$IFDEF DEBUG }, reason{$ENDIF DEBUG })) then begin
+        //
+        result := (0 < list.count);
+        if (not result) then begin
+          //
+          // make sure list is not locked when false is returned
+          if (ro) then
+            unlockListRO(list)
+          else
+            unlockListWO(list);
+        end;
+      end
+      else
+        result := false;
+    end
+    else
+      result := false;	// list is empty, no reason to lock
 end;
 
 // --  --

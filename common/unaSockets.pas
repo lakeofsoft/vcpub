@@ -1331,12 +1331,23 @@ type
 }
 function crackURI(URI: string; var crack: unaURICrack; flags: DWORD = 0): bool;
 
+{*
+	Downloads small file from HTTP server.
+
+	@param URI data location
+	@param data remote data
+	@param timeout timeout
+
+	@return S_OK if no error
+}
+function httpGetData(const URI: string; out data: aString; timeout: tTimeout = 5000): HRESULT;
+
 
 implementation
 
 
 uses
-  unaUtils
+  unaUtils, unaParsers
 {$IFDEF VC25_WINSOCK20 }
   , unaWSASockets
   {$IFDEF VC25_IOCP }
@@ -5207,6 +5218,79 @@ begin
     {$ENDIF NO_ANSI_SUPPORT }
   end;
 end;
+
+// --  --
+function httpGetData(const URI: string; out data: aString; timeout: tTimeout): HRESULT;
+var
+  socket: unaTCPSocket;
+  parser: unaHTTPparser;
+  crack: unaURIcrack;
+  abuf: aString;
+  buf: array[byte] of aChar;
+  sz: uint;
+  lastTM: uint64;
+  connected: bool;
+begin
+  result := HRESULT(-1);
+  if (crackURI(URI, crack)) then begin
+    //
+    if ('http' = crack.r_scheme) then begin
+      //
+      socket := unaTCPSocket.create({$IFDEF VC25_OVERLAPPED }false{$ENDIF VC25_OVERLAPPED });
+      parser := unaHTTPparser.create();
+      try
+	socket.host := crack.r_hostName;
+	//
+	if (0 < crack.r_port) then
+	  socket.setPort(int2str(crack.r_port))
+	else
+	  socket.setPort('80');
+	//
+	lastTM := timeMarkU();
+	//
+	connected := false;
+	if (0 = socket.connect()) then begin
+	  //
+	  abuf := 'GET ' + aString(crack.r_path) + ' HTTP/1.1'#13#10 +
+		  'Host: ' + aString(crack.r_hostName) + #13#10 +
+		  'User-Agent: VC 2.5.2011.01'#13#10 +
+		  'Accept: text/html'#13#10 +
+		  'Connection: close'#13#10 +
+		  #13#10;
+	  //
+	  socket.send(@abuf[1], uint(length(abuf)));
+	  //
+	  connected := true;
+	  while (not parser.getPayloadComplete(connected) and (timeout > timeElapsed64U(lastTM))) do begin
+	    //
+	    sz := sizeof(buf);
+	    if (0 = socket.read(@buf, sz, timeout)) then begin
+	      //
+	      if (0 < sz) then begin
+		//
+		parser.feed(@buf, sz);
+		lastTM := timeMarkU();
+	      end
+	      else
+		connected := false;
+	    end;
+	  end;
+	end;
+	//
+	if (parser.getPayloadComplete(connected)) then begin
+	  //
+	  data := parser.getPayload();
+	  result := S_OK;
+	end;
+	//
+      finally
+	freeAndNil(parser);
+	freeAndNil(socket);
+      end;
+    end;
+  end;
+end;
+
 
 
 // -- unit globals --

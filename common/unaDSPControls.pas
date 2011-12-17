@@ -22,7 +22,7 @@
 	----------------------------------------------
 *)
 
-{$I unaDef.inc}
+{$I unaDef.inc }
 
 {*
   FFT and DTMF VCL components.
@@ -42,7 +42,12 @@ interface
 uses
   Windows, unaTypes, unaClasses, unaMsAcmAPI, unaMsAcmClasses,
   unaWave, unaVC_pipe, unaVC_wave, unaDSP,
-  Graphics, Classes, Controls, ExtCtrls;
+{$IFDEF FMX }
+  System.Types, System.UITypes, FMX.Types,
+{$ELSE }
+  Graphics, Controls, ExtCtrls,
+{$ENDIF FMX }
+  Classes;
 
 
 type
@@ -130,7 +135,11 @@ type
   {*
 	FFT Control
   }
+{$IFDEF FMX }
+  TunadspFFTControl = class(TControl)
+{$ELSE }
   TunadspFFTControl = class(tGraphicControl)
+{$ENDIF FMX }
   private
     f_pipe: TunadspFFTPipe;
     f_bandWidth: unsigned;
@@ -143,8 +152,12 @@ type
     f_dbUpdate: int;
     f_dbPeak: double;
     //
-    f_pen: array[0..3] of hPen;
     f_penColor: array[0..3] of tColor;
+  {$IFDEF FMX }
+    f_backColor: TColor;
+  {$ELSE }
+    f_pen: array[0..3] of hPen;
+  {$ENDIF FMX }
     //
     f_fftCache: pComplexFloatArray;
     f_amp: pFloatArray;
@@ -167,7 +180,7 @@ type
   protected
     procedure Paint(); override;
     //
-    procedure paintOnDC(dc: hDC); virtual;
+    procedure paintOnDC({$IFDEF FMX }Canv: TCanvas{$ELSE }dc: hDC{$ENDIF FMX }); virtual;
     //
     procedure onFFTDone(sender: tObject); virtual;
   public
@@ -203,7 +216,7 @@ type
     {*
 	Background color.
     }
-    property color: tColor read getColorBack write setColorBack default clBlack;
+    property color: tColor read getColorBack write setColorBack default {$IFDEF FMX }TColorRec.Black{$ELSE } clBlack{$ENDIF FMX };
     {*
 	Color of low portion of a bar.
     }
@@ -239,20 +252,26 @@ type
     //
     property Anchors;
     property Align;
+{$IFDEF FMX }
+{$ELSE }
     property Font;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
+{$ENDIF FMX }
     property PopupMenu;
     property Visible;
     //
     property OnClick;
 {$IFDEF __BEFORE_D6__ }
 {$ELSE }
+  {$IFDEF FMX }
+  {$ELSE }
     property OnContextPopup;
-    property OnMouseWheel;
     property OnMouseWheelDown;
     property OnMouseWheelUp;
+  {$ENDIF FMX }
+    property OnMouseWheel;
 {$ENDIF __BEFORE_D6__ }
     property OnDblClick;
     property OnMouseDown;
@@ -383,7 +402,7 @@ begin
     //
     if (active and enter(false, 100)) then try
       //
-      move(data^, f_dataProxy, min(sizeof(f_dataProxy), int(len)));
+      move(data^, f_dataProxy, unaUtils.min(sizeof(f_dataProxy), len));
     finally
       leaveWO();
     end;
@@ -469,7 +488,11 @@ begin
   f_pipe.onFFTDone := onFFTDone;
   //
   f_bandWidth := 1;
+  //
+{$IFDEF FMX }
+{$ELSE }
   canvas.brush.color := clBlack;
+{$ENDIF FMX }
   //
   bandColorLow  := cldef_BandLow;
   bandColorMed  := cldef_BandMed;
@@ -484,7 +507,10 @@ begin
   width := 100;
   height := 200;
   //
+{$IFDEF FMX }
+{$ELSE }
   controlStyle := controlStyle + [csOpaque];
+{$ENDIF FMX }
   //
   inherited;
   //
@@ -501,27 +527,55 @@ begin
   mrealloc(f_fftCache);
 end;
 
+{$IFDEF FMX }
+
+// --  --
+function color2alpha(const c: TColor; A: byte = $FF): TAlphaColor;
+begin
+  result := TAlphaColor(A shl 24) or (TColorRec(c).R shl 16) or (TColorRec(c).G shl 8) or TColorRec(c).B;
+end;
+
+{$ENDIF FMX }
+
+
 // --  --
 function TunadspFFTControl.displayMBSPBands(numBands: unsigned; values: punaMBSPBands; nSamples: unsigned): bool;
 var
   dc: hDC;
-  b, j, k: int;
+  b, j, k: int32;
   h, w, x, t: int;
   p: float;
   lh: float;
+{$IFDEF FMX }
+  P1, P2: TPointF;
+{$ELSE }
   rect: tRect;
+{$ENDIF FMX }
 begin
+{$IFDEF FMX }
+  Canvas.BeginScene();
+{$ELSE }
   canvas.lock();
+{$ENDIF FMX }
   try
     //
+  {$IFDEF FMX }
+    dc := 1;
+  {$ELSE }
     dc := canvas.handle;
+  {$ENDIF FMX }
     if ((0 <> dc) and (0 < nSamples)) then begin
       //
       // clear background
       //fillRect(dc, clientRect, canvas.brush.handle);
       //
+    {$IFDEF FMX }
+      h := Canvas.Height;
+      w := Canvas.Width;
+    {$ELSE }
       h := clientRect.bottom - clientRect.top;
       w := clientRect.right - clientRect.left;
+    {$ENDIF FMX }
       //
       if (0 < h) then begin
 	//
@@ -546,19 +600,32 @@ begin
 	      //
 	      for k := 0 to 2 do begin
 		//
+              {$IFDEF FMX }
+                Canvas.Stroke.Color := color2alpha(f_penColor[k]);
+                //
+                P1 := PointF(x + j, h - (t / 3) * (k + 0));
+                P2 := PointF(x + j, h - (t / 3) * (k + 1));
+                Canvas.DrawLine(P1, P2, 1.0);
+              {$ELSE }
 		SelectObject(dc, f_pen[k]);
-		moveToEx(dc, x + j, h - (t div 3) * (int(k) + 0), nil);
-		lineTo  (dc, x + j, h - (t div 3) * (int(k) + 1));
+		moveToEx(dc, x + j, h - (t div 3) * (k + 0), nil);
+		lineTo  (dc, x + j, h - (t div 3) * (k + 1));
+              {$ENDIF FMX }
 	      end;
 	    end;
 	  end;
 	  //
 	  // clear rest of band
+          //
+        {$IFDEF FMX }
+	  Canvas.FillRect(TRectF.Create(x, x + int(f_bandWidth), 0, h - t), 0, 0, [], 1);
+        {$ELSE }
 	  rect.left   := x;
 	  rect.right  := x + int(f_bandWidth);
 	  rect.top    := 0;
 	  rect.bottom := h - t;
 	  fillRect(dc, rect, canvas.brush.handle);
+        {$ENDIF FMX }
 	  //
 	  inc(x, f_bandWidth);
 	  inc(x, f_bandGap);
@@ -566,7 +633,11 @@ begin
       end;
     end;
   finally
+{$IFDEF FMX }
+    Canvas.EndScene();
+{$ELSE }
     canvas.unlock();
+{$ENDIF FMX }
   end;
   //
   result := true;
@@ -593,7 +664,11 @@ end;
 // --  --
 function TunadspFFTControl.getColorBack(): tColor;
 begin
+{$IFDEF FMX }
+  result := f_backColor;
+{$ELSE }
   result := canvas.brush.color;
+{$ENDIF FMX }
 end;
 
 // --  --
@@ -611,213 +686,280 @@ end;
 // --  --
 procedure TunadspFFTControl.onFFTDone(sender: tObject);
 begin
+{$IFDEF FMX }
+  InvalidateRect(TRectF.Create(0, 0, Width, Height));
+{$ELSE }
   invalidate();
+{$ENDIF FMX }
 end;
 
 // --  --
 procedure TunadspFFTControl.paint();
 begin
+{$IFDEF FMX }
+  paintOnDC(Canvas);
+{$ELSE }
   with (canvas) do begin
-    //
     lock();
+    //
     try
-      //
       paintOnDC(handle);
     finally
       unlock();
     end;
   end;
+{$ENDIF FMX }
 end;
 
 // --  --
-procedure TunadspFFTControl.paintOnDC(dc: hDC);
+procedure TunadspFFTControl.paintOnDC({$IFDEF FMX }Canv: TCanvas{$ELSE }dc: hDC{$ENDIF FMX });
 var
   j, k, i: integer;
   x: int;
-  h, w, w2: int;
   r, f, fMax, fpeak, fdbStep: double;
   //
   nmaxH: int;	// max number of harmonics
   limit, abs2, abs2min: double;
   s: string;
+{$IFDEF FMX }
+  State: TCanvasSaveState;
+  h, w, w2: float;
+{$ELSE }
+  h, w, w2: int;
+{$ENDIF FMX }
 begin
   // clear background
-  fillRect(dc, clientRect, canvas.brush.handle);
-  //
-  h := clientRect.bottom - clientRect.top;
-  w := clientRect.right - clientRect.left;
-  nmaxH := 0;
-  //
-  if (f_pipe.fft.acquire(true, 10)) then try
+{$IFDEF FMX }
+  State := Canv.SaveState;
+  try
+    h := Height;
+    w := Width;
+    Canv.Fill.Kind := TBrushKind.bkSolid;
+    Canv.Fill.Color := color2alpha(color);
+    Canv.FillRect(LocalRect, 0, 0, [], 1);
+    Canv.SetClipRects([ClipRect]);
+{$ELSE }
+    fillRect(dc, clientRect, canvas.brush.handle);
     //
-    if ((0 < h) and (0 < f_bandWidth) and (nil <> f_amp) and f_pipe.fft.fftReady) then begin
+    h := clientRect.bottom - clientRect.top;
+    w := clientRect.right - clientRect.left;
+{$ENDIF FMX }
+    //
+    nmaxH := 0;
+    //
+    if (f_pipe.fft.acquire(true, 10)) then try
       //
-      nmaxH := f_pipe.fft.windowSize shr 1;
+      if ((0 < h) and (0 < f_bandWidth) and (nil <> f_amp) and f_pipe.fft.fftReady) then begin
+        //
+        nmaxH := f_pipe.fft.windowSize shr 1;
+        for i := 1 to nmaxH - 1 do
+          f_fftCache[i] := f_pipe.fft.dataC[i];
+      end;
+      //
+    finally
+      f_pipe.fft.releaseRO();
+    end;
+    //
+    if (0 < nmaxH) then begin
+      //
+      if (drawGrid) then begin
+        //
+        // draw grid
+        fMax := f_pipe.fft.sampleRate shr 1;
+        r := fMax / 2000;
+        w2 := int(bandWidth + bandGap) * nmaxH;
+        //
+      {$IFDEF FMX }
+        Canv.Stroke.Kind := TBrushKind.bkSolid;
+        Canv.Stroke.Color := color2alpha(f_penColor[3]);
+      {$ELSE }
+        windows.selectObject(dc, f_pen[3]);
+        SetTextColor(dc, bandColorGrid);
+      {$ENDIF FMX }
+        //
+        f := 0;
+        i := 0;
+        while (f < fMax) do begin
+          //
+        {$IFDEF FMX }
+          Canv.DrawLine(TPointF.Create(i * w2/r, 0), TPointF.Create(i * w2/r, h), 1);
+        {$ELSE }
+          moveToEx(dc, trunc(i * w2/r), 0, nil);
+          lineTo  (dc, trunc(i * w2/r), h);
+        {$ENDIF FMX }
+          //
+          if (0 = i) then
+            s := 'kHz'
+          else
+            s := int2str(trunc(f/1000));
+          //
+        {$IFDEF FMX }
+          Canv.Fill.Color := $FFFFFFFF;
+          Canv.FillText(TRectF.Create(TPointF.Create(i * w2/r + 4, 4), Canv.TextWidth(s), Canv.TextHeight(s)), s, false, 1, [], TTextAlign.taLeading);
+        {$ELSE }
+          TextOut(dc, trunc(i * w2/r) + 4, 4, pchar(s), length(s));
+        {$ENDIF FMX }
+          //
+          f := f + 2000;
+          inc(i);
+        end;
+        //
+        i := 0;
+        r := h / 10;
+        while (i < 10) do begin
+          //
+        {$IFDEF FMX }
+          Canv.DrawLine(TPointF.Create(0, i * r), TPointF.Create(w, i * r), 1);
+        {$ELSE }
+          moveToEx(dc, 0, trunc(i * r), nil);
+          lineTo  (dc, w, trunc(i * r));
+        {$ENDIF FMX }
+          //
+          inc(i);
+        end;
+      end;
+      //
+      // draw FFT bands
+      //
+      limit := 0.00001; // f_fftCache[0].re / 10000;
+      abs2min := limit * limit * f_pipe.fft.windowSize * f_pipe.fft.windowSize;
+      //
+      x := 0;
+      r := h / 3.01;
+      f_ampMax := f_ampMax * 0.97;
+      fpeak := 0;
+      //
+      for i := 1 to nmaxH - 1 do begin
+        //
+        abs2 := (f_fftCache[i].re * f_fftCache[i].re) + (f_fftCache[i].im * f_fftCache[i].im);
+        f := (2.0 * sqrt(abs2) / f_pipe.fft.windowSize);
+        if (fpeak < f) then
+          fpeak := f;
+        //
+        if (abs2min < abs2) then begin
+          //
+          f_amp[i] := log2(2 + f * 4) - 1;
+          if (f_ampMax < f_amp[i] * 1.2) then
+            f_ampMax := f_amp[i] * 1.2;
+        end
+        else begin
+          //
+          if (1 < f_fallbackf) then
+            f_amp[i] := f_amp[i] / f_fallbackf * f_ampMax
+          else
+            f_amp[i] := 0;
+        end;
+      end;
+      //
+      //f_ampMax := log2(2 + fpeak * 4) - 1;
+      //
+      if (f_ampMax < limit) then
+        f_ampMax := limit;
+      //
       for i := 1 to nmaxH - 1 do
-	f_fftCache[i] := f_pipe.fft.dataC[i];
-    end;
-    //
-  finally
-    f_pipe.fft.releaseRO();
-  end;
-  //
-  if (0 < nmaxH) then begin
-    //
-    if (drawGrid) then begin
+        f_amp[i] := f_amp[i] / f_ampMax;
       //
-      // draw grid
-      fMax := f_pipe.fft.sampleRate shr 1;
-      r := fMax / 2000;
-      w2 := int(bandWidth + bandGap) * nmaxH;
-      //
-      windows.selectObject(dc, f_pen[3]);
-      SetTextColor(dc, bandColorGrid);
-      //
-      f := 0;
-      i := 0;
-      while (f < fMax) do begin
-        //
-        moveToEx(dc, trunc(i * w2/r), 0, nil);
-        lineTo  (dc, trunc(i * w2/r), h);
-        //
-        if (0 = i) then
-          s := 'kHz'
-        else
-          s := int2str(trunc(f/1000));
-        //
-        TextOut(dc, trunc(i * w2/r) + 4, 4, pchar(s), length(s));
-        //
-        f := f + 2000;
-        inc(i);
-      end;
-      //
-      i := 0;
-      r := h / 10;
-      while (i < 10) do begin
-        //
-        moveToEx(dc, 0, trunc(i * r), nil);
-        lineTo  (dc, w, trunc(i * r));
-        //
-        inc(i);
-      end;
-    end;
-    //
-    // draw FFT bands
-    //
-    limit := 0.00001; // f_fftCache[0].re / 10000;
-    abs2min := limit * limit * f_pipe.fft.windowSize * f_pipe.fft.windowSize;
-    //
-    x := 0;
-    r := h / 3.01;
-    f_ampMax := f_ampMax * 0.97;
-    fpeak := 0;
-    //
-    for i := 1 to nmaxH - 1 do begin
-      //
-      abs2 := (f_fftCache[i].re * f_fftCache[i].re) + (f_fftCache[i].im * f_fftCache[i].im);
-      f := (2.0 * sqrt(abs2) / f_pipe.fft.windowSize);
-      if (fpeak < f) then
-        fpeak := f;
-      //
-      if (abs2min < abs2) then begin
-        //
-        f_amp[i] := log2(2 + f * 4) - 1;
-        if (f_ampMax < f_amp[i] * 1.2) then
-          f_ampMax := f_amp[i] * 1.2;
-      end
-      else begin
-        //
-        if (1 < f_fallbackf) then
-          f_amp[i] := f_amp[i] / f_fallbackf * f_ampMax
-        else
-          f_amp[i] := 0;
-      end;
-    end;
-    //
-    //f_ampMax := log2(2 + fpeak * 4) - 1;
-    //
-    if (f_ampMax < limit) then
-      f_ampMax := limit;
-    //
-    for i := 1 to nmaxH - 1 do
-      f_amp[i] := f_amp[i] / f_ampMax;
-    //
-    case (drawStyle) of
+      case (drawStyle) of
 
-      unaFFTDraw_Solid: begin
-        //
-        for i := 1 to nmaxH - 1 do begin
-          for j := 0 to f_bandWidth - 1 do begin
-            for k := 0 to 2 do begin
-              //
-              windows.selectObject(dc, f_pen[k]);
-              moveToEx(dc, x + j, trunc(h - r * f_amp[i] * (k + 0)), nil);
-              lineTo  (dc, x + j, trunc(h - r * f_amp[i] * (k + 1)));
+        unaFFTDraw_Solid: begin
+          //
+          for i := 1 to nmaxH - 1 do begin
+            for j := 0 to f_bandWidth - 1 do begin
+              for k := 0 to 2 do begin
+                //
+              {$IFDEF FMX }
+                Canv.Stroke.Color := color2alpha(f_penColor[k]);
+                Canv.DrawLine(TPointF.Create(x + j, h - r * f_amp[i] * (k + 0)), TPointF.Create(x + j, h - r * f_amp[i] * (k + 1)), 1);
+              {$ELSE }
+                windows.selectObject(dc, f_pen[k]);
+                moveToEx(dc, x + j, trunc(h - r * f_amp[i] * (k + 0)), nil);
+                lineTo  (dc, x + j, trunc(h - r * f_amp[i] * (k + 1)));
+              {$ENDIF FMX }
+              end;
             end;
-          end;
-          //
-          inc(x, bandWidth);
-          inc(x, bandGap);
-        end;
-      end;
-
-      unaFFTDraw_Line: begin
-        //
-        windows.selectObject(dc, f_pen[2]);
-        moveToEx(dc, 0, h, nil);
-        for i := 1 to nmaxH - 1 do begin
-          for j := 0 to f_bandWidth - 1 do begin
             //
-            lineTo  (dc, x + j, trunc(h - r * f_amp[i] * (2 + 1)));
+            inc(x, bandWidth);
+            inc(x, bandGap);
           end;
-          //
-          inc(x, bandWidth);
-          inc(x, bandGap);
         end;
-      end;
 
-      unaFFTDraw_Dots: begin
-        //
-        for i := 1 to nmaxH - 1 do begin
-          for j := 0 to f_bandWidth - 1 do begin
+        unaFFTDraw_Line: begin
+          //
+        {$IFDEF FMX }
+        {$ELSE }
+          windows.selectObject(dc, f_pen[2]);
+          moveToEx(dc, 0, h, nil);
+        {$ENDIF FMX }
+          for i := 1 to nmaxH - 1 do begin
+            for j := 0 to f_bandWidth - 1 do begin
+              //
+            {$IFDEF FMX }
+            {$ELSE }
+              lineTo  (dc, x + j, trunc(h - r * f_amp[i] * (2 + 1)));
+            {$ENDIF FMX }
+            end;
             //
-            setPixel(dc, x + j, trunc(h - r * f_amp[i] * (0 + 1)), bandColorLow);
-            setPixel(dc, x + j, trunc(h - r * f_amp[i] * (1 + 1)), bandColorMed);
-            setPixel(dc, x + j, trunc(h - r * f_amp[i] * (2 + 1)), bandColorTop);
+            inc(x, bandWidth);
+            inc(x, bandGap);
           end;
-          //
-          inc(x, bandWidth);
-          inc(x, bandGap);
         end;
-      end;
 
-    end; // case
-    //
-    if (drawGrid) then begin
+        unaFFTDraw_Dots: begin
+          //
+          for i := 1 to nmaxH - 1 do begin
+            for j := 0 to f_bandWidth - 1 do begin
+              //
+            {$IFDEF FMX }
+            {$ELSE }
+              setPixel(dc, x + j, trunc(h - r * f_amp[i] * (0 + 1)), bandColorLow);
+              setPixel(dc, x + j, trunc(h - r * f_amp[i] * (1 + 1)), bandColorMed);
+              setPixel(dc, x + j, trunc(h - r * f_amp[i] * (2 + 1)), bandColorTop);
+            {$ENDIF FMX }
+            end;
+            //
+            inc(x, bandWidth);
+            inc(x, bandGap);
+          end;
+        end;
+
+      end; // case
       //
-      inc(f_dbUpdate);
-      if (6 < f_dbUpdate) then begin
+      if (drawGrid) then begin
         //
-        if (0 < fpeak) then
-          fpeak := 0 - 10 * log10(1 / fpeak)
-        else
-          fpeak := -60;
+        inc(f_dbUpdate);
+        if (6 < f_dbUpdate) then begin
+          //
+          if (0 < fpeak) then
+            fpeak := 0 - 10 * log10(1 / fpeak)
+          else
+            fpeak := -60;
+          //
+          f_dbPeak := f_dbPeak + (fpeak - f_dbPeak) / 3;
+          //
+          f_dbUpdate := 0;
+        end;
         //
-        f_dbPeak := f_dbPeak + (fpeak - f_dbPeak) / 3;
+        fdbStep := (60 + f_dbPeak) / 10;
         //
-        f_dbUpdate := 0;
-      end;
-      //
-      fdbStep := (60 + f_dbPeak) / 10;
-      //
-      SetTextColor(dc, bandColorGrid);
-      for i := 1 to 9 do begin
-        //
-        s := '   ' + int2str(trunc(f_dbPeak - i * fdbStep)) + ' dB   ';
-        TextOut(dc, w - 70, i * h div 10 - 8, pchar(s), length(s));
+      {$IFDEF FMX }
+      {$ELSE }
+        SetTextColor(dc, bandColorGrid);
+      {$ENDIF FMX }
+        for i := 1 to 9 do begin
+          //
+          s := '   ' + int2str(trunc(f_dbPeak - i * fdbStep)) + ' dB   ';
+        {$IFDEF FMX }
+        {$ELSE }
+          TextOut(dc, w - 70, i * h div 10 - 8, pchar(s), length(s));
+        {$ENDIF FMX }
+        end;
       end;
     end;
+{$IFDEF FMX }
+  finally
+    Canv.RestoreState(State);
   end;
+{$ENDIF FMX }
 end;
 
 // --  --
@@ -831,10 +973,15 @@ procedure TunadspFFTControl.setBandColor(index: integer; value: tColor);
 begin
   f_penColor[index] := value;
   //
+{$IFDEF FMX }
+  Repaint();
+{$ELSE }
+  //
   windows.deleteObject(f_pen[index]);
   f_pen[index] := windows.createPen(PS_SOLID, 1, value);
   //
   refresh();
+{$ENDIF FMX }
 end;
 
 // --  --
@@ -846,8 +993,13 @@ end;
 // --  --
 procedure TunadspFFTControl.setColorBack(value: tColor);
 begin
+{$IFDEF FMX }
+  f_backColor := value;
+  Repaint();
+{$ELSE }
   canvas.brush.color := value;
   refresh();
+{$ENDIF FMX }
 end;
 
 // --  --
@@ -980,7 +1132,11 @@ end;
 // --  --
 procedure Register();
 begin
+{$IFDEF FMX }
+  RegisterFmxClasses([
+{$ELSE }
   RegisterComponents(c_VC_reg_DSP_section_name, [
+{$ENDIF FMX }
     TunadspFFTPipe,
     TunadspFFTControl,
     TunavclDTMFDecoder

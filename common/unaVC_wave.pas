@@ -378,6 +378,9 @@ type
     property silenceDetectionMode: unaWaveInSDMethods read f_sdmCache write setSdm default unasdm_none;
   public
     {*
+    }
+    constructor Create(AOwner: TComponent); override;
+    {*
         Creates the wave device and assigns default values for properties.
     }
     procedure AfterConstruction(); override;
@@ -1210,6 +1213,18 @@ begin
   mrealloc(f_formatExt);
   //
   driver := nil;	// make sure driver is freed
+end;
+
+// --  --
+constructor unavclInOutWavePipe.Create(AOwner: TComponent);
+begin
+  f_loaded := true;
+  //
+  if (nil <> AOwner) then
+    if (csLoading in AOwner.ComponentState) then
+      f_loaded := false;
+  //
+  inherited;
 end;
 
 // --  --

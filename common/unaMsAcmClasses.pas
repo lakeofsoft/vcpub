@@ -2209,6 +2209,10 @@ function removeWaveHdr(var hdr: unaWaveHeader; device: unaWaveDevice): bool;
 
 implementation
 
+{$IFDEF VCX_DEMO }
+uses
+  unaBaseXcode;
+{$ENDIF VCX_DEMO }
 
 { unaMsAcmObject }
 
@@ -5117,18 +5121,7 @@ end;
 procedure hackG723(format: PWAVEFORMATEX);
 asm
 {$IFDEF CPU64 }
-	or	rcx, rcx
-	jz	@exit
-
-	cmp	dword ptr [rcx], $10000 or WAVE_FORMAT_MSG723	// mono + formatTag
-	jne	@exit
-
-	cmp	byte ptr [rcx][$10], 10
-	jb	@exit
-
-	//
-	mov	dword ptr [rcx][$14], $0F7329ACE
-	mov	dword ptr [rcx][$18], $0ACDEAEA2
+        // 2do
 {$ELSE }
 	or	eax, eax
 	jz	@exit
