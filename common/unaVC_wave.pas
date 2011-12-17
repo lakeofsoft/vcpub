@@ -57,9 +57,10 @@ unit
 interface
 
 uses
-  Windows, unaTypes, unaClasses, Classes,
+  Windows, unaTypes, unaClasses,
   MMSystem, unaMsAcmApi, unaMsAcmClasses, unaWave,
-  unaVC_pipe;
+  unaVC_pipe,
+  Classes;
 
 
 // -----------------------

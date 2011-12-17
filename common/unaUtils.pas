@@ -1689,7 +1689,7 @@ function getRegValue(const path: aString; const keyName: aString = ''; const def
 }
 function setRegValue(const path: aString; const keyName: aString = ''; const keyValue: aString = ''; rootKey: HKEY = HKEY_CURRENT_USER): long; overload;
 {$IFDEF NO_ANSI_SUPPORT }
-function setRegValue(const path: wString; const keyName: wString = ''; const keyValue: wString = ''; rootKey: HKEY = HKEY_CURRENT_USER): long; overload;
+function setRegValueW(const path: wString; const keyName: wString = ''; const keyValue: wString = ''; rootKey: HKEY = HKEY_CURRENT_USER): long; overload;
 {$ENDIF NO_ANSI_SUPPORT }
 
 {*
@@ -1909,13 +1909,13 @@ procedure mswapbuf16(buf: pointer; len: int);
 {*
 	LSB16 <-> MSB16, sorts 2 bytes in reverse order.
 }
-function swap16(w: uint16): uint16; overload;
-function swap16(w: int16): int16; overload;
+function swap16(w: uint16): uint16;
+function swap16i(w: int16): int16;
 {*
 	LSB32 <-> MSB32, sorts 4 bytes in reverse order.
 }
-function swap32(w: uint32): uint32; overload;
-function swap32(w: int32): int32; overload;
+function swap32(w: uint32): uint32;
+function swap32i(w: int32): int32;
 
 
 {*
@@ -7455,7 +7455,7 @@ end;
 {$IFDEF NO_ANSI_SUPPORT }
 
 // --  --
-function setRegValueW(const path, keyName: wString; const buf; size: DWORD; keyType: int; rootKey: HKEY): long;
+function _setRegValueW(const path, keyName: wString; const buf; size: DWORD; keyType: int; rootKey: HKEY): long;
 var
   key: HKEY;
 begin
@@ -7541,16 +7541,16 @@ end;
 {$IFDEF NO_ANSI_SUPPORT }
 
 // --  --
-function setRegValue(const path: wString; const keyName: wString; const keyValue: wString; rootKey: HKEY): long;
+function setRegValueW(const path: wString; const keyName: wString; const keyValue: wString; rootKey: HKEY): long;
 var
   zero: wChar;
 begin
   if ('' <> keyValue) then
-    result := setRegValueW(path, keyName, keyValue[1], (Length(keyValue) + 1) * sizeof(keyValue[1]), REG_SZ, rootKey)
+    result := _setRegValueW(path, keyName, keyValue[1], (Length(keyValue) + 1) * sizeof(keyValue[1]), REG_SZ, rootKey)
   else begin
     //
     zero := #0;
-    result := setRegValueW(path, keyName, zero, sizeof(zero), REG_SZ, rootKey)
+    result := _setRegValueW(path, keyName, zero, sizeof(zero), REG_SZ, rootKey)
   end;
 end;
 
@@ -10058,7 +10058,7 @@ asm
 end{$IFDEF FPC64 } ['RAX'] {$ENDIF FPC64 };
 
 // --  --
-function swap16(w: int16): int16;
+function swap16i(w: int16): int16;
 begin
   result := int16(swap16(uint16(w)));
 end;
@@ -10077,7 +10077,7 @@ asm
 end{$IFDEF FPC64 } ['RAX'] {$ENDIF FPC64 };
 
 // --  --
-function swap32(w: int32): int32;
+function swap32i(w: int32): int32;
 begin
   result := int32(swap32(uint32(w)));
 end;
