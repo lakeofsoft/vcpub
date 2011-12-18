@@ -88,8 +88,11 @@ var
   c_maxThreadPoolSize: unsigned	= 256;			/// maximum number of threads in pool
 
 type
-  pTIP4         = ^TIP4;
+  pIP4         = ^TIP4;
   TIP4          = uint32;
+  //
+  pIPv6        = ^TIPv6;
+  TIPv6         = array[0..15] of byte;
 
 
   //
@@ -1251,7 +1254,11 @@ function select(s: tSocket; r, w, e: pbool; timeout: tTimeout = tTimeout(INFINIT
 {*
 	Converts host byte order (little endian) unsigned 32 bits integer to string representing IP address (xxx.xxx.xxx.xxx).
 }
-function ipH2str(ip: TIP4): string;
+function ipH2str(ip: TIP4): string; overload;
+{*
+	.
+}
+function ipH2str(const ip: TIPv6): string; overload;
 {*
 	Converts network byte order (big endian) unsigned 32 bits integer to string representing IP address (xxx.xxx.xxx.xxx).
 }
@@ -1573,7 +1580,7 @@ begin
 	    ar := pointer(phost.h_addr_list);
 	    while (nil <> ar^) do begin
 	      //
-	      list.add(string(inet_ntoa(in_addr(pTIP4(ar^)^))));
+	      list.add(string(inet_ntoa(in_addr(pIP4(ar^)^))));
 	      inc(ar);
 	    end;
 	    //
@@ -1679,6 +1686,16 @@ var
 begin
   inAddr.s_addr := htonl(u_long(ip));
   result := string(inet_ntoa(inAddr));
+end;
+
+// --  --
+function ipH2str(const ip: TIPv6): string;
+var
+  i: int;
+begin
+  result := '';
+  for i := 0 to 15 do
+    result := result + int2str(ip[i], 16) + ':';
 end;
 
 // --  --

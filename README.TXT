@@ -1,5 +1,5 @@
 
-VC components Freeware version
+VC components: Freeware version
 http://lakeofsoft.com/vc/freeware.html
 
 --------------------------
