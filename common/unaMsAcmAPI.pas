@@ -23,11 +23,12 @@
 {$I unaDef.inc }
 
 {*
-  This unit contains Object Pascal version of MSAcm.h originally done by Armin Sander, Digital SimpleX / armin@dsx.de
+  This unit contains Object Pascal version of MSAcm.h originally done by Armin Sander, Digital SimpleX
   Most of the functions in this unit are documented in Microsoft Platform SDK.
 
   @Author Additional modification by Lake
-  @Version 2.5.2008.07 Still here
+
+  2.5.2008.07 Still here
 }
 
 unit
@@ -2865,31 +2866,36 @@ function mid2str(mid: unsigned): string;
 function waveFormat2str(const format: WAVEFORMATEX): aString;
 
 {*
-  Converts string representation of WAVEFORMATEX structure (encoded using base64) to format value.
-  <BR />If size is too small to hold the structure, this function returns false and size parameter will be set to required size of structure.
-  <BR />Otherwise it fills the format and returns true.
+  	Converts string representation of WAVEFORMATEX structure (encoded using base64) to format value.
+  
+	If size is too small to hold the structure, this function returns false and size parameter will be set to required size of structure.
+	Otherwise it fills the format and returns true.
 }
 function str2waveFormat(const str: aString; var format: WAVEFORMATEX; var size: unsigned): bool; overload;
 {*
   Converts string representation of WAVEFORMATEX structure (encoded using base64) to format value.
-  <BR />Allocates necessary amount of memory for format parameter.
+  
+Allocates necessary amount of memory for format parameter.
 }
 function str2waveFormat(const str: aString; var format: pWAVEFORMATEX; var size: unsigned): bool; overload;
 function str2waveFormat(const str: aString; var format: pWAVEFORMATEX): bool; overload;
 {*
   Returns description of given wave format.
-  <BR />Returns defStr if format is not supported by driver(s).
+
+	@Returns defStr if format is not supported by driver(s).
 }
 function getFormatDescription(const format: WAVEFORMATEX; driver: HACMDRIVER = 0; defStr: string = ''): string;
 //
 {*
   Allocates wave format with maximum possible size for specified driver.
-  <BR />Returns number of bytes allocated.
+
+	@Returns number of bytes allocated.
 }
 function allocateWaveFormat(out format: pWAVEFORMATEX; driver: HACMOBJ = 0): unsigned; overload;
 {*
   Allocates wave format equal to specified source format.
-  <BR />Returns number of bytes allocated.
+	
+	@Returns number of bytes allocated.
 }
 function allocateWaveFormat(const srcFormat: WAVEFORMATEX; out format: pWAVEFORMATEX): unsigned; overload;
 {*
@@ -2899,12 +2905,14 @@ function deleteWaveFormat(format: pWAVEFORMATEX): bool;
 //
 {*
   Returns maximum possible size of wave format for specified driver.
-  <BR />If driver = 0 function queries all installed drivers.
+
+  If driver = 0 function queries all installed drivers.
 }
 function getMaxWaveFormatSize(driver: HACMOBJ = 0): unsigned;
 {*
   Returns maximum possible size of wave filter for specified driver.
-  <BR />If driver = 0 function queries all installed drivers.
+
+  If driver = 0 function queries all installed drivers.
 }
 function getMaxWaveFilterSize(driver: HACMOBJ = 0): unsigned;
 

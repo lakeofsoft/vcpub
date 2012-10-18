@@ -32,10 +32,10 @@
   Contains standard Windows GUI classes wrappers.
 
   @Author Lake
-  @Version 2.5.2009.06 Fixed some unicode-related bugs
 
-  @Author Lake
-  @Version 2.5.2008.07 Still here
+  Version 2.5.2009.06 Fixed some unicode-related bugs
+
+  Version 2.5.2008.07 Still here
 }
 
 
@@ -562,13 +562,16 @@ type
     function setText(const text: string): unaWinWindow;
     {*
       Default value -1 for wnd means window handle will be used instead.
-      <BR>You can specify 0 as wnd to retrieve the entire screen DC.
-      <BR>Make sure you call releaseDC() as soon as possible.
+
+      You can specify 0 as wnd to retrieve the entire screen DC.
+
+      Make sure you call releaseDC() as soon as possible.
     }
     function getDC(clipRgn: hRGN = 0; flags: unsigned = DCX_WINDOW; wnd: int = -1): hDC;
     {*
       Default value 0 means last DC returned by getDC() method will be used
-      <BR>Class and private DCs (i.e. when isCommonDC property is false) will not be
+
+      Class and private DCs (i.e. when isCommonDC property is false) will not be
       released, and it is safe to call this function for that class styles.
     }
     function releaseDC(dc: hDC = 0): int;
@@ -659,7 +662,7 @@ type
     property winClass: unaWinClass read getWndClass;
     {*
       false if this window belongs to class with CS_CLASSDC, CS_OWNDC or CS_PARENTDC style set.
-      <BR>true otherwise
+      true otherwise
     }
     property isCommonDC: bool read f_isCommonDC;
     {*
@@ -684,7 +687,8 @@ type
     property isOverlapped: bool index WS_OVERLAPPED read hasStyle;
     {*
       This property is valid only if isCommonDC is false.
-      <BR>Use getDC()/releaseDC() methods otherwise.
+
+      Use getDC()/releaseDC() methods otherwise.
     }
     property deviceContext: hDC read f_dc;
     {*
@@ -849,7 +853,8 @@ type
     function replaceSel(const line: string): unaWinMemo;
     {*
       Returns line from memo with specified index (starting form 0).
-      <BR>Line length is limited to 65535.
+
+      Line length is limited to 65535.
     }
     function getLine(index: unsigned = 0): string;
   end;
@@ -1044,7 +1049,8 @@ type
     function initWindow(): bool; override;
     {*
       WM_NCDESTROY message handler.
-      <BR>Calls quit() method to terminate the application.
+
+      Calls quit() method to terminate the application.
     }
     function notifyDestroy(): bool; override;
     {*

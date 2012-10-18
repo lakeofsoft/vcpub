@@ -34,8 +34,10 @@
   * HTTP-like protocols parser
 
   @Author Lake
-  @Version 2.5.2009.04 + HTTP-like protocols parser
-  @Version 2.5.2009.04 + SDP parser
+
+  Version 2.5.2009.04 + HTTP-like protocols parser
+
+  Version 2.5.2009.04 + SDP parser
 
 }
 
@@ -142,16 +144,21 @@ type
     function getNextLine(var offs: int; out line: wString): bool;
     function getHeaderLine(index: int): wString;
   protected
+    {*
+    	//
+    }
     procedure setHeaderDelimiter(newDelimiter: char);
-    //
+    {*
+	//
+    }
     procedure doCleanup(); virtual;
   public
     {*
-    	Initializes instance.
+	Initializes instance.
     }
     constructor create();
     {*
-    	Cleans up the instance.
+	Cleans up the instance.
     }
     procedure BeforeDestruction(); override;
     {*
@@ -161,7 +168,7 @@ type
     {*
 	Drops complete Request/Response with payload (if any).
     }
-    procedure dropIfComplete();
+    procedure dropIfComplete(defaultCL: int = -1);
     {*
 	Feeds parser with new portion of data.
 
@@ -170,61 +177,68 @@ type
     }
     procedure feed(data: pointer; len: int);
     {*
-	Returns requested method (if any).
+	@returns requested method (if any).
     }
     function getReqMethod(): string;
     {*
-	Returns requested URI (if any).
+	@returns requested URI (if any).
     }
     function getReqURI(): string;
     {*
-	Returns request protocol version (if any).
+	@returns request protocol version (if any).
     }
     function getReqProtoVersion(): string;
     {*
-	Returns response protocol version (if any).
+	@returns response protocol version (if any).
     }
     function getRespProtoVersion(): string;
     {*
-	Returns response code (if any).
+	@returns response code (if any).
     }
     function getRespCode(): int;
     {*
-	Returns response code as string (if any).
+	@returns response code as string (if provided in response).
     }
     function getRespCodeString(): string;
     {*
-	Returns specified header value by name (if any).
+	@param headerName name of header
+	@return specified header value
     }
-    function getHeaderValue(const headerName: string): string; overload;
+    function getHeaderValue(const headerName: string; trim: bool = false): string; overload;
     {*
-	Returns specified header value by index.
+	@param index header index (starting from 0)
+	@return specified header value by index.
     }
-    function getHeaderValue(index: int): string; overload;
+    function getHeaderValue(index: int; trim: bool = false): string; overload;
     {*
-	Returns number of headers.
+	@return number of headers.
     }
     function getHeaderCount(): int;
     {*
-	Returns full header.
+	@return full header.
     }
     function getFullHeader(): aString;
     {*
-	Returns specified header value (if any).
+	@param index header index (starting from 0)
+	@return specified header name.
     }
     function getHeaderName(index: int): string;
     {*
-	Returns payload data (if any).
+	@return payload data (if any).
     }
     function getPayload(): aString;
     {*
-	Returns current payload size.
+	@return current payload size.
     }
     function getPayloadSize(): int;
     {*
 	True if complete payload was received.
+
+	@param connected True if socket is still connected
+	@param defaultCL Default value if Contnent-Length header is missing. Some protocols (like RTSP) require this to be 0 by default.
+	@return True if payload is "completely" present: [Contnent-Length=0 or missing and default is 0 or default is -1 and connection is closed | or at least Contnent-Length bytes of payload is present]
     }
-    function getPayloadComplete(connected: bool): bool;
+    function getPayloadComplete(connected: bool; defaultCL: int = -1): bool;
     //
     {*
 	True if complete header was received.
@@ -265,20 +279,32 @@ type
   punaSDPMediaDescription = ^unaSDPMediaDescription;
   unaSDPMediaDescription = packed record
     //
-    r_type: string;	/// Currently defined media are "audio", "video", "text", "application", and "message", although this list may be extended in the future.
-    r_port: string;	/// Could be '0'.
-    r_proto: string; 	/// Could be 'udp', 'RTP/AVP' or 'RTP/SAVP'.
-    r_format: int;	/// First format index
+// Currently defined media are "audio", "video", "text", "application", and "message", although this list may be extended in the future.
+    r_type: string;	
+// Could be '0'.
+    r_port: string;	
+// Could be 'udp', 'RTP/AVP' or 'RTP/SAVP'.
+    r_proto: string; 	
+// First format index
+    r_format: int;	
     //
-    r_control: string;	/// absolute or relative URL
-    r_rtpmap: string;	/// rtmap attribute
-    r_fmtp: string;	/// fmtp attribute
+// absolute or relative URL
+    r_control: string;	
+// rtmap attribute
+    r_rtpmap: string;	
+// fmtp attribute
+    r_fmtp: string;	
     //
-    r_i: string;        	/// media title
-    r_c: unaSDPConnectionInfo;	/// connection information -- optional if included at session level
-    r_b: string;	        /// zero or more bandwidth information lines
-    r_k: string;	        /// encryption key
-    r_a: string;	        /// zero or more media attribute lines
+// media title
+    r_i: string;        	
+// connection information -- optional if included at session level
+    r_c: unaSDPConnectionInfo;	
+// zero or more bandwidth information lines
+    r_b: string;	        
+// encryption key
+    r_k: string;	        
+// zero or more media attribute lines    
+    r_a: string;	        
   end;
 
 
@@ -288,12 +314,18 @@ type
   punaSDPSessionInfo = ^unaSDPSessionInfo;
   unaSDPSessionInfo = packed record
     //
-    r_username,				/// is the user's login on the originating host, or it is "-" if the originating host does not support the concept of user IDs.
-    r_sessid,				/// is a numeric string that forms a globally unique identifier for the session
-    r_sessversion,			/// version number for this session description
-    r_nettype,				/// Initially "IN" is defined to have the meaning "Internet"
-    r_addrtype,				/// Initially "IP4" and "IP6" are defined
-    r_unicastAddress: string;		/// is the address of the machine from which the session was created
+// is the user's login on the originating host, or it is "-" if the originating host does not support the concept of user IDs.
+    r_username,				
+// is a numeric string that forms a globally unique identifier for the session
+    r_sessid,				
+// version number for this session description
+    r_sessversion,			
+// Initially "IN" is defined to have the meaning "Internet"
+    r_nettype,				
+// Initially "IP4" and "IP6" are defined
+    r_addrtype,				
+// is the address of the machine from which the session was created
+    r_unicastAddress: string;		
   end;
 
 
@@ -359,21 +391,38 @@ type
     }
     function getMD(index: int): punaSDPMediaDescription;
     //
-    property v: int read f_v;			/// protocol version
-    property o: punaSDPSessionInfo read f_o;	/// originator and session identifier
-    property s: string read f_s;		/// session name
-    property i: string read f_i;		/// session information
-    property u: string read f_u;		/// URI of description
-    property e: string read f_e;		/// email address
-    property p: string read f_p;		/// phone number
-    property c: punaSDPConnectionInfo read getCI;		/// connection information -- not required if included in all media
-    property b: string read f_b;		/// zero or more bandwidth information lines
-    property t: string read f_t;		/// One or more time descriptions (time the session is active)
-    property z: string read f_z;		/// time zone adjustments
-    property k: string read f_k;		/// encryption key
-    property a: string read f_a;		/// global session attributes
+// protocol version
+    property v: int read f_v;			
+// originator and session identifier
+    property o: punaSDPSessionInfo read f_o;	
+// session name
+    property s: string read f_s;		
+// session information
+    property i: string read f_i;		
+// URI of description
+    property u: string read f_u;		
+// email address
+    property e: string read f_e;		
+// phone number
+    property p: string read f_p;		
+// connection information -- not required if included in all media
+    property c: punaSDPConnectionInfo read getCI;		
+// zero or more bandwidth information lines
+    property b: string read f_b;		
+// One or more time descriptions (time the session is active)
+    property t: string read f_t;		
+// time zone adjustments
+    property z: string read f_z;		
+// encryption key
+    property k: string read f_k;		
+// global session attributes
+    property a: string read f_a;		
   end;
 
+
+{$IFDEF UNA_OP_CHECK_HTTPP }
+procedure checkHTTPp();
+{$ENDIF UNA_OP_CHECK_HTTPP }
 
 implementation
 
@@ -837,11 +886,11 @@ begin
 end;
 
 // --  --
-procedure unaHTTPparser.dropIfComplete();
+procedure unaHTTPparser.dropIfComplete(defaultCL: int);
 var
   len, lenSave: int;
 begin
-  if (headerComplete and getPayloadComplete(true)) then begin
+  if (headerComplete and getPayloadComplete(true, defaultCL)) then begin
     //
     len := f_headerSize + getPayloadSize();
     lenSave := f_bufSize - len;
@@ -966,7 +1015,7 @@ begin
 end;
 
 // --  --
-function unaHTTPparser.getHeaderValue(const headerName: string): string;
+function unaHTTPparser.getHeaderValue(const headerName: string; trim: bool): string;
 var
   index: int;
   hn: string;
@@ -979,15 +1028,15 @@ begin
       break
     else
       inc(index);
-    //    
+    //
   until ('' = hn);
   //
   if ('' <> hn) then
-    result := getHeaderValue(index);
+    result := getHeaderValue(index, trim);
 end;
 
 // --  --
-function unaHTTPparser.getHeaderValue(index: int): string;
+function unaHTTPparser.getHeaderValue(index: int; trim: bool): string;
 var
   p: int;
 begin
@@ -995,6 +1044,9 @@ begin
   p := pos(f_headerDelimiter, result);
   if (0 < p) then
     result := copy(result, p + 1, maxInt);
+  //
+  if (trim) then
+    result := trimS(result);
 end;
 
 // --  --
@@ -1038,15 +1090,6 @@ begin
 end;
 
 // --  --
-function min(a, b: int): int; {$IFDEF __AFTER_DB__ } inline;{$ENDIF __AFTER_DB__ }
-begin
-  if (a > b) then
-    result := b
-  else
-    result := a;
-end;
-
-// --  --
 function unaHTTPparser.getPayload(): aString;
 var
   len: int;
@@ -1077,14 +1120,14 @@ begin
 end;
 
 // --  --
-function unaHTTPparser.getPayloadComplete(connected: bool): bool;
+function unaHTTPparser.getPayloadComplete(connected: bool; defaultCL: int): bool;
 var
   len: int;
 begin
   result := getHC();
   if (result) then begin
     //
-    len := str2intInt(getHeaderValue('Content-Length'), -1);
+    len := str2intInt(getHeaderValue('Content-Length'), defaultCL);
     if (0 <= len) then
       result := (len <= f_bufSize - f_headerSize)
     else
@@ -1147,7 +1190,10 @@ begin
       //
       l := copy(l, p + 1, maxInt);
       p := pos(' ', l);
-      if (0 < p) then 
+      if (1 > p) then
+	p := length(l) + 1;	// no message
+      //
+      if (0 < p) then
 	result := copy(l, 1, p - 1);
     end;
   end;
@@ -1706,10 +1752,6 @@ end;
 {$ENDIF UNA_OP_CHECK_HTTPP }
 
 
-initialization
-{$IFDEF UNA_OP_CHECK_HTTPP }
-  checkHTTPp();
-{$ENDIF UNA_OP_CHECK_HTTPP }
 
 end.
 

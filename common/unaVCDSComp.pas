@@ -30,9 +30,9 @@
 
   @Author Lake
 
-  @Version 2.5.2008.07 Still here
+  Version 2.5.2008.07 Still here
 
-  @Version 2.5.2010.04 Added some sanity (notified buffers now should be exactly 20ms now)
+  Version 2.5.2010.04 Added some sanity (notified buffers now should be exactly 20ms now)
 		       Small memory leak fixed
 		       Vista/Win7 AEC
 }
@@ -1180,7 +1180,7 @@ end;
 // --  --
 function TunavclDX_FullDuplex.isActive(): bool;
 begin
-  result := (unatsRunning = f_mtCap.getStatus()) or assigned(f_DMO);
+  result := (unatsRunning = f_mtCap.status) or assigned(f_DMO);
 end;
 
 // --  --

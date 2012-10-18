@@ -30,7 +30,8 @@
   Simple audio feedback class.
 
   @Author Lake
-  @Version 2.5.2008.07 Still here
+  
+  2.5.2008.07 Still here
 }
 
 unit
@@ -55,14 +56,15 @@ const
 
 
 type
+  unaAudioFeedbackClass = class;
+
   // --  --
   myWaveOutDevice = class(unaWaveOutDevice)
   private
-    f_inProgress: int;
+    f_master: unaAudioFeedbackClass;
   protected
     function onHeaderDone(header: unaWaveHeader; wakeUpByHeaderDone: bool): bool; override;
   end;
-
 
 {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
 
@@ -98,7 +100,9 @@ type
     //
     f_waveChunksThrownAway: int64;
     f_waveOutLastHeaderIndex: int;
+    //
     f_onDA: unaWaveDataEvent;
+    f_onCD: unaWaveDataEvent;
     //
     procedure setDelay(delay: unsigned);
     function getWaveFormat(): PWAVEFORMATEXTENSIBLE;
@@ -126,6 +130,7 @@ type
     property waveOut: unaWaveOutDevice read getWaveOut; // stupid Delphi compiler canot directly cast f_waveOut as unaWaveOutDevice.
     //
     property onDataAvailable: unaWaveDataEvent read f_onDA write f_onDA;
+    property onChunkDone: unaWaveDataEvent read f_onCD write f_onCD;
   end;
 
 
@@ -135,18 +140,20 @@ implementation
 uses
   unaUtils;
 
-{ myWaveOutDevice }
 
-// --  --
+  { myWaveOutDevice }
+
+// -- --
 function myWaveOutDevice.onHeaderDone(header: unaWaveHeader; wakeUpByHeaderDone: bool): bool;
 begin
-  if (wakeUpByHeaderDone) then
-    dec(f_inProgress);
+  if (wakeUpByHeaderDone and Assigned(f_master.f_onCD)) then
+    f_master.f_onCD(f_master, header.lpData, header.dwBufferLength);
   //
-  result := true;	// no need to call overitten method
+  result := true;
 end;
 
-{ unaAudioFeedbackClass }
+
+  { unaAudioFeedbackClass }
 
 // --  --
 procedure unaAudioFeedbackClass.afterConstruction();
@@ -156,7 +163,9 @@ begin
   //
   f_waveIn := unaWaveInDevice.create();
   f_waveOut := myWaveOutDevice.create();
-  f_waveOut.jitterImprove := false;
+  f_waveOut.f_master := self;
+  f_waveOut.jitterRepeat := false;
+  f_waveOut.smoothStartup := false;
   //
   f_waveIn.assignStream(false, nil);	// remove outgoing stream
   //
@@ -182,10 +191,7 @@ begin
   if (0 = f_errorCode) then
     f_status := c_stat_afActive;
     //
-  while (not shouldStop) do begin
-    //
-    sleep(50);
-  end;
+  while (not sleepThread(100)) do ;
   //
   result := 0;
 end;
@@ -206,10 +212,9 @@ end;
 procedure unaAudioFeedbackClass.onWaveDataAvailable(sender: tObject; data: pointer; len: cardinal);
 var
   header: myWaveHeader;
-  res: MMRESULT;
 begin
   // check if we can feed outbuffer now
-  if (f_waveOut.f_inProgress <= f_delayAsCount) then begin
+  if (int(f_waveOut.inProgress) - 1 <= f_delayAsCount) then begin
     //
     // locate unused header
     inc(f_waveOutLastHeaderIndex);
@@ -228,16 +233,13 @@ begin
     header.setData(data, len);
     {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
     //
-    res := f_waveOut.addHeader(header);
-    if (mmNoError(res)) then
-      inc(f_waveOut.f_inProgress);
-    //
+    f_waveOut.addHeader(header);
   end
   else
     inc(f_waveChunksThrownAway);
   //
   // check if we need to increase the delay
-  while (not shouldStop and (f_waveOut.f_inProgress < f_delayAsCount - 2)) do begin
+  while (not shouldStop and (int(f_waveOut.inProgress) < f_delayAsCount - 2)) do begin
     //
     // send silence to waveOut
     onWaveDataAvailable(sender, f_silence, waveIn.chunkSize);
@@ -290,16 +292,15 @@ begin
         end;
       end;
 
-
       c_recordWaveCmd_stop: begin
-        //
-        freeAndNil(f_waveFile);
-        //
-        result := S_OK;
+	//
+	freeAndNil(f_waveFile);
+	//
+	result := S_OK;
       end;
 
       else
-        result := HRESULT(-1);
+	result := HRESULT(-1);
 
     end;
     //
@@ -402,7 +403,6 @@ begin
   waveOut.close();
   //
   mrealloc(f_silence);
-  f_waveOut.f_inProgress := 0;
   //
   f_status := c_stat_afStopped;
   //

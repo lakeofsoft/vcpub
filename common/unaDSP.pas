@@ -29,10 +29,14 @@
   FFT and DTMF implementations.
 
   @Author Lake
-  @Version 2.5.2007.?? DTMF added
-  @Version 2.5.2008.07 Still here
-  @Version 2.5.2011.05 DTMF decoder state cleanup fix
-  @Version 2.5.2011.10 FFT updated
+
+  2.5.2007.?? DTMF added
+
+  2.5.2008.07 Still here
+
+  2.5.2011.05 DTMF decoder state cleanup fix
+
+  2.5.2011.10 FFT updated
 }
 
 unit

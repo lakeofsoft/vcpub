@@ -1,0 +1,61 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!-- C++Builder XML Project -->
+<PROJECT>
+  <MACROS>
+    <VERSION value="BCB.06.00"/>
+    <PROJECT value="vc2cb.bpl"/>
+    <OBJFILES value="vc2cb.obj unavcIDE.obj unavcIDEUtils.obj unaEncoderAPI.obj unaMsMixer.obj 
+      unavcApp.obj unaVCLutils.obj unaIcyStreamer.obj unaMpglibAPI.obj 
+      unaOpenH323PluginAPI.obj unaAudioFeedback.obj unaDspControls.obj 
+      unaGridMonitorVCL.obj unaDspDLibPipes.obj unaVCDSComp.obj unaVCDSIntf.obj 
+      unaG711.obj unaIPStreaming.obj ..\demos\common\u_common_audioConfig.obj 
+      ..\demos\common\u_common_dsplFilterConfig.obj 
+      ..\demos\common\u_common_dsplFilters.obj"/>
+    <RESFILES value="vc2cb.res vc2ico.res"/>
+    <IDLFILES value=""/>
+    <IDLGENFILES value=""/>
+    <DEFFILE value=""/>
+    <RESDEPEN value="$(RESFILES) ..\demos\common\u_common_audioConfig.dfm 
+      ..\demos\common\u_common_dsplFilterConfig.dfm 
+      ..\demos\common\u_common_dsplFilters.dfm"/>
+    <LIBFILES value=""/>
+    <LIBRARIES value=""/>
+    <SPARELIBS value="rtl.lib"/>
+    <PACKAGES value="rtl.bpi vcl.bpi"/>
+    <PATHCPP value=".;"/>
+    <PATHPAS value=".;..\demos\common;..\demos\common;..\demos\common"/>
+    <PATHRC value=".;"/>
+    <PATHASM value=".;"/>
+    <DEBUGLIBPATH value="$(BCB)\lib\debug"/>
+    <RELEASELIBPATH value="$(BCB)\lib\release"/>
+    <LINKER value="ilink32"/>
+    <USERDEFINES value=""/>
+    <SYSDEFINES value="NO_STRICT;USEPACKAGES"/>
+    <MAINSOURCE value="vc2cb.cpp"/>
+    <INCLUDEPATH value="..\demos\common;$(BCB)\include;$(BCB)\include\vcl"/>
+    <LIBPATH value="..\demos\common;$(BCB)\lib\obj;$(BCB)\lib"/>
+    <WARNINGS value="-w-par"/>
+    <OTHERFILES value=""/>
+  </MACROS>
+  <OPTIONS>
+    <IDLCFLAGS value="-src_suffix cpp -I..\demos\common -I$(BCB)\include -I$(BCB)\include\vcl -boa"/>
+    <CFLAG1 value="-O2 -H=g:\xp64dev\pf\borland\CBUILD~1\lib\vcl60.csm -Hc -Vx -Ve -X- -a8 
+      -b- -k- -vi -c -tWM"/>
+    <PFLAGS value="-$Y- -$L- -$D- -$A8 -v -JPHNE -M"/>
+    <RFLAGS value=""/>
+    <AFLAGS value="/mx /w2 /zn"/>
+    <LFLAGS value="-D&quot;Voice Communicator components 2.5 Pro&quot; -aa -Tpp -Gpd -x -Gn -Gl -Gi"/>
+    <OTHERFILES value=""/>
+  </OPTIONS>
+  <LINKER>
+    <ALLOBJ value="c0pkg32.obj $(PACKAGES) sysinit.obj $(OBJFILES)"/>
+    <ALLRES value="$(RESFILES)"/>
+    <ALLLIB value="$(LIBFILES) $(LIBRARIES) import32.lib cp32mt.lib wininet.lib ws2_32.lib "/>
+    <OTHERFILES value=""/>
+  </LINKER>
+  <BUILDTOOLS>
+  </BUILDTOOLS>
+
+  <IDEOPTIONS>
+  </IDEOPTIONS>
+</PROJECT>

@@ -48,13 +48,14 @@ type
     c_statusBar_main: TStatusBar;
     c_timer_update: TTimer;
     c_label_delayInfo: TLabel;
-    c_fftControl_main: TunadspFFTControl;
-    unavclWaveCodecDevice1: TunavclWaveCodecDevice;
+    c_fft_in: TunadspFFTControl;
     MainMenu1: TMainMenu;
     File1: TMenuItem;
     Exit1: TMenuItem;
     Help1: TMenuItem;
     About1: TMenuItem;
+    c_fft_out: TunadspFFTControl;
+    Label4: TLabel;
     //
     procedure formCreate(sender: tObject);
     procedure formCloseQuery(sender: tObject; var canClose: boolean);
@@ -75,6 +76,7 @@ type
     //
     procedure dafControl(cmd: int);
     procedure myOnDA(sender: tObject; data: pointer; len: uint);
+    procedure myOnCD(sender: tObject; data: pointer; len: uint);
   public
     { Public declarations }
   end;
@@ -113,6 +115,7 @@ begin
   //
   f_feedback := unaAudioFeedbackClass.create(false, THREAD_PRIORITY_ABOVE_NORMAL);
   f_feedback.onDataAvailable := myOnDA;
+  f_feedback.onChunkDone := myOnCD;
 end;
 
 // --  --
@@ -120,7 +123,9 @@ procedure Tc_form_main.formCloseQuery(sender: tObject; var canClose: boolean);
 begin
   c_timer_update.enabled := false;
   //
-  c_fftControl_main.active := false;
+  c_fft_in.active := false;
+  c_fft_out.active := false;
+  //
   f_feedback.stop();
   //
   f_config.setValue('waveIn.deviceIndex', c_cb_waveIn.itemIndex);
@@ -190,13 +195,20 @@ begin
       //
       f_feedback.stop();
       //
-      c_fftControl_main.active := false;
+      c_fft_in.active := false;
+      c_fft_out.active := false;
     end;
 
     1: begin
       //
-      c_fftControl_main.fft.fft.setFormat(f_feedback.waveIn.dstFormatExt.format.nSamplesPerSec, f_feedback.waveIn.dstFormatExt.format.wBitsPerSample, f_feedback.waveIn.dstFormatExt.format.nChannels);
-      c_fftControl_main.active := true;
+      with (f_feedback.waveIn.dstFormatExt.format) do begin
+        //
+	 c_fft_in.fft.fft.setFormat(nSamplesPerSec, wBitsPerSample, nChannels);
+	c_fft_out.fft.fft.setFormat(nSamplesPerSec, wBitsPerSample, nChannels);
+      end;
+      //
+      c_fft_in.active := true;
+      c_fft_out.active := true;
       //
       f_feedback.start();
     end;
@@ -252,9 +264,15 @@ begin
 end;
 
 // --  --
+procedure Tc_form_main.myOnCD(sender: tObject; data: pointer; len: uint);
+begin
+  c_fft_out.fft.write(data, len);
+end;
+
+// --  --
 procedure Tc_form_main.myOnDA(sender: tObject; data: pointer; len: uint);
 begin
-  c_fftControl_main.fft.write(data, len);
+  c_fft_in.fft.write(data, len);
 end;
 
 // --  --

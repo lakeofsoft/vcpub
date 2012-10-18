@@ -160,14 +160,14 @@ begin
     c_sb_main.panels[0].text := 'Mem: ' + int2str(ams() shr 10, 10, 3) + ' KB';
     //
     //c_label_capInfo.caption := 'Captured buffers: ' + int2str(ds_FD.capBufCount);
-    c_label_capSize.caption := 'Captured bytes: ' + int2str(ds_FD.outBytes, 10, 3);
-    c_label_renSize.caption := 'Rendered bytes: ' + int2str(ds_FD.inBytes, 10, 3);
+    c_label_capSize.caption := 'Captured bytes: ' + int2str(ds_FD.outBytes[0], 10, 3);
+    c_label_renSize.caption := 'Rendered bytes: ' + int2str(ds_FD.inBytes[0], 10, 3);
     //
     c_sb_main.panels[1].text := 'DS: 0x' + adjust(int2str(unsigned(ds_FD.dsRes), 16), 8, '0');
     //
-    c_clb_vc.items[0] := 'codecIn - IN: ' + int2str(codecIn.inBytes, 10, 3) + ' / OUT: ' + int2str(codecIn.outBytes, 10, 3);
-    c_clb_vc.items[1] := 'ipClient - IN: ' + int2str(ipClient.inBytes, 10, 3) + ' / OUT: ' + int2str(ipClient.outBytes, 10, 3);
-    c_clb_vc.items[2] := 'codecOut - IN: ' + int2str(codecOut.inBytes, 10, 3) + ' / OUT: ' + int2str(codecOut.outBytes, 10, 3);
+    c_clb_vc.items[0] := 'codecIn - IN: ' + int2str(codecIn.inBytes[0], 10, 3) + ' / OUT: ' + int2str(codecIn.outBytes[0], 10, 3);
+    c_clb_vc.items[1] := 'ipClient - IN: ' + int2str(ipClient.inBytes[1], 10, 3) + ' / OUT: ' + int2str(ipClient.outBytes[1], 10, 3);
+    c_clb_vc.items[2] := 'codecOut - IN: ' + int2str(codecOut.inBytes[0], 10, 3) + ' / OUT: ' + int2str(codecOut.outBytes[0], 10, 3);
     //
     c_clb_vc.checked[0] := codecIn.active;
     c_clb_vc.checked[1] := ipClient.active;

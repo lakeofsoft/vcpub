@@ -212,7 +212,7 @@ begin
     else
       c_label_listeners.caption := 'Listeners server is off.';
     //
-    c_label_served.caption    := 'Served    : ' + int2str(listenServer.inBytes, 10, 3) + ' bytes.';
+    c_label_served.caption    := 'Served    : ' + int2str(listenServer.inBytes[0], 10, 3) + ' bytes.';
     //
     running := speakServer.active;
     a_srv_start.enabled := not running;

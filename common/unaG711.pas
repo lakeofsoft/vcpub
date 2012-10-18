@@ -45,7 +45,8 @@
   G711 implementation based on ITU source code
 
   @Author Lake
-  @Version 1.0 First release
+
+  1.0 First release
 }
 
 unit

@@ -30,7 +30,6 @@
 {xx $DEFINE UNA_SERVICE }	// service module
 {xx $DEFINE FMX         }       // FireMonkey
 
-
 {$IFDEF UNA_NEED_ANSI }
 {$ELSE }
   {$DEFINE NO_ANSI_SUPPORT }	// undefine this symbol if you do need support for ANSI version of Windows API (Win9x)
@@ -38,6 +37,18 @@
 
 // -- VC 2.5 license type --
 {$I unaVC25_license.inc }
+
+{$IFDEF VCX_DEMO }
+  {$DEFINE VC25_ENTERPRISE }
+{$ENDIF VCX_DEMO }
+
+{$IFDEF VCX_LIC_ENT }
+  {$DEFINE VC25_ENTERPRISE }
+{$ENDIF VCX_LIC_ENT }
+
+{$IFDEF VCX_LIC_ENTCONF }
+  {$DEFINE VC25_ENTERPRISE }
+{$ENDIF VCX_LIC_ENTCONF }
 
 
 {$IFDEF VC25_ENTERPRISE }
@@ -89,6 +100,7 @@
   {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
   {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
   {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+  {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
   {$DEFINE __STRANSI__ }
   //
   {$DEFINE __AFTER_D1__ }	// Delphi 2.0 or later
@@ -107,6 +119,7 @@
     {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
     {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
     {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+    {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
     {$DEFINE __STRANSI__ }
     //
     {$DEFINE __AFTER_D1__ }	// Delphi 2.0 or later
@@ -126,6 +139,7 @@
       {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
       {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
       {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+      {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
       {$DEFINE __STRANSI__ }
       //
       {$DEFINE __AFTER_D1__ }
@@ -144,6 +158,7 @@
 	{$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
 	{$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
         {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+        {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
 	{$DEFINE __STRANSI__ }
 	//
 	{$DEFINE __AFTER_D1__ }
@@ -162,6 +177,7 @@
 	  {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
 	  {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
           {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+          {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
 	  {$DEFINE __STRANSI__ }
 	  //
 	  {$DEFINE __AFTER_D1__ }
@@ -180,6 +196,7 @@
 	    {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
 	    {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
             {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+            {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
 	    {$DEFINE __STRANSI__ }
 	    //
 	    {$DEFINE __AFTER_D1__ }
@@ -198,6 +215,7 @@
 	      {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
 	      {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
               {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+              {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
     	      {$DEFINE __STRANSI__ }
 	      //
 	      {$DEFINE __AFTER_D1__ }
@@ -216,6 +234,7 @@
 		{$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
 		{$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
                 {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+                {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
 		{$DEFINE __STRANSI__ }
 		//
 		{$DEFINE __AFTER_D1__ }
@@ -235,6 +254,7 @@
 		  {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
 		  {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
                   {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+                  {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
 		  {$DEFINE __STRANSI__ }
 		  //
 		  {$DEFINE __AFTER_D1__ }
@@ -252,6 +272,7 @@
 		    {$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
 		    {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
                     {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+                    {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
 		    {$DEFINE __STRANSI__ }
 		    //
 		    // Delphi 2006 (DA) or Delphi 2007 (DB),
@@ -287,6 +308,7 @@
 			{$DEFINE __BEFORE_DD__ }	// Not Delphi 2010 yet
 			{$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
                         {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+                        {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
 			//
 			{$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
 			{$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
@@ -307,6 +329,7 @@
 			  //
 			  {$DEFINE __BEFORE_DE__ }	// Not Delphi XE yet
                           {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+                          {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
 			  //
 			  {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
 			  {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
@@ -320,12 +343,12 @@
 			  {$DEFINE __AFTER_DA__ }	// Delphi 2007 or later
 			  {$DEFINE __AFTER_DB__ }	// Delphi 2009 or later
 			  {$DEFINE __AFTER_DC__ }	// Delphi 2010 or later
-
 			{$ELSE }
 			  {$IFDEF VER220 }
 			    //
 			    // Delphi XE (DE)
                             {$DEFINE __BEFORE_DF__ }	// Not Delphi XE2 yet
+                            {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
 			    //
 			    {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
 			    {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
@@ -340,13 +363,12 @@
 			    {$DEFINE __AFTER_DB__ }	// Delphi 2009 or later
 			    {$DEFINE __AFTER_DC__ }	// Delphi 2010 or later
 			    {$DEFINE __AFTER_DD__ }	// Delphi XE or later
-
 			  {$ELSE }
 			     //
                             {$IFDEF VER230 }
                               //
                               // Delphi XE2 (DF)
-                              {$DEFINE __BEFORE_E0__ }	// Not Delphi XE3 yet
+                              {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
                               //
                               {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
                               {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
@@ -362,9 +384,30 @@
                               {$DEFINE __AFTER_DC__ }	// Delphi 2010 or later
                               {$DEFINE __AFTER_DD__ }	// Delphi XE or later
                               {$DEFINE __AFTER_DE__ }	// Delphi XE2 or later
-
                             {$ELSE }
-                               // ... after XE2
+                              //
+                              {$IFDEF VER240 }
+                                //
+                                // Delphi XE3 (D24)
+                                {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
+                                {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
+                                {$DEFINE __AFTER_D3__ }  	// Delphi 4.0 or later
+                                {$DEFINE __AFTER_D4__ }  	// Delphi 5.0 or later
+                                {$DEFINE __AFTER_D5__ }  	// Delphi 6.0 or later
+                                {$DEFINE __AFTER_D6__ }  	// Delphi 7.0 or later
+                                {$DEFINE __AFTER_D7__ }  	// Delphi 8.0 or later
+                                {$DEFINE __AFTER_D8__ }  	// Delphi 2005 or later
+                                {$DEFINE __AFTER_D9__ }	// Delphi 2006 or later
+                                {$DEFINE __AFTER_DA__ }	// Delphi 2007 or later
+                                {$DEFINE __AFTER_DB__ }	// Delphi 2009 or later
+                                {$DEFINE __AFTER_DC__ }	// Delphi 2010 or later
+                                {$DEFINE __AFTER_DD__ }	// Delphi XE or later
+                                {$DEFINE __AFTER_DE__ }	// Delphi XE2 or later
+                                {$DEFINE __AFTER_D24__}	// Not Delphi XE3 yet
+
+                              {$ELSE }
+                                 // ... after XE2
+                              {$ENDIF VER240 }
                             {$ENDIF VER230 }
                           {$ENDIF VER210 }
 			{$ENDIF VER210 }
@@ -440,6 +483,10 @@
     {$RANGECHECKS ON }		// $R+ generation of range-checking code (affects binary code)
     {$STACKFRAMES ON }		// $W+ generation of stack frames for procedures and functions (affects binary code)
   {$ENDIF FORCE_OPTIMIZATION }
+
+  {$IFNDEF NO_VC_HINT_COMPILE_MESSAGES }
+    {$DEFINE VC_HINT_COMPILE_MESSAGES }  // show some compile hints
+  {$ENDIF  NO_VC_HINT_COMPILE_MESSAGES }
 
 {$ELSE }
 
@@ -548,13 +595,13 @@
 {$ELSE }
   //
   {$IFDEF VCX_DEMO }
-    {$DESCRIPTION 'VC25EDEC11' }        // Evaluation version
+    {$DESCRIPTION 'VC25EJUN12' }        // Evaluation version
   {$ELSE }
     //
     {$IFDEF VC25_ENTERPRISE }
-      {$DESCRIPTION 'VC25XDEC11' }	// Enterprise
+      {$DESCRIPTION 'VC25XJUN12' }	// Enterprise
     {$ELSE }
-      {$DESCRIPTION 'VC25PDEC11' }      // Pro version
+      {$DESCRIPTION 'VC25PJUN12' }      // Pro version
     {$ENDIF}
     //
   {$ENDIF VCX_DEMO }
@@ -564,9 +611,20 @@
 {$IFDEF __AFTER_D7__ }
   {$IFDEF DEBUG }
   {$ELSE }
+    //
     {$DEFINE UNA_OK_INLINE }	// inline is OK after Delphi 7, but it is bad for debugging
+    //
   {$ENDIF DEBUG }
 {$ENDIF __AFTER_D7__ }
+
+{$IFDEF __AFTER_D9__ }
+  {$IFDEF DEBUG }
+  {$ELSE }
+    //
+    {$DEFINE UNA_OK_INLINE9 }	// some inlines are OK only after Delphi 2006
+    //
+  {$ENDIF DEBUG }
+{$ENDIF __AFTER_D9__ }
 
 
 {$IFDEF CPUX64 }	// defined by dcc64 only

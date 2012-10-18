@@ -231,13 +231,13 @@ begin
     //
     c_sb_main.panels[0].text := 'Mem: ' + int2str(ams() shr 10, 10, 3) + ' KB';
     //
-    c_lb_main.items[0] := 'waveIn:   ' + choice(waveIn.active,   'A', 'x') + ' ' + int2str(waveIn.inBytes)   + ' / ' + int2str(waveIn.outBytes);
-    c_lb_main.items[1] := 'codecIn:  ' + choice(codecIn.active,  'A', 'x') + ' ' + int2str(codecIn.inBytes)  + ' / ' + int2str(codecIn.outBytes);
-    c_lb_main.items[2] := 'ipClient: ' + choice(ipClient.active, 'A', 'x') + ' ' + int2str(ipClient.inBytes) + ' / ' + int2str(ipClient.outBytes);
+    c_lb_main.items[0] := 'waveIn:   ' + choice(waveIn.active,   'A', 'x') + ' ' + int2str(waveIn.inBytes[0])   + ' / ' + int2str(waveIn.outBytes[0]);
+    c_lb_main.items[1] := 'codecIn:  ' + choice(codecIn.active,  'A', 'x') + ' ' + int2str(codecIn.inBytes[0])  + ' / ' + int2str(codecIn.outBytes[0]);
+    c_lb_main.items[2] := 'ipClient: ' + choice(ipClient.active, 'A', 'x') + ' ' + int2str(ipClient.inBytes[1]) + ' / ' + int2str(ipClient.outBytes[1]);
     //
-    c_lb_main.items[4] := 'ipServer: ' + choice(ipServer.active, 'A', 'x') + ' ' + int2str(ipServer.inBytes) + ' / ' + int2str(ipServer.outBytes) + ' / '  + int2str(ipServer.clientCount);
-    c_lb_main.items[5] := 'codecOut: ' + choice(codecOut.active, 'A', 'x') + ' ' + int2str(codecOut.inBytes) + ' / ' + int2str(codecOut.outBytes);
-    c_lb_main.items[6] := 'waveOut:  ' + choice(waveOut.active,  'A', 'x') + ' ' + int2str(waveOut.inBytes)  + ' / ' + int2str(waveOut.outBytes);
+    c_lb_main.items[4] := 'ipServer: ' + choice(ipServer.active, 'A', 'x') + ' ' + int2str(ipServer.inBytes[1]) + ' / ' + int2str(ipServer.outBytes[1]) + ' / '  + int2str(ipServer.clientCount);
+    c_lb_main.items[5] := 'codecOut: ' + choice(codecOut.active, 'A', 'x') + ' ' + int2str(codecOut.inBytes[0]) + ' / ' + int2str(codecOut.outBytes[0]);
+    c_lb_main.items[6] := 'waveOut:  ' + choice(waveOut.active,  'A', 'x') + ' ' + int2str(waveOut.inBytes[0])  + ' / ' + int2str(waveOut.outBytes[0]);
   end;
 end;
 

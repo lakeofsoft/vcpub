@@ -44,11 +44,16 @@
   which are often used by other classes and components.
 
   @Author Lake
-  @Version 2.5.2008.03
-  @Version 2.5.2009.12 	  - removed old critical section/asm stuff from gates' implementation
-  @Version 2.5.2010.01    - compatiblity with D4/D5 restored; some cleanup
-  @Version 2.5.2010.01.26 - unaIniFile now supports unicode values
-  @Version 2.5.2010.12    - acquire()/release() added to unaObject
+
+	2.5.2008.03
+	
+	2.5.2009.12  - removed old critical section/asm stuff from gates' implementation
+	
+	2.5.2010.01  - compatiblity with D4/D5 restored; some cleanup
+	
+	2.5.2010.01.26 - unaIniFile now supports unicode values
+	
+	2.5.2010.12    - acquire()/release() added to unaObject
 }
 
 unit
@@ -70,6 +75,7 @@ const
   //
   c_VC_reg_core_section_name 	= 'VC2.5';
   c_VC_reg_DSP_section_name 	= 'VC2.5 DSP';
+  c_VC_reg_IP_section_name	= 'VC2.5 IP';
   c_VC_reg_RTP_section_name	= 'VC2.5 RTP';
 
 type
@@ -496,11 +502,12 @@ type
       Removes an item from the list.
       index specifies the index of item to be removed.
       doFree specifies an action which should be taken if item is object (see unaObjectList):
-      <UL>
-	<LI>0 -- do not free the object</LI>
-	<LI>1 -- free object always</LI>
-	<LI>2 -- use the autoFree member of unaObjectList to decide whether to free the object.</LI>
-      <UL>
+	@unorderedList(
+	 @itemSpacing Compact
+		@item (0 -- do not free the object)
+		@item (1 -- free object always)
+		@item (2 -- use the autoFree member of unaObjectList to decide whether to free the object)
+      )
     }
     {*
       Reverses items in the list.
@@ -546,6 +553,14 @@ type
     procedure setItem(index: int; item: pointer; doFree: unsigned = 2); overload;
     function setItem(itemToReplace: pointer; newItem: pointer; doFree: unsigned = 2): unsigned; overload;
     {*
+	Locks an object in the list.
+	Don't forget to release the object.
+
+	@return nil if object was not found or was not locked.
+    }
+    function lockObject(index: int; ro: bool = true; timeout: tTimeout = 1000): unaObject;
+    {*
+    	Allocates resources for new capacity.
     }
     procedure setCapacity(value: unsigned);
     {*
@@ -556,8 +571,9 @@ type
     function indexOf(item: pointer): int; overload;
     {*
       Creates a array and copies list items into it.
-      <BR />If includeZeroIndexCount is true, the first elemet of array will contain number of items in it.
-      <P />Returns size of created array (in bytes).
+      If includeZeroIndexCount is true, the first elemet of array will contain number of items in it.
+
+      @return size of created array (in bytes).
     }
     function copyTo(out list: pointer; includeZeroIndexCount: bool): int;
     {*
@@ -623,7 +639,8 @@ type
   //
   {*
     List of records (pointers).
-    <P />In this list memory pointed by items can be freed automatically (depending on autoFree property value).
+
+    In this list memory pointed by items can be freed automatically (depending on autoFree property value).
   }
   unaRecordList = class(unaList)
   protected
@@ -638,8 +655,9 @@ type
   //
 
   {*
-    This list is usefull when you wish to access items by their IDs rather than by indexes.
-    <BR />It uses internal array to store the ID of every item, so item could be located much faster.
+    	This list is usefull when you wish to access items by their IDs rather than by indexes.
+    
+	It uses internal array to store the ID of every item, so item could be located much faster.
   }
   unaIdList = class(unaList)
   private
@@ -696,11 +714,13 @@ type
 
   {*
     List of objects.
-    <P />autoFree = true indicates that items will be freed automatically.
   }
   unaObjectList = class(unaList)
   protected
   public
+    {*
+    	@param    autoFree @true indicates that items will be freed automatically upon removal.
+    }
     constructor create(autoFree: bool = true; sorted: bool = false);
   end;
 
@@ -710,7 +730,8 @@ type
   //
   {*
     List of objects implementing interfaces. Takes care of default ref counting.
-    <P />autoFree = true indicates that items will be released automatically.
+
+    @link(autoFree) = @true indicates that items will be released automatically.
   }
   unaIntfObjectList = class(unaObjectList)
   protected
@@ -964,32 +985,35 @@ type
     function getShouldStop(): bool;
     function getPriority(): int;
     procedure setPriority(value: int);
+    //
+    function getStatus(): unaThreadStatus;
+    procedure doSetStatus(value: unaThreadStatus);
   protected
     {*
-      This method will be called when execution starts in a new thread.
-      Override this method in your own threads.
-      Return value indicates result code of thread execution.
-      You must check the shouldStop property periodically in your code.
-      When shouldStop is set to true you this function should return as soon as possible.
+	This method will be called when execution starts in a new thread.
+	Override this method in your own threads.
+	Return value indicates result code of thread execution.
+	You must check the shouldStop property periodically in your code.
+	When shouldStop is set to true this function should return as soon as possible.
     }
     function execute(globalIndex: unsigned): int; virtual;
     {*
-      Called just before execute() method.
-      Should return true unless it is not desired to continue the execution of a thread.
+	Called just before execute() method.
+	Should return true unless it is not desired to continue the execution of a thread.
     }
     function grantStart(): bool; virtual;
     {*
-      Called just before shouldStop property will be set to true.
-      Should return true unless it is not desired to stop the thread execution.
+	Called just before shouldStop property will be set to true.
+	Should return true unless it is not desired to stop the thread execution.
     }
     function grantStop(): bool; virtual;
     //
     {*
-      Called just before execute() method.
+	Called just before execute() method from thread's context.
     }
     procedure startIn(); virtual;
     {*
-      Called just after execute() method.
+	Called just after execute() method from thread's context.
     }
     procedure startOut(); virtual;
     {*
@@ -1000,47 +1024,47 @@ type
     function onResume(): bool; virtual;
     //
     procedure setDefaultStopTimeout(value: tTimeout);
-    //
-    procedure doSetStatus(value: unaThreadStatus);
   public
     {*
-      Creates new thread if active is true. If active is false thread should be created by calling the start() method.
-      priority parameter specifies thread priority.
-      When autoFree is true thread class will be freed just after thread execution terminates.
+	Creates new thread if active is true. If active is false thread will be created by calling the start() method.
+
+	@param priority specifies thread priority.
+	@param autoFree If true thread instance will be freed just after thread exit
     }
     constructor create(active: bool = false; priority: int = THREAD_PRIORITY_NORMAL {$IFDEF DEBUG }; const title: string = ''{$ENDIF});
     //
     procedure AfterConstruction(); override;
     {*
-      Destroys the thread. If thread is running, stops it by calling the stop() method.
+	Destroys the thread. If thread is running, stops it by calling the stop() method.
     }
     procedure BeforeDestruction(); override;
     //
     {*
-      Starts the thread.
+	Starts the thread.
     }
     function start(timeout: tTimeout = 10000): bool;
     {*
-      Stops the thread.
+	Stops the thread.
     }
     function stop(timeout: tTimeout = tTimeout(INFINITE); force: bool = false): bool;
     {*
-      	Notifies the thread it should be stopped ASAP.
+	Notifies the thread it should be stopped ASAP.
     }
     procedure askStop();
     {*
-      Suspends thread execution.
+	Suspends thread execution.
     }
     function pause(): bool;
     {*
-      Pauses the thread for specified amount of milliseconds.
-      Pause may be interrupted by resume(), start(), wakeUp() and stop() mehtods.
-      Returns true if pause was interruped, false otherwise.
+	Pauses the thread for specified amount of milliseconds.
+	Pause may be interrupted by resume(), start(), wakeUp() and stop() mehtods.
+
+	@return True if pause was interruped, false otherwise.
     }
-    function sleepThread(value: unsigned): bool;
+    function sleepThread(value: tTimeout): bool;
     {*
-      If thread has entered the sleepThread() state, wakes the thread up, making the speep() method to return True.
-      Otherwise simply sets the internal sleep event to signaled state.
+	If thread has entered the sleepThread() state, wakes the thread up, making the sleepThread() method to return True.
+	Otherwise simply sets the internal sleep event to signaled state.
     }
     procedure wakeUp();
     {*
@@ -1048,31 +1072,44 @@ type
     }
     function waitForTerminate(timeout: tTimeout = 3000): bool;
     {*
-      Resumes thread execution.
+	Wait till thread enters execute method.
+    }
+    function waitForExecute(timeout: tTimeout = 3000): bool;
+    {*
+	Resumes thread execution.
     }
     function resume(): bool;
-    //
-    function getStatus(): unaThreadStatus;
-    //
+    {*
+	@return Thread handle.
+    }
     function getHandle(): tHandle;
-    //
+    {*
+    	@return Thread ID
+    }
     function getThreadId(): unsigned;
     {*
-       Returns true if thread with specified ID was marked to termination.
+	Returns true if thread with specified ID was marked to termination.
     }
     class function shouldStopThread(globalID: unsigned): bool;
     //
+    {*
+    	Thread index in internal array.
+    }
     property globalIndex: unsigned read f_globalThreadIndex;
     {*
-      True when thread is (about to be) stopped.
+	True when thread should be stopped.
     }
     property shouldStop: bool read getShouldStop;
     {*
-      Specifies the priority of the thread.
+	Specifies the priority of the thread.
     }
     property priority: int read getPriority write setPriority;
     {*
-      Fires when execution starts in a new thread. See comments for execute() method for details.
+	Thread status
+    }
+    property status: unaThreadStatus read getStatus write doSetStatus;
+    {*
+	Fires when execution starts in a new thread. See comments for execute() method for details.
     }
     property onExecute: unaThreadOnExecuteMethod read f_onExecute write f_onExecute;
   end;
@@ -1082,7 +1119,7 @@ type
   //
 
   {*
-    This class manages one or more threads.
+	This class manages one or more threads.
   }
   unaThreadManager = class(unaObject)
   private
@@ -1279,7 +1316,8 @@ type
 
   {*
     This timer uses waitable timers to tick periodically.
-    <BR /><STRONG>NOTE</STRONG>: Waitable timers were introduced since Windows 98.
+
+    @bold(NOTE): Waitable timers were introduced since Windows 98.
   }
   unaWaitableTimer = class(unaThreadedTimer)
   private
@@ -1358,7 +1396,8 @@ type
 
   {*
     Manages values stored in "INI" format.
-    <BR>NOTE: This class is abstract, do not create instances of it.
+    
+	@bold(NOTE): This class is abstract, do not create instances of it.
   }
   unaIniAbstractStorage = class(unaObject)
   private
@@ -1944,7 +1983,8 @@ type
     //
     {*
       You can override this method to perform additional initialization.
-      <BR />If this method returns false the application will not be started.
+      
+	If this method returns false the application will not be started.
     }
     function doInit(): bool; virtual;
     {*
@@ -2019,6 +2059,13 @@ function sameFiles(const fileName1, fileName2: wString): bool;
 	@return Total size of all files.
 }
 function getFolderSize(const folder: wString; includeSubFolders: bool = true): int64;
+
+
+const
+{$IFDEF __AFTER_D5__ }
+  {$EXTERNALSYM REG_QWORD }
+{$ENDIF __AFTER_D5__ }
+  REG_QWORD = 11;
 
 
 implementation
@@ -3468,7 +3515,7 @@ begin
   //
   value := (value + $FF) and $FFFFFF00;	// round to $100 boundary
   //
-  if (force or (f_capacity <> value)) then begin
+  if (force or (f_capacity < value)) then begin
     //
     if (0 = value) then
       ok := force or (f_capacity > 4096{sanity check})
@@ -3753,6 +3800,22 @@ begin
     result := true;
 end;
 
+// --  --
+function unaList.lockObject(index: int; ro: bool; timeout: tTimeout): unaObject;
+begin
+  result := nil;
+  //
+  if (lock(true)) then try
+    //
+    result := get(index);
+    if (nil <> result) then
+      if (not result.acquire(ro, timeout)) then
+	result := nil;
+    //
+  finally
+    unlockRO();
+  end;
+end;
 
 {$IFDEF DEBUG }
 
@@ -4150,6 +4213,7 @@ begin
   if (mapDoFree(doFree) and (nil <> get(index))) then
     mrealloc(f_list.r_ptr[index]);
 end;
+
 
 { unaIdList }
 
@@ -5508,12 +5572,6 @@ begin
   result := _regSetValueEx(f_key, name, keyType, buf, size);
 end;
 
-const
-{$IFDEF __AFTER_D5__ }
-  {$EXTERNALSYM REG_QWORD }
-{$ENDIF __AFTER_D5__ }
-  REG_QWORD = 11;
-
 {$IFNDEF CPU64 }
 
 // --  --
@@ -5649,7 +5707,6 @@ begin
   end;
 end;
 
-
 // --  --
 procedure releaseThreadIndex(index: unsigned; releaseInstance: bool);
 begin
@@ -5701,13 +5758,13 @@ begin
       ok := true;
     {$ELSE}
       ok := SetThreadPriority(g_threads[param].r_handle, g_threads[param].r_priority);
-    {$ENDIF}
+    {$ENDIF UNA_NO_THREAD_PRIORITY }
       //
       if (not ok) then begin
 	//
-	{$IFDEF LOG_UNACLASSES_INFOS }
+      {$IFDEF LOG_UNACLASSES_INFOS }
 	logMessage('thread_func(' + int2str(param) + ') - setThreadPriority() fails for threadId=' + int2str(g_threads[param].r_threadId));
-	{$ENDIF LOG_UNACLASSES_INFOS }
+      {$ENDIF LOG_UNACLASSES_INFOS }
       end;
       //
       { This should be set before calling startIn(), so thread will know we are running already
@@ -5749,14 +5806,14 @@ begin
 	{$IFDEF LOG_UNACLASSES_ERRORS }
 	on E:Exception do begin
 	  //
-	  logMessage('thread_func([threadId=' + int2str(GetCurrentThreadId()) + ', globalId=' + int2str(param) + ']) - exception [' + E.Message + '] '{$IFDEF __AFTER_D9__ } + E.ToString(){$ENDIF __AFTER_D9__ });
+	  logMessage('thread_func([threadId=' + int2str(GetCurrentThreadId()) + ', globalId=' + int2str(param) + ']) - exception [' + E.Message + '] '{$IFDEF __AFTER_DB__ } + E.ToString(){$ENDIF __AFTER_DB__ });
 	  result := $FFFFFFFF;
 	end;
 	{$ELSE }
 	result := $FFFFFFFF;
 	{$ENDIF LOG_UNACLASSES_ERRORS }
       end;
-
+      //
       if (lockThreadInstance(param, true)) then begin
 	//
 	try
@@ -5765,6 +5822,8 @@ begin
 	  unlockThreadInstance(param);
 	end;
       end;
+      //
+      ResetEvent(g_threads[param].r_eventRunning);	// notfiy we are down
       //
     end
     else begin
@@ -5786,7 +5845,6 @@ begin
     SetEvent(g_threads[param].r_eventStop);
   end;
 end;
-
 
 
 {$IFDEF FPC }
@@ -5824,7 +5882,7 @@ end;
 // -- --
 procedure unaThread.BeforeDestruction();
 begin
-  stop();
+  stop(1000, true);
   //
   inherited;
   //
@@ -5848,7 +5906,7 @@ begin
   //
   f_eventStop := unaEvent.create(true);
   f_eventHandleReady := unaEvent.create();
-  f_eventRunning := unaEvent.create();
+  f_eventRunning := unaEvent.create(true);
   //
   f_sleepEvent := unaEvent.create();
   //
@@ -6012,7 +6070,7 @@ begin
 end;
 
 // --  --
-function unaThread.sleepThread(value: unsigned): bool;
+function unaThread.sleepThread(value: tTimeout): bool;
 begin
   result := f_sleepEvent.waitFor(value);
 end;
@@ -6020,18 +6078,15 @@ end;
 // --  --
 function unaThread.start(timeout: tTimeout): bool;
 begin
+  result := true;
+  //
   case (getStatus()) of
 
-    unatsRunning:
-	// nothing to do
-    ;
-
-    unatsBeforeRunning:
-	// nothing to do
-    ;
+    unatsRunning: 	; // nothing to do
+    unatsBeforeRunning: ; // nothing to do
 
     unatsStopping: begin
-      // try to stop the thread once more time
+      // try to stop the thread once again
       stop();
       //
       if (unatsStopped = getStatus()) then
@@ -6068,12 +6123,12 @@ begin
           // wait for thread to be strated
           // some code may assume that certain data was initialized when start() returns,
           // so we should wait for this event
-	  f_eventRunning.waitFor(timeout);
-          //
-          // unatsRunning status will be assigned inside thread_func
-        end;
+	  result := waitForExecute(timeout);
+	  //
+	  // unatsRunning status will be assigned inside thread_func
+	end;
       finally
-        releaseWO();
+	releaseWO();
       end;
     end;
 
@@ -6085,11 +6140,11 @@ begin
 
   end;
   //
-  result := (getStatus() in [unatsRunning, unatsBeforeRunning]);
+  result := result and (getStatus() in [unatsRunning, unatsBeforeRunning]);
   //
-{$IFDEF PACKET_DEBUG}
-  infoMessage('thread status = ' + int2Str(ord(f_status)));
-{$ENDIF}
+{$IFDEF LOG_UNACLASSES_INFOS }
+  infoMessage(className + '.start(), result=' + bool2strStr(result) + '; status=' + int2Str(ord(status)));
+{$ENDIF LOG_UNACLASSES_INFOS }
 end;
 
 // -- --
@@ -6241,6 +6296,12 @@ begin
 end;
 
 // --  --
+function unaThread.waitForExecute(timeout: tTimeout): bool;
+begin
+  result := f_eventRunning.waitFor(timeout);
+end;
+
+// --  --
 function unaThread.waitForTerminate(timeout: tTimeout): bool;
 begin
   if (unatsRunning = getStatus()) then begin
@@ -6248,11 +6309,11 @@ begin
     if ((0 > timeout) and (tTimeout(INFINITE) <> timeout)) then
       timeout := -timeout;
     //
-    {$IFDEF FPC }
+  {$IFDEF FPC }
     result := (WAIT_OBJECT_0 = WaitForThreadTerminate(getHandle(), unsigned(timeout)));
-    {$ELSE }
+  {$ELSE }
     result := (WAIT_OBJECT_0 = WaitForSingleObject(getHandle(), unsigned(timeout)));
-    {$ENDIF FPC }
+  {$ENDIF FPC }
   end
   else
     result := true;
@@ -9797,7 +9858,7 @@ var
   view: pArray;
 begin
   if (offs < size64) then
-    result := min(int64(sz), int64(size64 - offs))
+    result := min(int64(sz), size64 - offs)
   else
     result := 0;
   //

@@ -27,9 +27,12 @@
   Simple Resource Interchange File Format (RIFF) parser.
 
   @Author Lake
-  @Version 2.5.2008.07
-  @Version 2.5.2009.09 some cleanup
-  @Version 2.5.2011.10 x64 compatibility fixes
+
+ 	Version 2.5.2008.07
+
+	Version 2.5.2009.09 some cleanup
+
+	Version 2.5.2011.10 x64 compatibility fixes
 }
 
 unit

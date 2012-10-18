@@ -300,10 +300,10 @@ begin
     {$ENDIF }
     //
     c_label_info.caption :=
-      'Client sent: '     + int2str(ipClient.inBytes,  10, 3) + ' bytes ' + #13#10 +
-      'Client received: ' + int2str(ipClient.outBytes, 10, 3) + ' bytes ' + #13#10 +
-      'Server sent: '     + int2str(ipServer.inBytes,  10, 3) + ' bytes ' + #13#10 +
-      'Server received: ' + int2str(ipServer.outBytes, 10, 3) + ' bytes ' + #13#10 +
+      'Client sent: '     + int2str(ipClient.inBytes[1],  10, 3) + ' bytes ' + #13#10 +
+      'Client received: ' + int2str(ipClient.outBytes[1], 10, 3) + ' bytes ' + #13#10 +
+      'Server sent: '     + int2str(ipServer.inBytes[1],  10, 3) + ' bytes ' + #13#10 +
+      'Server received: ' + int2str(ipServer.outBytes[1], 10, 3) + ' bytes ' + #13#10 +
       ''
     ;
     //

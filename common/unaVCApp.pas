@@ -27,6 +27,10 @@
 
 {$I unaDef.inc}
 
+{*
+	VC Application class
+}
+
 unit
   unaVCApp;
 

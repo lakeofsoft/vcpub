@@ -24,6 +24,10 @@
 
 {$I unaDef.inc}
 
+{*
+	Delphi wrapper for MpgLib.DLL and libmpg123-0.dll
+}
+
 unit
   unaMpgLibAPI;
 
@@ -177,7 +181,8 @@ type
   (http://www.rz.uni-frankfurt.de/~pesch)
 
   @Author Lake
-  @Version 2.5.2008.06 Delphi wrapper
+
+  Version 2.5.2008.06 Delphi wrapper
 }
 
 

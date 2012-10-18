@@ -198,7 +198,7 @@ begin
   if (nil <> consumer) then begin
     //
     result := consumer.providerOneAndOnly.name + '.' + choice(consumer.providerOneAndOnly.active, 'A', 'x') + ' --> ' +
-	      consumer.name + '.' + choice(consumer.active, 'A', 'x') + ' [' + int2str(consumer.inBytes, 10, 3)  + ' / ' + int2str(consumer.outBytes, 10, 3) + '] ' + '::';
+	      consumer.name + '.' + choice(consumer.active, 'A', 'x') + ' [' + int2str(consumer.inBytes[0], 10, 3)  + ' / ' + int2str(consumer.outBytes[0], 10, 3) + '] ' + '::';
     //
     if (consumer is unavclInOutWavePipe) then begin
       //

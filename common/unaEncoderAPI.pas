@@ -33,7 +33,8 @@
   Contains library API and wrapper classes for Blade/Lame MP3 encoders, Vorbis/Ogg libraries, BASS library and OpenH323 plugin model.
 
   @Author Lake
-  @Version 2.5.2008.07 Still here
+
+  2.5.2008.07 Still here
 }
 
 unit
@@ -105,22 +106,26 @@ type
     function doDAEvent(data: pointer; size: unsigned): bool; virtual;
     {*
       Override this method to provide implementation of encoder configuration.
-      <BR>Returns status code of encoder after config information provided with config parameter was applied.
+
+      @returns status code of encoder after config information provided with config parameter was applied.
     }
     function doSetConfig(config: pointer): UNA_ENCODER_ERR; virtual; abstract;
     {*
       Override this method to provide implementation of opening the encoder.
-      <BR>Returns status code of encoder after it was opened.
+
+      @returns status code of encoder after it was opened.
     }
     function doOpen(): UNA_ENCODER_ERR; virtual; abstract;
     {*
       Override this method to provide implementation of closing the encoder.
-      <BR>Returns status code of encoder after was closed.
+
+      @returns status code of encoder after was closed.
     }
     function doClose(): UNA_ENCODER_ERR; virtual; abstract;
     {*
       Override this method to provide implementation of encoding the portion of data.
-      <BR>Returns status code of encoding.
+
+      @returns status code of encoding.
     }
     function doEncode(data: pointer; nBytes: unsigned; out bytesUsed: unsigned): UNA_ENCODER_ERR; virtual; abstract;
     //
@@ -130,7 +135,8 @@ type
   public
     {*
       Creates an encoder with specified priority.
-      <BR>priority has meaning whit lazyWrite() method only.
+
+      @priority has meaning with lazyWrite() method only.
     }
     constructor create(priority: integer = THREAD_PRIORITY_NORMAL);
     procedure AfterConstruction(); override;
@@ -153,8 +159,10 @@ type
       Encoded data is first sent to onDataAvailable() event (if handler is assigned).
       If this event has no handler assigned, or handler returns writeToStream = true,
       data is also written into ouput stream.
-      <BR>Check errorCode property if 0 was returned.
-      <BR>Do not mix lazyWrite() and encodeChunk() calls.
+
+      	Check errorCode property if 0 was returned.
+
+	Do not mix lazyWrite() and encodeChunk() calls.
     }
     function encodeChunk(data: pointer; size: unsigned; lastOne: bool = false): unsigned;
     {*
@@ -164,19 +172,23 @@ type
       Number of bytes written into outBuf will not exceed outBufSize (which could be less than required).
       This function does not call onDataAvailable() and does not write any data into output stream.
       Size parameter also used to return number of bytes used in input buffer. 
-      <BR>Check errorCode property if 0 was returned.
-      <BR>Do not mix lazyWrite() and encodeChunkInPlace() calls.
+
+      Check errorCode property if 0 was returned.
+
+      Do not mix lazyWrite() and encodeChunkInPlace() calls.
     }
     function encodeChunkInPlace(data: pointer; var size: unsigned; outBuf: pointer; outBufSize: unsigned): unsigned;
     {*
       Returns immediately after copying the data from buffer.
-      <BR>Uses internal thread to feed the encoder.
-      <BR>Do not mix lazyWrite() and encodeChunk() calls.
+      Uses internal thread to feed the encoder.
+
+      Do not mix lazyWrite() and encodeChunk() calls.
     }
     procedure lazyWrite(buf: pointer; size: unsigned);
     {*
       Reads data from the encoder output buffer.
-      <BR>Returns number of bytes read from output buffer.
+
+      @returns number of bytes read from output buffer.
     }
     function read(buf: pointer; size: unsigned = 0): unsigned;
     {*
@@ -224,7 +236,8 @@ type
   {*
     Provides access to Blade MP3 encoder.
     Requires Blade library DLL (BladeEnc.dll)
-    <A HREF="http://bladeenc.mp3.no/">Blade MP3 Encoder</A>
+
+    http://bladeenc.mp3.no/
   }
   unaBladeMp3Enc = class(unaAbstractEncoder)
   private
@@ -288,7 +301,8 @@ type
   {*
     Provides access to Lame MP3 encoder.
     Requires Lame library DLL (lame_enc.dll)
-    <A HREF="http://www.mp3dev.org/">Lame MP3 Encoder</A>
+
+    http://www.mp3dev.org/
   }
   unaLameMp3Enc = class(unaBladeMp3Enc)
   private
@@ -423,7 +437,8 @@ type
   {*
     Provides interface of Vorbis/Ogg stream encoding.
     Requires Vorbis/Ogg libraries DLLs (ogg.dll, vorbis.dll and vorbisenc.dll)
-    <A HREF="http://www.xiph.org/ogg/vorbis/">Ogg/Vorbis library</A>
+
+    http://www.xiph.org/ogg/vorbis/
   }
   unaVorbisEnc = class(unaVorbisAbstract)
   private
@@ -487,7 +502,8 @@ type
   {*
     Provides interface of Vorbis/Ogg stream decoding.
     Requires Vorbis/Ogg libraries DLLs (ogg.dll and vorbis.dll)
-    <A HREF="http://www.xiph.org/ogg/vorbis/">Ogg/Vorbis library</A>
+
+    http://www.xiph.org/ogg/vorbis/
   }
   unaVorbisDecoder = class(unaVorbisAbstract)
   private
@@ -550,7 +566,8 @@ type
   {*
     Provides interface of Ogg file stream.
     Requires Ogg library DLL (ogg.dll)
-    <A HREF="http://www.xiph.org/ogg/vorbis/">Ogg/Vorbis library</A>
+
+    http://www.xiph.org/ogg/vorbis/
   }
   unaOggFile = class(unaObject)
   private
@@ -619,7 +636,8 @@ type
     //
     {*
       Initializes Vorbis decoder with header data from Ogg stream.
-      <BR>Returns 0 if successfull.
+
+      @Returns 0 if successfull.
     }
     function vorbis_decode_int(decoder: unaVorbisDecoder): int;
     //
@@ -679,7 +697,8 @@ type
   {*
     Provides interface for BASS.
     Requires BASS library (bass.dll)
-    <A HREF="http://www.un4seen.com/">BASS library</A>
+
+    http://www.un4seen.com/
   }
   unaBass = class
   private
@@ -761,7 +780,8 @@ type
   {*
     Provides interface for BASS module music support.
     Requires BASS library (bass.dll)
-    <A HREF="http://www.un4seen.com/">BASS library</A>
+
+    http://www.un4seen.com/
   }
   unaBassMusic = class(unaBassConsumer)
   private
@@ -797,7 +817,8 @@ type
 
   {*
     Provides interface for BASS sample support.
-    <BR>Requires BASS library (bass.dll)
+    
+	Requires BASS library (bass.dll)
   }
   unaBassSample = class(unaBassConsumer)
   protected
@@ -822,7 +843,8 @@ type
   {*
     Provides interface for BASS stream support.
     Requires BASS library (bass.dll)
-    <A HREF="http://www.un4seen.com/">BASS library</A>
+
+    http://www.un4seen.com/
   }
   unaBassStream = class(unaBassConsumer)
   protected
@@ -853,7 +875,8 @@ type
   {*
     Provides interface for BASS channel support.
     Requires BASS library (bass.dll)
-    <A HREF="http://www.un4seen.com/">BASS library</A>
+
+    http://www.un4seen.com/
   }
   unaBassChannel = class(unaBassConsumer)
   protected
@@ -931,7 +954,8 @@ type
 
   {*
     Decoder based on BASS library
-    <A HREF="http://www.un4seen.com/">BASS library</A>
+
+    http://www.un4seen.com/
   }
   unaBassDecoder = class
   private
@@ -1179,7 +1203,7 @@ begin
     //
     f_waitEvent.setState();
     //
-    if ((unatsRunning <> getStatus()) or (Windows.getCurrentThreadId() = getThreadId())) then
+    if ((unatsRunning <> status) or (GetCurrentThreadId() = getThreadId())) then
       break	// no sence to wait any longer, since we are in the same thread as execute() method, or thread is not running
     else
       sleepThread(100);	// give encoder some CPU
@@ -1189,7 +1213,7 @@ end;
 // --  --
 procedure unaLazyWriteThread.write(buf: pointer; size: unsigned);
 begin
-  if ((nil <> buf) and (0 < size) and (unatsRunning = getStatus())) then begin
+  if ((nil <> buf) and (0 < size) and (unatsRunning = status)) then begin
     //
     f_lazyStream.write(buf, size);
     f_waitEvent.setState();	// notify about new data

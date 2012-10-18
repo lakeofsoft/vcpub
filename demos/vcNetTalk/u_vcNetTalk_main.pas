@@ -183,7 +183,7 @@ const
     'Efficient and powerful streaming protocol',
     'Powerfull DSP library',
     'Best solution for building voice over IP applications',
-    'Compatible with Delphi 4/RAD Studio 2009 and C++Builder 5.0 and later',
+    'Compatible with Delphi 4/RAD Studio XE2 (32/64) and C++Builder 5.0 and later',
     '',
     'http://lakeofsoft.com/vc/',
     '',
@@ -312,8 +312,8 @@ procedure Tc_form_vcNetTalkMain.c_timer_updateTimer(Sender: TObject);
 		      'Dst: ' + unavclInOutWavePipe(device).device.dstFormatInfo
       else
 	if (device is unavclInOutIpPipe) then
-	  st.Caption := 'Sent: ' + int2str(device.inBytes shr 10, 10, 3) + ' KB'#13#10 +
-			'Received: ' + int2str(device.outBytes shr 10, 10, 3) + ' KB';
+	  st.Caption := 'Sent: ' + int2str(device.inBytes[1] shr 10, 10, 3) + ' KB'#13#10 +
+			'Received: ' + int2str(device.outBytes[1] shr 10, 10, 3) + ' KB';
   end;
 
 begin

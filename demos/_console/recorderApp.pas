@@ -116,7 +116,7 @@ begin
     assignVolumeParams();
     //
     infoMessage('--------------------------');
-    infoMessage('Input device     : ' + unaWaveInDevice(device).getCCaps().szPname + choice(unaWaveDevice(device).direct, ' [direct]', ''));
+    infoMessage('Input device     : ' + unaWaveInDevice(device).getInCaps().szPname + choice(unaWaveDevice(device).direct, ' [direct]', ''));
     infoMessage(' ');
 {$IFDEF CONSOLE }
     infoMessage('Sampling rate       : ' + int2Str(rate));

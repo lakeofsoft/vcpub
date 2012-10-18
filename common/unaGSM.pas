@@ -85,7 +85,8 @@ Carsten Bormann
   GSM6.10 codec. Delphi implementation based on C-source code by Jutta Degener and Carsten Bormann
 
   @Author Lake
-  @Version 1.0 First release
+
+  1.0 First release
 }
 
 unit
@@ -575,7 +576,7 @@ type
     {*
         Each processing is specific and thus must be overrided.
 
-        @len is guaranted to be at least one frame, or more integer number of frames
+        @param len is guaranted to be at least one frame, or more integer number of frames
     }
     procedure processFrames(data: pointer; len: int); virtual; abstract;
     //
@@ -692,7 +693,7 @@ begin
   result := _word(SASR( _longword(a) * _longword(b), 15));
 end;
 
-///* word a, word b */	\
+//* word a, word b */	\
 function GSM_L_MULT(a, b: _longword): _longword;
 begin
   result := sshl(a * b, 1);

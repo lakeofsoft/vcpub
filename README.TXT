@@ -3,4 +3,4 @@ VC components: Freeware version
 http://lakeofsoft.com/vc/freeware.html
 
 --------------------------
-(c) 2010-2011 Lake of Soft
+(c) 2012 Lake of Soft

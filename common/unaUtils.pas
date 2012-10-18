@@ -30,6 +30,13 @@
 
 {$I unaDef.inc }
 
+{$IFDEF __AFTER_DE__ }
+{$ELSE}
+  // Delphi 9.0 (2005) -- XE (2010)? has buggy inline support, sorry. Get a better compiler.
+  {$UNDEF UNA_OK_INLINE }
+{$ENDIF __AFTER_DE__ }
+
+
 {x $DEFINE UNAUTILS_MEM_USE_HEAP_CALLS }	// define to use HeapAlloc()/HeapReAlloc() instead of Borland memory manager
 
 {x $DEFINE CONSOLE_IO }				// defien to declare and initialize I/O handles: g_CONIN and g_CONOUT
@@ -64,10 +71,10 @@
   Contains useful routines used by other units and classes.
 
   @Author Lake
-  @Version 2.5.2008.10 + CodeGear RAD 2009 compatible;
-  @Version 2.5.2008.07 + aware of BDS 2006's and later improved memory manager;
-  @Version 2.5.2009.12 + removed variant stuff
-  @Version 2.5.2010.01 + some cleanup
+  Version 2.5.2008.10 + CodeGear RAD 2009 compatible;
+  Version 2.5.2008.07 + aware of BDS 2006's and later improved memory manager;
+  Version 2.5.2009.12 + removed variant stuff
+  Version 2.5.2010.01 + some cleanup
 }
 
 unit
@@ -76,11 +83,11 @@ unit
 {$IFDEF CPU64 }
   //
   {$IFDEF CHECK_MEMORY_LEAKS }
-    Memory leak checks for x86_64 are not supported.
+    Memory leak checks for x64 are not supported.
   {$ENDIF CHECK_MEMORY_LEAKS }
   //
   {$IFDEF UNAUTILS_DEBUG_MEM }
-    Memory debug for x86_64 is not supported.
+    Memory debug for x64 is not supported.
   {$ENDIF UNAUTILS_DEBUG_MEM }
 {$ENDIF CPU64 }
 
@@ -169,13 +176,13 @@ function min(A, B: unsigned): unsigned; overload;{$IFDEF UNA_OK_INLINE }inline;{
 {*
 	Returms minimal value of two signed 64 bits integers.
 
-	@return A if A < B, or B otherwise.
+	@return A if A < B, B otherwise.
 }
 function min(A, B: int64): int64; 	overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Returns maximal value of two signed 64 bits integers.
 
-	@return A if A < B, or B otherwise.
+	@return A if A > B, B otherwise.
 }
 function max(A, B: int64): int64; 	overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
@@ -189,19 +196,19 @@ function max(A, B: uint64): uint64; 	overload;{$IFDEF UNA_OK_INLINE }inline;{$EN
 {*
 	Returns maximal value of two signed integers.
 
-	@return A if A &gt; B, or B otherwise.
+	@return A if A > B, B otherwise.
 }
 function max(A, B: int): int; 		overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Returns maximal value of two unsigned integers.
 
-	@return A if A &gt; B, or B otherwise.
+	@return A if A > B, B otherwise.
 }
 function max(A, B: unsigned): unsigned; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Returns maximal value of two floating-point.
 
-	@return A if A &gt; B, or B otherwise.
+	@return A if A > B, B otherwise.
 }
 function max(A, B: double): double;	overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
@@ -269,7 +276,7 @@ function base64decode(const data: aString; out buf: pointer): unsigned; overload
 
 	@param data String of bytes to calculate CRC32 of.
 	@param crc Initial CRC value, do not change.
-	@returm 	CRC32 value.
+	@return 	CRC32 value.
 }
 function crc32(const data: aString; crc: uint32 = $FFFFFFFF): uint32; overload;
 {*
@@ -280,7 +287,7 @@ function crc32(const data: aString; crc: uint32 = $FFFFFFFF): uint32; overload;
 	@param data Pointer to array of bytes to calculate CRC32 of.
 	@param len Size of array pointed by data.
 	@param crc Initial CRC value, do not change.
-	@returm 	CRC32 value.
+	@return 	CRC32 value.
 }
 function crc32(data: pointer; len: unsigned; crc: uint32 = $FFFFFFFF): uint32; overload;
 {*
@@ -288,7 +295,7 @@ function crc32(data: pointer; len: unsigned; crc: uint32 = $FFFFFFFF): uint32; o
 
 	@param data Pointer to array of bytes to calculate CRC16 of.
 	@param len Size of array pointed by data.
-	@returm 	CRC16 value.
+	@return 	CRC16 value.
 }
 function crc16(data: pointer; len: unsigned): uint16;
 {*
@@ -296,7 +303,7 @@ function crc16(data: pointer; len: unsigned): uint16;
 
 	@param data Pointer to array of bytes to calculate CRC8 of.
 	@param len Size of array pointed by data.
-	@returm 	CRC8 value.
+	@return 	CRC8 value.
 }
 function crc8(data: pointer; len: unsigned): uint8;
 {*
@@ -304,7 +311,7 @@ function crc8(data: pointer; len: unsigned): uint8;
 
 	@param data Pointer to array of bytes to calculate CRC4 of.
 	@param len Size of array pointed by data.
-	@returm 	CRC4 value.
+	@return 	CRC4 value.
 }
 function crc4(data: pointer; len: unsigned): uint8;
 
@@ -462,7 +469,7 @@ function writeToFile(handle: tHandle; buf: pointer; size: unsigned; pos: unsigne
 function writeToFile(handle: tHandle; const buf: aString; pos: unsigned = 0; posMode: unsigned = FILE_CURRENT): int; overload;
 
 {$IFDEF VC25_OVERLAPPED }
-  /// overlapped write
+  // overlapped write
 function write2file(handle: tHandle; var offset: int; buf: pointer; len: unsigned): bool;
 {$ENDIF VC25_OVERLAPPED }
 
@@ -475,7 +482,7 @@ function write2file(handle: tHandle; var offset: int; buf: pointer; len: unsigne
 	@param pos Offset in file to read data from (actual offset depends on posMode).
 	@param posMode How to calculate the real offset in the file (default is FILE_BEGIN, refer to MSDN for mode details).
 
-	@return 0 if operation has been completed successfully, or buf = nil, or size &lt; 1;
+	@return 0 if operation has been completed successfully, or buf = nil, or size < 1
 	@return -1 if no file name was given;
 	@return -2 if there was an error in opening the file;
 	@return -3 if operation has been failed for some reason;
@@ -499,11 +506,11 @@ function readFromFile(const name: wString; pos: unsigned = 0; posMode: unsigned 
 
 	@param handle File handle.
 	@param buf Buffer to place data into.
-	@param size Number of bytes to read. Buffer must be at least of that size.<BR>Will be set to number of bytes actually read from the file, or to 0 if some error has occured.
+	@param size Number of bytes to read. Buffer must be at least of that size. Will be set to number of bytes actually read from the file, or to 0 if some error has occured.
 	@param pos Offset in file to read data from (actual offset depends on posMode).
 	@param posMode How to calculate the real offset in the file (default is FILE_CURRENT, refer to MSDN for mode details).
 
-	@return 0 if operation has been completed successfully, or buf = nil, or size &lt; 1;
+	@return 0 if operation has been completed successfully, or buf = nil, or size < 1;
 	@return -1 if no file name was given;
 	@return -2 if there was an error in opening the file;
 	@return -3 if operation has been failed for some reason;
@@ -826,7 +833,7 @@ function SHGetPathFromIDListW(pidl: PItemIDList; pszPath: pwChar): BOOL; stdcall
 	@param handle Handle of parent window.
 	@param flags Flags for the dialog.
 
-	@return True if selection was successfull.
+	@return @True if selection was successfull.
 }
 function guiSelectDirectory(const caption, root: wString; var directory: wString; handle: hWnd = 0; flags: uint = BIF_RETURNONLYFSDIRS): bool;
 
@@ -940,28 +947,38 @@ const
   CSIDL_PROFILES                      = $003e;
 
   {$EXTERNALSYM CSIDL_COMMON_APPDATA}
-  CSIDL_COMMON_APPDATA = $0023; { All Users\Application Data }
+  { All Users\Application Data }
+  CSIDL_COMMON_APPDATA = $0023;
   {$EXTERNALSYM CSIDL_WINDOWS}
-  CSIDL_WINDOWS = $0024; { GetWindowsDirectory() }
+  { GetWindowsDirectory() }
+  CSIDL_WINDOWS = $0024;
   {$EXTERNALSYM CSIDL_SYSTEM}
-  CSIDL_SYSTEM = $0025; { GetSystemDirectory() }
+  { GetSystemDirectory() }
+  CSIDL_SYSTEM = $0025;
   {$EXTERNALSYM CSIDL_PROGRAM_FILES}
-  CSIDL_PROGRAM_FILES = $0026; { C:\Program Files }
+  { C:\Program Files }
+  CSIDL_PROGRAM_FILES = $0026;
   {$EXTERNALSYM CSIDL_MYPICTURES}
-  CSIDL_MYPICTURES = $0027; { My Pictures, new for Win2K }
+  { My Pictures, new for Win2K }
+  CSIDL_MYPICTURES = $0027;
   {$EXTERNALSYM CSIDL_PROGRAM_FILES_COMMON}
-  CSIDL_PROGRAM_FILES_COMMON = $002b; { C:\Program Files\Common }
+  { C:\Program Files\Common }
+  CSIDL_PROGRAM_FILES_COMMON = $002b;
   {$EXTERNALSYM CSIDL_COMMON_DOCUMENTS}
-  CSIDL_COMMON_DOCUMENTS = $002e; { All Users\Documents }
+  { All Users\Documents }
+  CSIDL_COMMON_DOCUMENTS = $002e;
 
   {$EXTERNALSYM CSIDL_FLAG_CREATE}
-  CSIDL_FLAG_CREATE = $8000; { new for Win2K, or this in to force creation of folder }
+  { new for Win2K, or this in to force creation of folder }
+  CSIDL_FLAG_CREATE = $8000;
 
   {$EXTERNALSYM CSIDL_COMMON_ADMINTOOLS}
-  CSIDL_COMMON_ADMINTOOLS = $002f; { All Users\Start Menu\Programs\Administrative Tools }
+  { All Users\Start Menu\Programs\Administrative Tools }
+  CSIDL_COMMON_ADMINTOOLS = $002f;
 
   {$EXTERNALSYM CSIDL_ADMINTOOLS}
-  CSIDL_ADMINTOOLS = $0030; { <user name>\Start Menu\Programs\Administrative Tools }
+  { <user name>\Start Menu\Programs\Administrative Tools }
+  CSIDL_ADMINTOOLS = $0030;
 
 
 {$EXTERNALSYM SHGetSpecialFolderPathA }
@@ -992,7 +1009,7 @@ type
   {*
 	Callback routine for findFiles().
 
-	@return True if process should continue.
+	@return @True if process should continue.
   }
   proc_ffcallback = function(sender: pointer; const path: wString; const fdw: WIN32_FIND_DATAW): bool;
 
@@ -1106,7 +1123,12 @@ function int2str(value: unsigned; base: unsigned = 10; split: unsigned = 0; spli
 }
 function int2str(value: word; base: unsigned = 10; split: unsigned = 0; splitchar: char = ' '): string; overload;
 {*
+	Converts array of bytes into hex string.
+}
+function byteArray2str(value: pArray; count: int): string;
+{*
 	Converts array of integer values into a comma-separated string.
+	Assumes first [0] element contains number of items in array.
 }
 function intArray2str(value: pInt32Array): string;
 {*
@@ -1212,6 +1234,7 @@ function sysTime2str(const time: SYSTEMTIME; const format: wString = ''; locale:
 function sysDate2str(date: pSYSTEMTIME = nil; const format: wString = ''; locale: LCID = LOCALE_USER_DEFAULT; flags: DWORD = 0): wString;
 {*
 	Converts system date/time from UTC into a local system date/time.
+	Uses FileTimeToLocalFileTime().
 }
 function sysDateTime2localDateTime(const sysDate: SYSTEMTIME; out localDate: SYSTEMTIME): bool;
 {*
@@ -1219,7 +1242,8 @@ function sysDateTime2localDateTime(const sysDate: SYSTEMTIME; out localDate: SYS
 }
 function nowUTC(): SYSTEMTIME;
 {*
-	Converts local system date/time into UTC system date/time.
+	Converts system date/time from UTC into a local system date/time.
+	Uses SystemTimeToTzSpecificLocalTime().
 }
 function utc2local(const dateTime: SYSTEMTIME): SYSTEMTIME;
 {*
@@ -1227,8 +1251,13 @@ function utc2local(const dateTime: SYSTEMTIME): SYSTEMTIME;
 }
 function monthsPassed(const now, than: SYSTEMTIME): int;
 {*
+	Converts system date to string.
 }
-function st2str(const st: SYSTEMTIME): string;
+function stDate2str(const st: SYSTEMTIME): string;
+{*
+	Converts system date and time to string.
+}
+function stDateTime2str(const st: SYSTEMTIME): string;
 {*
 }
 function str2st(const date: string; out st: SYSTEMTIME): HRESULT;
@@ -1302,11 +1331,14 @@ function uCase(value: waChar): waChar; overload;{$IFDEF UNA_OK_INLINE }inline;{$
 const
   { Compare String Return Values }
   {$EXTERNALSYM CSTR_LESS_THAN}
-  CSTR_LESS_THAN           = 1;             { string 1 less than string 2 }
+  { string 1 less than string 2 }
+  CSTR_LESS_THAN           = 1;
   {$EXTERNALSYM CSTR_EQUAL}
-  CSTR_EQUAL               = 2;             { string 1 equal to string 2 }
+  { string 1 equal to string 2 }
+  CSTR_EQUAL               = 2;
   {$EXTERNALSYM CSTR_GREATER_THAN}
-  CSTR_GREATER_THAN        = 3;             { string 1 greater than string 2 }
+  { string 1 greater than string 2 }
+  CSTR_GREATER_THAN        = 3;
 
 {$ENDIF NEED_CSTR_XXXX }
 
@@ -1326,13 +1358,17 @@ function upCase(const value: waString): waString; overload;
 {$ENDIF __AFTER_D5__ }
 
 {*
-  Compares two strings with regard (ignoreCase = false) or not (ignoreCase = true) to the case of characters in the string. Returns:
-  <UL>
-    <LI>0 - strings are identical</LI>
-    <LI>-1 - str1 is shorter or lower then str2</LI>
-    <LI>+1 - str2 is shorter or lower then str1</LI>
-  </UL>
-  <BR /><STRONG>NOTE</STRONG>: only Latin characters from ASCII table are converted when ignoreCase = true.
+  Compares two strings with regard (ignoreCase = @false) or not (ignoreCase = @true) to the case of characters in the string.
+
+  @return
+@unorderedList(
+  @itemSpacing Compact
+  @item( 0 - strings are identical)
+  @item(-1 - str1 is shorter or lower then str2)
+  @item(+1 - str2 is shorter or lower then str1)
+)
+
+  @bold(NOTE): only Latin characters from ASCII table are converted when ignoreCase = true.
 }
 function compareStr(const str1, str2: string; ignoreCase: bool = false): int; overload;
 {$IFDEF __AFTER_D5__ }
@@ -1343,6 +1379,11 @@ function sameString(const str1, str2: string; doTrim: bool = true): bool; overlo
 {$IFDEF __AFTER_D5__ }
 function sameString(const str1, str2: waString; doTrim: bool = true; locale: LCID = LOCALE_SYSTEM_DEFAULT): bool; overload;
 {$ENDIF __AFTER_D5__ }
+
+{*
+	Reverses characters in a string
+}
+function revStr(const a: string): string;
 
 {*
   Adjusts a string length to the len value, by adding additional character at the beginning (left = true) or at the end (left = false) of the string.
@@ -1417,11 +1458,11 @@ function strNew(const source: string): pChar; overload;
 function strNewA(str: paChar): paChar;
 
 {*
-	Returns number of chars being copied.
+	@returns number of chars being copied.
 }
 function str2arrayA(const src: aString; var A: array of aChar): int;
 {*
-	Returns number of chars being copied.
+	@returns number of chars being copied.
 }
 function str2arrayW(const src: wString; var A: array of wChar): int;
 {*
@@ -1433,24 +1474,28 @@ function array2strA(const A: array of aChar; out value: aString; startPos: int =
 }
 function array2strW(const A: array of wChar; out value: wString; startPos: int = low(int); length: int = -1): int;
 {*
-	If maxArrayLength is specified, assumed that it includes the last NULL character.
-	Returns number of wide chars being copied.
+	If maxArrayLength is specified, assumes that it includes the last NULL character.
+
+	@Returns number of wide chars being copied.
 }
 function array2str(const A: array of wChar; out value: wString; maxArrayLength: int = -1): int;
 
 {*
-  Allocates memory for a new string.
+	Allocates memory for a new string.
 }
 function strAllocA(size: uint): paChar;
 {*
-  Deallocates memory taken by a string.
-
-  Do not mix SysUtils.strNew() and unaUtils.strDispose().
+	Deallocates memory taken by a string.
+	Do not mix SysUtils.strNew() and unaUtils.strDispose().
 }
-function strDisposeA(str: paChar): bool;
-function strDisposeW(str: pwChar): bool;
+function strDisposeA(var str: paChar): bool;
 {*
-  Returns length of a string.
+	Deallocates memory taken by a string.
+	Do not mix SysUtils.strNew() and unaUtils.strDispose().
+}
+function strDisposeW(var str: pwChar): bool;
+{*
+	@Returns length of a string.
 }
 function strLenA(str: paChar): unsigned;
 
@@ -1470,19 +1515,21 @@ function strPosA(const strSource, strToFind: paChar): paChar;
 {$ENDIF CPU64 }
 
 {*
-  Returns position (starting from 1) in the s where one of the characters given in delimiters was found.
-  Search is performed from the end of string. Returns length of s if no characters were found.
+	Search is performed from the end of string. Returns length of s if no characters were found.
+
+	@Returns position (starting from 1) in the s where one of the characters given in delimiters was found.
 }
 function lastDelimiter(const delimiters, s: wString): int;
 
 {*
   Makes value safe to pass as "plain" string, by escaping special characters with "/" symbol. Examples:
-  <UL>
-	<LI>"Lake"#9"Una" -- "Lake/tUna"</LI>
-	<LI>"Line1"#13#10"Line2" -- "Line1/r/nLine2"</LI>
-	<LI>"C:\TEMP/" -- "C:\TEMP//"</LI>
-	<LI>"PAGE"#12"FEED" -- "PAGE/012FEED"</LI>
-  </UL>
+  @unorderedList(
+    @itemSpacing Compact
+    @item ("Lake"#9"Una" -- "Lake/tUna")
+    @item ("Line1"#13#10"Line2" -- "Line1/r/nLine2")
+    @item ("C:\TEMP/" -- "C:\TEMP//")
+    @item ("PAGE"#12"FEED" -- "PAGE/012FEED")
+  )
 }
 function strEscape(const value: string; const specialCare: string = ''): string;
 
@@ -1514,11 +1561,11 @@ function urlDecode(const value: string): string;
 
 {*
   Substitues variable fields in the template with given values. Example:
-  <BR />templ = "Hello from %name% %last name%, take the 10%% of text."
-  <BR />vars = "name"#9"Lake"#10"last name"#9"Una"
-  <BR />result = "Hello from Lake Una, take the 10% of text."
-  <BR />&nbsp;
-  <P />Use the strEscape() function to ensure there are no #9 or #10 characters in the values.
+  templ = "Hello from %name% %last name%, take the 10%% of text."
+  vars = "name"#9"Lake"#10"last name"#9"Una"
+  result = "Hello from Lake Una, take the 10% of text."
+
+  Use the strEscape() function to ensure there are no #9 or #10 characters in the values.
 }
 function formatTemplate(const templ: string; const vars: string; unescapeVars: bool = true): string;
 {*
@@ -1532,11 +1579,11 @@ function replaceTokens(var text: aString; const tokens: aString; var careSelStar
 function replaceTokens(var text: wString; const tokens: wString; var careSelStart: int): int; overload;
 
 {*
-  Returns integer parameter value (or defValue);
 
-  str must have the following format:
-
+  @param str must have the following format:
     param1=value1#9param2=value2
+
+  @Returns integer parameter value (or defValue);
 }
 function getIntValueFromStr(const str, paramName: string; defValue: int): int;
 
@@ -1859,12 +1906,12 @@ function malloc(size: unsigned; data: pointer): pointer; overload; {$IFDEF UNA_O
 procedure mrealloc(var data; newSize: unsigned = 0); {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
 {*
-  Compares two memory blocks.
+	Compares two memory blocks.
 
-  @param p1 pointer to first block.
-  @param p2 pointer to second block.
+	@param p1 pointer to first block.
+	@param p2 pointer to second block.
 
-  @return true if at least size bytes are equal.
+	@return true if at least size bytes are equal.
 }
 function mcompare(p1, p2: pointer; size: unsigned): bool;
 {*
@@ -1886,8 +1933,8 @@ function mscand(buf: pointer; count: unsigned; value: uint32): pointer;
 	Scans memory for a pointer value.
         Assumes elements are aligned to sizeof(pointer)
 
-	@value value to scan for
-	@len size of buffer in bytes
+	@param value value to scan for
+	@param len size of buffer in bytes
 }
 function mscanp(buf: pointer; value: pointer; len: unsigned): pointer;
 {*
@@ -1909,18 +1956,24 @@ procedure mswapbuf16(buf: pointer; len: int);
 {*
 	LSB16 <-> MSB16, sorts 2 bytes in reverse order.
 }
-function swap16(w: uint16): uint16;
-function swap16i(w: int16): int16;
+function swap16u(w: uint16): uint16; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function swap16i(w: int16): int16;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	LSB32 <-> MSB32, sorts 4 bytes in reverse order.
 }
-function swap32(w: uint32): uint32;
-function swap32i(w: int32): int32;
+function swap32u(w: uint32): uint32;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function swap32i(w: int32): int32;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	LSB64 <-> MSB64, sorts 8 bytes in reverse order.
+}
+function swap64u(w: uint64): uint64;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function swap64i(w: int64): int64;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
 
 {*
   Disposes an object.
-  <P />Assigns nil value to the object reference.
+  
+	Assigns nil value to the object reference.
 }
 procedure freeAndNil(var objRef);{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
@@ -2188,7 +2241,8 @@ function choiceE(value: bool; const true_choice: extended = 0; false_choice: ext
 
 {*
 	Returns greatest common divider.
-	<P />For example, if a=11025 and b=1000 the result will be 25.
+	
+	For example, if a=11025 and b=1000 the result will be 25.
 }
 function gcd(a, b: unsigned): unsigned;
 
@@ -2201,27 +2255,26 @@ function getNullDacl(): PSecurityAttributes;
 var
 {$IFDEF NO_ANSI_SUPPORT }
 {$ELSE }
-  /// Do host OS supports unicode strings?
-  /// true if running on NT or later (wide API seems to be present)
+  // Do host OS supports unicode strings?
+  // true if running on NT or later (wide API seems to be present)
   g_wideApiSupported: bool;
 {$ENDIF NO_ANSI_SUPPORT }
 
-  /// OS version information
+  // OS version information
   g_OSVersion: OSVERSIONINFOW;
 
-  /// Are we running unser WOW64?
+  // Are we running unser WOW64?
   g_isWOW64: bool;
 
 
 implementation
 
 
-uses
-  unaPlacebo
 {$IFDEF UNA_PROFILE }
-  , unaProfile
+uses
+  unaProfile;
 {$ENDIF UNA_PROFILE }
-  ;
+
 
 {$IFDEF UNA_PROFILE }
 var
@@ -2341,7 +2394,7 @@ begin
 end;
 
 // -- signed shift left --
-function sshl(v: int; c: int): int;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function sshl(v: int; c: int): int;
 begin
   if (0 < c) then
     result := int((unsigned(v) shl c) or (unsigned(v) and $80000000))
@@ -2350,7 +2403,7 @@ begin
 end;
 
 // -- signed shift right --
-function sshr(v: int; c: int): int;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function sshr(v: int; c: int): int;
 begin
   if (0 < c) then begin
     //
@@ -4685,6 +4738,16 @@ end;
 {$ENDIF CPU64 }
 
 // --  --
+function byteArray2str(value: pArray; count: int): string;
+var
+  i: int32;
+begin
+  result := '';
+  for i := 0 to count - 1 do
+    result := result + int2str(value[i], 16);
+end;
+
+// --  --
 function intArray2str(value: pInt32Array): string;
 var
   i: int;
@@ -4789,7 +4852,7 @@ begin
     while ((0 < maxLen) and (' ' = value[maxLen - 1])) do
       dec(maxLen);
     //
-    if ((10 = base) and
+    if ((16 = base) and
 	( ('$' = value^) or
 	  ('h' = value[maxLen - 1]) or
 	  ('H' = value[maxLen - 1]) or
@@ -5312,9 +5375,15 @@ begin
 end;
 
 // --  --
-function st2str(const st: SYSTEMTIME): string;
+function stDate2str(const st: SYSTEMTIME): string;
 begin
   result := adjust(int2str(st.wDay), 2, '0')  + '-' + month2str(st.wMonth) + '-' + adjust(int2str(st.wYear), 4, '0');
+end;
+
+// --  --
+function stDateTime2str(const st: SYSTEMTIME): string;
+begin
+  result := stDate2str(st) + ' ' + sysTime2str(st);
 end;
 
 // --  --
@@ -5816,6 +5885,17 @@ end;
 
 
 // --  --
+function revStr(const a: string): string;
+var
+  i: int32;
+begin
+  setLength(result, length(a));
+  for i := 1 to length(a) shr 1 do
+    result[i] := a[length(a) - i];
+end;
+
+
+// --  --
 function adjust(const value: string; len: int; fill: char; left: bool; truncate: bool): string;
 begin
   len := abs(len);
@@ -6271,18 +6351,18 @@ begin
 end;
 
 // --  --
-function strDisposeA(str: paChar): bool;
+function strDisposeA(var str: paChar): bool;
 begin
   mrealloc(str);
   result := true;
 end;
 
 // --  --
-function strDisposeW(str: pwChar): bool;
+function strDisposeW(var str: pwChar): bool;
 begin
   mrealloc(str);
   result := true;
-end;  
+end;
 
 {$IFDEF CPU64 }
 
@@ -8157,56 +8237,56 @@ end;
 
 // --  --
 // The function returns the initial value of the Destination parameter.
-function InterlockedCompareExchange(var Destination: int; Exchange: int; Comparand: int): int;
+function InterlockedCompareExchange(var destination: int; exchange: int; comparand: int): int;
 asm                                   //RCX               RDX            R8
-        .NOFRAME
-        mov     rax, Comparand
-  lock  cmpxchg [Destination], Exchange // (RAX == [Destination]) ?
-                                        //   YEP: [Destination] <= Exchange
-                                        //  NOPE: RAX <= [Destination]
+	.NOFRAME
+	mov     rax, comparand
+  lock  cmpxchg [destination], exchange // (RAX == [Destination]) ?
+					//   YEP: [Destination] <= Exchange
+					//  NOPE: RAX <= [Destination]
 end;
 
   {$ELSE }
 
 // --  --
 // The function returns the initial value of the Addend parameter.
-function InterlockedExchangeAdd(var Addend: int; value: int): int;
+function InterlockedExchangeAdd(var addend: int; value: int): int;
 asm                             //  EAX          EDX
-        mov     ecx, eax
-        mov     eax, edx
+	mov     ecx, eax
+	mov     eax, edx
   lock  xadd    [ecx], eax   //      TEMP <= [ecx] + EAX
-                             //       EAX <= [ecx]
-                             //     [ecx] <= TEMP
+			     //       EAX <= [ecx]
+			     //     [ecx] <= TEMP
 end;
 
 // --  --
 // The function returns the resulting incremented value.
-function InterlockedIncrement(var Addend: int): int;
+function InterlockedIncrement(var addend: int): int;
 asm                           //  EAX
         mov     edx, 1
-  lock  xadd    [Addend], edx
-        inc     edx
-        mov     eax, edx
+  lock  xadd    [addend], edx
+	inc     edx
+	mov     eax, edx
 end;
 
 // --  --
 // The function returns the resulting decremented value.
-function InterlockedDecrement(var Addend: int): int;
+function InterlockedDecrement(var addend: int): int;
 asm                           //  EAX
-        mov     edx, -1
-  lock  xadd    [Addend], edx
-        dec     edx
-        mov     eax, edx
+	mov     edx, -1
+  lock  xadd    [addend], edx
+	dec     edx
+	mov     eax, edx
 end;
 
 // --  --
 // The function returns the initial value of the Destination parameter.
-function InterlockedCompareExchange(var Destination: int; Exchange: int; Comparand: int): int;
+function InterlockedCompareExchange(var destination: int; exchange: int; comparand: int): int;
 asm                                   //EAX               EDX            ECX
-        xchg    eax, ecx
+	xchg    eax, ecx
   lock  cmpxchg [ecx], edx      // (EAX == [ecx]) ?
-                                //   YEP: [ecx] <= edx
-                                //  NOPE: EAX <= [ecx]
+				//   YEP: [ecx] <= edx
+				//  NOPE: EAX <= [ecx]
 end;
 
   {$ENDIF CPU64 }
@@ -8317,7 +8397,7 @@ begin
 end;
 
 // --  --
-function hrpc_getTimeInterval64(const mark: int64): int64; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function hrpc_getTimeInterval64(const mark: int64): int64;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 var
   newMark: int64;
 begin
@@ -8330,7 +8410,7 @@ begin
 end;
 
 // --  --
-function hrpc_getTimeInterval(const mark: int64): unsigned; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+function hrpc_getTimeInterval(const mark: int64): unsigned;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 var
   delta: int64;
 begin
@@ -9600,13 +9680,18 @@ begin
     ofs := 0;
     while (ofs < size) do begin
       //
-      if (pArray(p1)[ofs] <> pArray(p2)[ofs]) then begin
+      if (pByte(p1)^ <> pByte(p2)^) then begin
 	//
 	result := false;
 	break;
       end
-      else
+      else begin
+	//
+	inc(pByte(p1));
+	inc(pByte(p2));
+	//
 	inc(ofs);
+      end;
     end;
   end
   else
@@ -9998,7 +10083,7 @@ end;
 procedure mswapbuf16(buf: pointer; len: int);
 asm
 {$IFDEF CPU64 }
-        mov     r10, rsi
+	mov     r10, rsi
 
 	mov	rsi, buf
 	mov	rcx, len
@@ -10048,38 +10133,39 @@ asm
 end{$IFDEF FPC64 }['R10', 'RCX', 'RAX']{$ENDIF FPC64 };
 
 // --  --
-function swap16(w: uint16): uint16;
-asm
-{$IFDEF CPU64 }
-	mov	ax, w
-{$ENDIF CPU64 }
-        //
-	xchg	al, ah
-end{$IFDEF FPC64 } ['RAX'] {$ENDIF FPC64 };
+function swap16u(w: uint16): uint16;
+begin
+  result := ((w and $FF) shl 8) or (w shr 8);
+end;
 
 // --  --
 function swap16i(w: int16): int16;
 begin
-  result := int16(swap16(uint16(w)));
+  result := int16(swap16u(uint16(w)));
 end;
 
-
 // --  --
-function swap32(w: uint32): uint32;
-asm
-{$IFDEF CPU64 }
-	mov	eax, w
-{$ENDIF CPU64 }
-        //
-	xchg    al, ah
-	rol	eax, 16
-	xchg    al, ah
-end{$IFDEF FPC64 } ['RAX'] {$ENDIF FPC64 };
+function swap32u(w: uint32): uint32;
+begin
+  result := (swap16u(w and $FFFF) shl 16) or swap16u(w shr 16);
+end;
 
 // --  --
 function swap32i(w: int32): int32;
 begin
-  result := int32(swap32(uint32(w)));
+  result := int32(swap32u(uint32(w)));
+end;
+
+// --  --
+function swap64u(w: uint64): uint64;
+begin
+  result := uint64((uint64(swap32u(w and $FFFFFFFF)) shl 32)) or swap32u(w shr 32);
+end;
+
+// --  --
+function swap64i(w: int64): int64;
+begin
+  result := int64((uint64(swap32u(uint64(w) and $FFFFFFFF)) shl 32)) or swap32u(uint64(w) shr 32);
 end;
 
 // --  --
@@ -10234,7 +10320,7 @@ finalization
 {$ENDIF VC25_OVERLAPPED }
 
 {$IFDEF CONSOLE_IO }
-  // for console applications we will close console I/O handles
+  // for console applications close console I/O handles
   if (INVALID_HANDLE_VALUE <> g_CONIN) then
     CloseHandle(g_CONIN);
     //

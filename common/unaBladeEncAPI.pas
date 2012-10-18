@@ -31,8 +31,10 @@
   BladeEnc.DLL and LameEnc.DLL wrapper.
 
   @Author Lake
-  @Version 2.5.2008.07 Still here
-  @Version 2.5.2010.02 Added unaLameEncoder class
+
+ 	2.5.2008.07 Still here
+  
+	2.5.2010.02 Added unaLameEncoder class
 }
 
 unit
@@ -309,13 +311,15 @@ function beEncodeChunk(const bladeProc: tBladeLibrary_proc; stream: HBE_STREAM; 
   This function should be called after encoding the last chunk in order to
   flush the encoder. It writes any encoded data that still might be left inside
   the encoder to the output buffer.
-  <BR>This function should NOT be called unless you have encoded all of the chunks in your stream.
+
+  This function should NOT be called unless you have encoded all of the chunks in your stream.
 }
 function beDeinitStream(const bladeProc: tBladeLibrary_proc; stream: HBE_STREAM; outputBuf: pointer; out outputUsed: DWORD): BE_ERR;
 
 {*
   Last function to be called when finished encoding a stream.
-  <BR>Should unlike beDeinitStream() also be called if the encoding is canceled.
+
+  Should unlike beDeinitStream() also be called if the encoding is canceled.
 }
 function beCloseStream(const bladeProc: tBladeLibrary_proc; stream: HBE_STREAM): BE_ERR;
 
@@ -335,13 +339,15 @@ const
 
 {*
   Loads Blade DLL.
-  <BR>Returns 0 if successuf, or Windows specific error code.
+
+  @return 0 if successuf, or Windows specific error code.
 }
 function blade_loadDLL(var bladeProc: tBladeLibrary_proc; const pathAndName: wString = c_bladeEncDLL): int;
 
 {*
   Unloads Blade DLL.
-  <BR>Returns 0 if successuf, or Windows specific error code.
+
+  @returns 0 if successuf, or Windows specific error code.
 }
 function blade_unloadDLL(var bladeProc: tBladeLibrary_proc): int;
 

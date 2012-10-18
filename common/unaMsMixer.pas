@@ -36,7 +36,8 @@
   Refer to MSDN documentation for more information about mixers.
 
   @Author Lake
-  @Version 2.5.2008.07 Still here
+  
+	Version 2.5.2008.07 Still here
 }
 
 unit

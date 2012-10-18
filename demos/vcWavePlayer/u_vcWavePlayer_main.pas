@@ -109,17 +109,17 @@ type
     procedure c_label_captionClick(Sender: TObject);
     procedure c_go_updateTimer(Sender: TObject);
     procedure c_trackBar_volumeChange(Sender: TObject);
+    procedure c_statusBar_mainClick(Sender: TObject);
+    procedure c_cb_speexDSPClick(Sender: TObject);
     //
     procedure waveOutFeedDone(sender: unavclInOutPipe; data: Pointer; len: Cardinal);
     procedure waveRiffSourceStreamIsDone(sender: TObject);
     //
     procedure a_playback_pauseExecute(Sender: TObject);
     procedure a_playback_resumeExecute(Sender: TObject);
-    procedure c_statusBar_mainClick(Sender: TObject);
+    //
     procedure Exit1Click(Sender: TObject);
-    procedure c_panel_topClick(Sender: TObject);
     procedure About1Click(Sender: TObject);
-    procedure c_cb_speexDSPClick(Sender: TObject);
   private
     { Private declarations }
     f_config: unaIniFile;
@@ -425,11 +425,6 @@ begin
     //
     f_invalidateIsDone := true;
   end;
-end;
-
-procedure Tc_form_main.c_panel_topClick(Sender: TObject);
-begin
-
 end;
 
 // --  --

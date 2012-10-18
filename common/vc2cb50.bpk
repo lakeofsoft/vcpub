@@ -39,7 +39,7 @@
   <LINKER>
     <ALLOBJ value="c0pkg32.obj $(PACKAGES) sysinit.obj $(OBJFILES)"/>
     <ALLRES value="$(RESFILES)"/>
-    <ALLLIB value="$(LIBFILES) $(LIBRARIES) import32.lib cp32mt.lib ws2_32.lib Wininet.lib w32inet.lib "/>
+    <ALLLIB value="$(LIBFILES) $(LIBRARIES) import32.lib cp32mt.lib wininet.lib ws2_32.lib "/>
   </LINKER>
   <IDEOPTIONS>
   </IDEOPTIONS>

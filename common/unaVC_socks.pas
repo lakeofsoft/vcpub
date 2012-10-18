@@ -6,8 +6,8 @@
 	  Voice Communicator components version 2.5 Pro
 
 	----------------------------------------------
-	  Copyright (c) 2002-2010 Lake of Soft
-		     All rights reserved
+	  (c) 2002-2012 Lake of Soft
+	  All rights reserved
 
 	  http://lakeofsoft.com/
 	----------------------------------------------
@@ -23,7 +23,7 @@
 		Lake, Mar-Dec 2007
 		Lake, Jan-Nov 2008
 		Lake, Jan-May 2009
-		Lake, Apr 2011
+		Lake, Feb 2012
 
 	----------------------------------------------
 *)
@@ -42,14 +42,20 @@
 {*
   Contains socket pipes to be used in Delphi/C++Builder IDE.
 
-  <P>IP components:
-    <LI><A href="unaVC_socks/unavclIPClient.html">IPClient</A>.
-    <LI><A href="unaVC_socks/unavclIPServer.html">IPServer</A>.
-    <LI><A href="unaVC_socks/unavclIPBroadcastServer.html">BroadcastServer</A>.
-    <LI><A href="unaVC_socks/unavclIPBroadcastClient.html">BroadcastClient</A>.
+  IP components:
+  @unorderedList(
+    @itemSpacing Compact
+    @item @link(unavclIPClient IPClient)
+    @item @link(unavclIPServer IPServer)
+    @item @link(unavclIPBroadcastServer IPBroadcastServer)
+    @item @link(unavclIPBroadcastClient IPBroadcastClient)
+  )
 
   @Author Lake
-  @Version 2.5.2008.02 Split from unaVCIDE.pas unit
+  
+	Version 2.5.2008.02 Split from unaVCIDE.pas unit
+
+ 	Version 2.5.2012.02 STUN C/S and DNS C
 }
 
 unit
@@ -66,9 +72,10 @@ unit
 interface
 
 uses
-  Windows, unaTypes, unaClasses,
+  Windows, Classes,
+  unaTypes, unaClasses,
   MMSystem, WinSock, unaSockets,
-  unaVC_pipe;
+  unaVC_pipe, unaSocks_DNS, unaSocks_STUN;
 
 
 // ---------------------
@@ -76,7 +83,8 @@ uses
 // ---------------------
 
 const
-  cmd_inOutIPPacket_hello	= $01;	/// Hello command
+// Hello command
+  cmd_inOutIPPacket_hello	= $01;	
   cmd_inOutIPPacket_bye		= $02;
   cmd_inOutIPPacket_outOfSeats	= $03;
   cmd_inOutIPPacket_needFormat	= $04;
@@ -100,7 +108,8 @@ const
   c_umaMaxOutpackets	= 4096;
 
 type
-  punavclInOutIPPacket = ^unavclInOutIPPacket;	/// Pointer to a packet
+// Pointer to a packet
+  punavclInOutIPPacket = ^unavclInOutIPPacket;	
   {*
 	Packet record.
   }
@@ -140,19 +149,24 @@ type
   tunaSendResult = (unasr_OK, unasr_fail);
 
 
-  tunavclTextDataEvent = procedure (sender: tObject; connId: tConID; const data: string) of object;	/// OnText event
-  tunavclUserDataEvent = procedure (sender: tObject; connId: tConID; data: pointer; len: uint) of object;	/// OnUserData event
-  tunavclPacketEvent = procedure (sender: tObject; connId: tConID; cmd: uint; data: pointer; len: uint) of object;	/// OnPacket event
-  tunavclSocketEvent = procedure (sender: tObject; connId: tConID; event: unaSocketEvent; data: pointer; len: uint) of object;	/// OnSocketEvent event
+// OnText event
+  tunavclTextDataEvent = procedure (sender: tObject; connId: tConID; const data: string) of object;	
+// OnUserData event
+  tunavclUserDataEvent = procedure (sender: tObject; connId: tConID; data: pointer; len: uint) of object;	
+// OnPacket event
+  tunavclPacketEvent = procedure (sender: tObject; connId: tConID; cmd: uint; data: pointer; len: uint) of object;	
+// OnSocketEvent event
+  tunavclSocketEvent = procedure (sender: tObject; connId: tConID; event: unaSocketEvent; data: pointer; len: uint) of object;	
 
   {*
-	<A href="http://lakeofsoft.com/vcx/automatic-byte-order-detection.html">Byte order</A> for RAW streaming.
-	<UL>
-		<LI>unasbo_dontCare - byte order not changed.
-		<LI>unasbo_swap - low and high bytes are always swapped.
-		<LI>unasbo_autoDetectOnce - byte order is detected once.
-		<LI>unasbo_autoDetectCont - byte order is detected continuously.
-	</UL>
+	http://lakeofsoft.com/vcx/automatic-byte-order-detection.html for RAW streaming.
+	@unorderedList(
+	  @itemSpacing Compact
+		@item (unasbo_dontCare - byte order not changed)
+		@item (unasbo_swap - low and high bytes are always swapped)
+		@item (unasbo_autoDetectOnce - byte order is detected once)
+		@item (unasbo_autoDetectCont - byte order is detected continuously)
+	)
   }
   tunavclStreamByteOrder = (unasbo_dontCare, unasbo_swap, unasbo_autoDetectOnce, unasbo_autoDetectCont);
 
@@ -260,12 +274,14 @@ type
     function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
     {*
       You cannot read from a socket.
-      <BR />Use onDataAvailable event or override the onNewData() method to be notified when new data arrives.
-      <P />This method always returns 0.
+
+      Use onDataAvailable event or override the onNewData() method to be notified when new data arrives.
+      
+    	@return This method always returns 0.
     }
     function doRead(data: pointer; len: uint): uint; override;
     {*
-      <P />This method always returns 0.
+    	@return This method always returns 0.
     }
     function getAvailableDataLen(index: integer): uint; override;
     {*
@@ -408,19 +424,22 @@ type
     //
     {*
       Triggers when text data is available.
-      <BR /><STRONG>NOTE</STRONG>: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
+
+      NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
     }
     property onTextData: tunavclTextDataEvent read f_onTextData write f_onTextData;
     //
     {*
       Triggers when user data is available.
-      <BR /><STRONG>NOTE</STRONG>: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
+
+      NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
     }
     property onUserData: tunavclUserDataEvent read f_onUserData write f_onUserData;
     //
     {*
       Triggers when new packet is available.
-      <BR /><STRONG>NOTE</STRONG>: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
+
+      NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
     }
     property onPacketEvent: tunavclPacketEvent read f_onPacketEvent write f_onPacketEvent;
     //
@@ -433,6 +452,11 @@ type
       Triggers when new portion of data was sent to remote host.
     }
     property onDataSent: tunavclUserDataEvent read f_onDataSent write f_onDataSent;
+    //
+    property isFormatProvider;
+    property onDataAvailable;
+    property onFormatChangeAfter;
+    property onFormatChangeBefore;
   end;
 
 
@@ -446,10 +470,10 @@ type
   {*
     IP Client: connects to remote server, sends and receives audio stream over TCP/IP network.
 
-    <P><I>Usage</I>: set host, proto and port properties to specify the remote host.
+    @bold(Usage): set host, proto and port properties to specify the remote host.
     Set active to true or call the open() method to initiate the connection.
 
-    <P><I>Example</I>: refer to vcTalkNow demo, with ip_client it is possible
+    @bold(Example): refer to vcTalkNow demo, with ip_client it is possible
     to send compressed audio stream over network and receive audio stream from
     remote server for playback.
   }
@@ -464,7 +488,7 @@ type
     f_onClientDisconnect: tunavclConnectEvent;
     //
     f_pingMark: uint64;
-    f_pingInterval: uint;
+    f_pingInterval: uint32;
   protected
     {*
       Writes data into the TCP/IP stream to be sent to server.
@@ -514,12 +538,14 @@ type
     property host;
     {*
       Triggers when client has been connected to the server.
-      <BR /><STRONG>NOTE</STRONG>: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
+      
+	NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
     }
     property onClientConnect: tunavclConnectEvent read f_onClientConnect write f_onClientConnect;
     {*
       Triggers when client has been disconnected from the server.
-      <BR /><STRONG>NOTE</STRONG>: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
+
+      NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
     }
     property onClientDisconnect: tunavclConnectEvent read f_onClientDisconnect write f_onClientDisconnect;
     {*
@@ -528,7 +554,7 @@ type
 	the client due to timeout.
 	Default value is 0, means ping is disabled.
     }
-    property pingInterval: uint read f_pingInterval write f_pingInterval default 0;
+    property pingInterval: uint32 read f_pingInterval write f_pingInterval default 0;
   end;
 
 
@@ -544,13 +570,10 @@ type
   tunavclAcceptClient = procedure (sender: tObject; connId: tConID; var accept: bool) of object;
 
 {$IFDEF VCX_DEMO }
-
-  {$DEFINE VCX_DEMO_LIMIT_CLIENTS }
-  {$DEFINE VCX_DEMO_LIMIT_DATA }
-  {$DEFINE UNA_NO_THREAD_PRIORITY }
-
-{$ENDIF}
-
+  {$DEFINE VCX_DEMO_LIMIT_CLIENTS 	}
+  {$DEFINE VCX_DEMO_LIMIT_DATA 		}
+  {x $DEFINE UNA_NO_THREAD_PRIORITY 	}
+{$ENDIF VCX_DEMO }
 
 const
 
@@ -561,12 +584,14 @@ const
 {$ENDIF VCX_DEMO_LIMIT_CLIENTS }
 
   // client options for IP server
-  c_unaIPServer_co_inbound	= $00000001;	/// accept inbound data from this client
-  c_unaIPServer_co_outbound	= $00000002;	/// send outbound data to this client
+// accept inbound data from this client
+  c_unaIPServer_co_inbound	= $00000001;	
+// send outbound data to this client
+  c_unaIPServer_co_outbound	= $00000002;	
   //
-  c_unaIPServer_co_default	= c_unaIPServer_co_inbound or c_unaIPServer_co_outbound;	/// default flags (both inbound and outbound are enabled)
+// default flags (both inbound and outbound are enabled)
+  c_unaIPServer_co_default	= c_unaIPServer_co_inbound or c_unaIPServer_co_outbound;	
   c_unaIPServer_co_invalid	= $80000000;
-
 
 type
   //
@@ -576,10 +601,10 @@ type
     IP Server: initiates listening socket for clients to connect to.
     Receives and sends audio stream to/from client.
 
-    <P><I>Usage</I>: set proto and port properties to specify the socket parameters.
+    @bold(Usage): set proto and port properties to specify the socket parameters.
     Set active to true or call the open() method to initiate the server.
 
-    <P><I>Example</I>: refer to vcTalkNow demo, with ip_server it is possible
+    @bold(Example): refer to vcTalkNow demo, with ip_server it is possible
     to accept client connections, receive compressed audio stream and send
     audio stream over network.
   }
@@ -702,12 +727,14 @@ type
   published
     {*
       Triggers when new client is connected to the server.
-      <BR /><STRONG>NOTE</STRONG>: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
+
+      NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
     }
     property onServerNewClient: tunavclConnectEvent read f_onServerNewClient write f_onServerNewClient;
     {*
       Triggers when client is disconnected from the server.
-      <BR /><STRONG>NOTE</STRONG>: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
+
+      NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
     }
     property onServerClientDisconnect: tunavclConnectEvent read f_onServerClientDisconnect write f_onServerClientDisconnect;
     {*
@@ -980,9 +1007,9 @@ type
     }
     procedure BeforeDestruction(); override;
     {*
-      Sets the specific broadcast address.
+	Sets the specific broadcast address.
     }
-    procedure setBroadcastAddr(addr: TIP4 = TIP4(INADDR_BROADCAST));
+    procedure setBroadcastAddr(const addrH: TIPv4H = TIPv4H(INADDR_BROADCAST));
     //
     {*
       Specifies format tag of pipe audio stream.
@@ -1020,11 +1047,11 @@ type
     Broadcasts audio stream over LAN using the broadcast destination
     IP address and UDP sockets.
 
-    <P><I>Usage</I>: set the port property to specify the port number to broadcast to.
+    @bold(Usage): set the port property to specify the port number to broadcast to.
     Calling the open() method or setting the active property
     to True will initiate broadcasting.
 
-    <P><I>Example</I>: refer to vcBroadcast demo for details.
+    @bold(Example): refer to vcBroadcast demo for details.
   }
   unavclIPBroadcastServer = class(unavclIPBroadcastPipe)
   private
@@ -1074,7 +1101,7 @@ type
   {*
     Receives audio stream being broadcasted by server component over LAN.
 
-    <P><I>Usage</I>: set the port property to specify the port number to
+    @bold(Usage): set the port property to specify the port number to
     listen at for stream being broadcasted.
     Calling the open() method or setting the active property to true
     will initiate listening.
@@ -1082,7 +1109,7 @@ type
     output stream to be played back.
     No data will be send back to server.
 
-    <P><I>Example</I>: refer to vcBroadcast demo for details.
+    @bold(Example): refer to vcBroadcast demo for details.
   }
   unavclIPBroadcastClient = class(unavclIPBroadcastPipe)
   private
@@ -1090,7 +1117,7 @@ type
     f_formatIndex: unsigned;
     f_packetsReceived: unsigned;
     f_packetsLost: unsigned;
-    f_remoteHost: TIP4;
+    f_remoteHost: TIPv4H;
     f_remotePort: uint16;
     //
     f_subData: unaMemoryStream;
@@ -1116,22 +1143,204 @@ type
     }
     property packetsLost: unsigned read f_packetsLost;
     {*
-        Returns number of received packets.
+	Returns number of received packets.
     }
     property packetsReceived: unsigned read f_packetsReceived;
     {*
-        Remote host.
+	Remote host.
     }
-    property remoteHost: TIP4 read f_remoteHost;
+    property remoteHost: TIPv4H read f_remoteHost;
     {*
-        Remote port.
+	Remote port.
     }
     property remotePort: uint16 read f_remotePort;
   published
     {*
-        Broadcast client is usually a format provider - so this property value was changed to be true by default.
+	Broadcast client is usually a format provider - so this property value was changed to be true by default.
     }
     property isFormatProvider default true;
+  end;
+
+
+// ==== STUN ====
+
+  {*
+	STUN Base
+  }
+  unavclSTUNBase = class(unavclInOutPipeImpl)
+  private
+    f_port: string;
+    f_proto: tunavclProtoType;
+    f_bind2ip: string;
+    f_stunProto: int;
+    //
+    f_agent: unaSTUNagent;
+    //
+    procedure setProto(value: tunavclProtoType);
+  protected
+    function createAgent(): bool; virtual; abstract;
+    //
+    function doOpen(): bool; override;
+    procedure doClose(); override;
+    function isActive(): bool; override;
+  public
+    procedure AfterConstruction(); override;
+  published
+    {*
+	Client: Remote STUN Server port
+	Server: Local port to listen on
+    }
+    property port: string read f_port write f_port;
+    {*
+	Transport to use: UDP or TCP
+    }
+    property proto: tunavclProtoType read f_proto write setProto default unapt_UDP;
+    {*
+	Bind client or server to this local IP. Default is 0.0.0.0
+    }
+    property bind2ip: string read f_bind2ip write f_bind2ip;
+  end;
+
+  {*
+	@param sender object instance
+	@param error error code, or 200 if no error
+	@param
+  }
+  unaSTUNCLientResponseEvent = procedure(sender: tObject; error: int32; mappedIP: uint32; mappedPort, boundPort: uint16) of object;
+
+  {*
+	STUN Client
+  }
+  unavclSTUNClient = class(unavclSTUNBase)
+  private
+    f_host: string;
+    f_useDNSSRV: boolean;
+    //
+    f_lastResponse: unaSTUNClient_req;
+    //
+    f_onResponse: unaSTUNCLientResponseEvent;
+    f_bind2port: string;
+    //
+    function getClient(): unaSTUNClient; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+  protected
+    function createAgent(): bool; override;
+    //
+    {*
+	Called from context of internal thread when STUN response is received
+    }
+    procedure doOnResponse(r: unaSTUNClient_req; error: int; mappedIP: uint32; mappedPort, boundPort: uint16); virtual;
+  public
+    procedure AfterConstruction(); override;
+    {*
+	Sends a request to remote server.
+
+	@param method method to use, default is C_STUN_MSGTYPE_BINDING
+	@param attrs pointer to additional attributes to send
+	@param attrsLen size of additional attributes
+
+	@return internal index of request ( > 0), or -1 in case of some error
+    }
+    function req(method: int = C_STUN_MSGTYPE_BINDING; attrs: pointer = nil; attrsLen: int = 0): int;
+    //
+    property client: unaSTUNClient read getClient;
+  published
+    {*
+	Remote STUN Server address
+    }
+    property host: string read f_host write f_host;
+    {*
+	Bind client to this port
+    }
+    property bind2port: string read f_bind2port write f_bind2port;
+    {*
+	User DNS SRV query to locate server(s)
+    }
+    property useDNSSRV: boolean read f_useDNSSRV write f_useDNSSRV default true;
+    {*
+	Response received by onResponse event.
+	Valid only in context of onResponse() event handler.
+    }
+    property lastResponse: unaSTUNClient_req read f_lastResponse;
+    {*
+	Called from context of internal thread when STUN response is received
+    }
+    property onResponse: unaSTUNCLientResponseEvent read f_onResponse write f_onResponse;
+  end;
+
+
+  {*
+	STUN Server
+  }
+  unavclSTUNServer = class(unavclSTUNBase)
+  private
+    f_onResponse: unaSTUNServerOnResponse;
+    //
+    function getServer(): unaSTUNServer;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+    function getNumReq(): int64; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+    function getSocketError(): int;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+    //
+    procedure setOnResponse(value: unaSTUNServerOnResponse);
+  protected
+    function createAgent(): bool; override;
+  public
+    property server: unaSTUNServer read getServer;
+    {*
+	Number of requsts handled by server
+    }
+    property numRequests: int64 read getNumReq;
+    {*
+	Fatal socket error or 0 if no error
+    }
+    property socketError: int read getSocketError;
+  published
+    {*
+	OnReponse event.
+    }
+    property onResponse: unaSTUNServerOnResponse read f_onResponse write setOnResponse;
+  end;
+
+// === DNS ====
+
+  {*
+	DNS Client
+  }
+  unavclDNSClient = class(unavclInOutPipeImpl)
+  private
+    f_cln: unaDNSClient;
+    //
+    f_lastAnswer: unaDNSQuery;
+    f_onAnswer: TNotifyEvent;
+  protected
+    function doOpen(): bool; override;
+    procedure doClose(); override;
+    function isActive(): bool; override;
+    //
+    {*
+    	Called from context of low-level DNS client thread.
+    }
+    procedure doOnAnswer(query: unaDNSQuery); virtual;
+  public
+    procedure AfterConstruction(); override;
+    procedure BeforeDestruction(); override;
+    {*
+	Returns list of DNS servers assigned by TCP/IP configuration.
+    }
+    function getDNSServersList(): string;
+    {*
+    	Low-level component, use it to get access to full functionality of DNS client.
+    }
+    property client: unaDNSClient read f_cln;
+    {*
+	Answer returned by server.
+
+	NOTE: Access this property from OnAnswer event handler only!
+    }
+    property answer: unaDNSQuery read f_lastAnswer;
+  published
+    {*
+	Fired when new answer was returned by server.
+    }
+    property onAnswer: TNotifyEvent read f_onAnswer write f_onAnswer;
   end;
 
 
@@ -1139,11 +1348,11 @@ implementation
 
 
 uses
-  unaPlacebo, unaUtils, unaWave,
+  unaPlacebo, unaUtils, unaWave
 {$IFDEF VCX_DEMO }
-  unaBaseXcode,
+  , unaBaseXcode
 {$ENDIF VCX_DEMO }
-  Classes;
+  ;
 
 
 type
@@ -1169,7 +1378,8 @@ type
     //
 {$IFDEF VCX_DEMO_LIMIT_DATA }
     f_totalData: int64;
-{$ENDIF}
+{$ENDIF VCX_DEMO_LIMIT_DATA }
+    //
 {$IFDEF PACKET_DEBUG }
     f_deltaMark1: int64;
     f_deltaMark2: int64;
@@ -1526,7 +1736,7 @@ begin
 	      end;
 	      //
 	      crc32u := ((crc32u and $FFFF) xor (crc32u shr 16)) xor (f_totalData shr 24);
-{$ELSE}
+{$ELSE }
 	      crc32u := ((crc32u and $FFFF) xor (crc32u shr 16));
 {$ENDIF VCX_DEMO_LIMIT_DATA }
 	      //
@@ -1639,7 +1849,7 @@ begin
   logMessage('TCP/IP: parser pushed new packet.. currentlly has ' + int2str(f_packets.count) + ' unhandled packets');
   {$ENDIF PACKET_DEBUG2 }
   //
-  result := (unatsRunning = getStatus());
+  result := (unatsRunning = status);
   if (not result and (f_master is unavclIPServer)) then begin
     //
     result := not (f_master as unavclIPServer).packetStackThreadEnabled;
@@ -1670,7 +1880,7 @@ begin
   logMessage('TCP/IP: got ' + int2str(len) + ' new data from socket, will analyze now..');
   {$ENDIF PACKET_DEBUG2 }
   //
-  if (unatsBeforeRunning = getStatus()) then begin
+  if (unatsBeforeRunning = status) then begin
     //
     // wait a little for thread to get started
     // + 17 OCT 2003: not actually needed now, so sleep time was reduced to 10
@@ -1681,7 +1891,7 @@ begin
 
     unasm_VC: begin
       //
-      ok := ( (unatsRunning = getStatus()) or (unapt_UDP = f_master.proto) );
+      ok := ( (unatsRunning = status) or (unapt_UDP = f_master.proto) );
       if (not ok and (f_master is unavclIPServer)) then
 	ok := not (f_master as unavclIPServer).packetStackThreadEnabled;
       //
@@ -1943,7 +2153,7 @@ procedure unavclInOutIpPipe.analyzeByteOrder(isInput: bool; data: pointer; len: 
     {$IFDEF CPU64 }
     while (1 < len) do begin
       //
-      pUint16(buf)^ := swap16(pUint16(buf)^);
+      pUint16(buf)^ := swap16u(pUint16(buf)^);
       inc(pUint16(buf));
       dec(len, 2);
     end;
@@ -1978,7 +2188,7 @@ procedure unavclInOutIpPipe.analyzeByteOrder(isInput: bool; data: pointer; len: 
   // --  --
   function sw(i: smallInt): smallInt;
   begin
-    result := swap16(i);
+    result := swap16i(i);
   end;
 
 var
@@ -3856,9 +4066,9 @@ begin
 end;
 
 // --  --
-procedure unavclIPBroadcastPipe.setBroadcastAddr(addr: TIP4);
+procedure unavclIPBroadcastPipe.setBroadcastAddr(const addrH: TIPv4H);
 begin
-  f_addr.sin_addr.s_addr := htonl(u_long(addr));
+  f_addr.sin_addr.s_addr := htonl(u_long(addrH));
 end;
 
 // --  --
@@ -4064,7 +4274,7 @@ begin
     result := unasr_fail;
   //
   if (unasr_OK = result) then
-    incInOutBytes(false, len);
+    incInOutBytes(1, false, len);
 end;
 
 // --  --
@@ -4185,7 +4395,7 @@ begin
       //
       try
 	addr.sin_addr.s_addr := 0;
-	sz := f_master.f_socket.recvfrom(addr, data, mtu, false, 0, 100);
+	sz := f_master.f_socket.recvfrom(addr, data, mtu, false, 0, 100000);
 	//
 	if ((0 < sz) and not shouldStop) then
 	  f_master.onNewBroadPacket(data, sz, addr)
@@ -4438,17 +4648,275 @@ begin
 end;
 
 
-initialization
+{ unavclSTUNBase }
 
-{$IFDEF LOG_UNAVC_SOCKS_INFOS }
-  logMessage('unaVC_socks - DEBUG is defined.');
-{$ENDIF LOG_UNAVC_SOCKS_INFOS }
+// --  --
+procedure unavclSTUNBase.AfterConstruction();
+begin
+  inherited;
+  //
+  port := int2str(C_STUN_DEF_PORT);
+  proto := unapt_UDP;
+  bind2ip := '0.0.0.0';
+end;
+
+// --  --
+procedure unavclSTUNBase.doClose();
+begin
+  inherited;
+  //
+  freeAndNil(f_agent);
+end;
+
+// --  --
+function unavclSTUNBase.doOpen(): bool;
+begin
+  freeAndNil(f_agent);
+  //
+  if (inherited doOpen() and createAgent()) then begin
+    //
+    f_agent.open();
+    result := true;
+  end
+  else
+    result := false;
+end;
+
+// --  --
+function unavclSTUNBase.isActive(): bool;
+begin
+  result := (nil <> f_agent) and (f_agent.status = unatsRunning);
+end;
+
+// --  --
+procedure unavclSTUNBase.setProto(value: tunavclProtoType);
+begin
+  f_proto := value;
+  //
+  case (value) of
+
+    unapt_UDP: f_stunProto := C_STUN_PROTO_UDP;
+    unapt_TCP: f_stunProto := C_STUN_PROTO_TCP;
+
+  end;
+end;
+
+
+type
+  mySTUNClient = class(unaSTUNClient)
+  private
+    f_master: unavclSTUNClient;
+  protected
+    procedure onResponse4(r: unaSTUNClient_req; error: int; const ip4H: TIPv4H; port, boundPort: uint16); override;
+  end;
+
+
+{ mySTUNClient }
+
+// --  --
+procedure mySTUNClient.onResponse4(r: unaSTUNClient_req; error: int; const ip4H: TIPv4H; port, boundPort: uint16);
+begin
+  inherited;
+  //
+  f_master.doOnResponse(r, error, ip4H,  port, boundPort);
+end;
+
+
+{ unavclSTUNClient }
+
+// --  --
+procedure unavclSTUNClient.AfterConstruction();
+begin
+  f_bind2port := '0';
+  f_useDNSSRV := true;
+  //
+  inherited;
+end;
+
+// --  --
+function unavclSTUNClient.createAgent(): bool;
+begin
+  f_agent := mySTUNClient.create(host, f_stunProto, f_useDNSSRV, port, bind2ip);
+  mySTUNClient(f_agent).bind2port := bind2port;
+  mySTUNClient(f_agent).f_master := self;
+  //
+  result := true;
+end;
+
+// --  --
+procedure unavclSTUNClient.doOnResponse(r: unaSTUNClient_req; error: int; mappedIP: uint32; mappedPort, boundPort: uint16);
+begin
+  if (assigned(f_onResponse)) then begin
+    //
+    f_lastResponse := r;
+    try
+      f_onResponse(self, error, mappedIP, mappedPort, boundPort);
+    finally
+      f_lastResponse := nil;
+    end;
+  end;
+end;
+
+// --  --
+function unavclSTUNClient.getClient(): unaSTUNClient;
+begin
+  result := unaSTUNClient(f_agent);
+end;
+
+// --  --
+function unavclSTUNClient.req(method: int; attrs: pointer; attrsLen: int): int;
+begin
+  open();
+  //
+  if (nil <> client) then
+    result := client.req(method, attrs, attrsLen)
+  else
+    result := -1;	// some problem with client
+end;
+
+
+{ unavclSTUNServer }
+
+// --  --
+function unavclSTUNServer.createAgent(): bool;
+begin
+  f_agent := unaSTUNserver.create(f_stunProto, port, bind2ip);
+  unaSTUNserver(f_agent).onResponse := f_onResponse;
+  //
+  result := true;
+end;
+
+// --  --
+function unavclSTUNServer.getNumReq(): int64;
+begin
+  if (nil <> server) then
+    result := server.numRequests
+  else
+    result := 0;
+end;
+
+// --  --
+function unavclSTUNServer.getServer(): unaSTUNServer;
+begin
+  result := unaSTUNServer(f_agent);
+end;
+
+// --  --
+function unavclSTUNServer.getSocketError(): int;
+begin
+  if (nil <> server) then
+    result := server.socketError
+  else
+    result := 0;
+end;
+
+// --  --
+procedure unavclSTUNServer.setOnResponse(value: unaSTUNServerOnResponse);
+begin
+  f_onResponse := value;
+  if (nil <> server) then
+    server.onResponse := value;
+end;
+
+
+
+type
+  {*
+	Internal class to override the onAnswer method
+  }
+  myDNSClient = class(unaDNSClient)
+  private
+    f_master: unavclDNSClient;
+  protected
+    procedure onAnswer(query: unaDNSQuery); override;
+  public
+    constructor create(master: unavclDNSClient);
+  end;
+
+
+{ myDNSClient }
+
+// --  --
+constructor myDNSClient.create(master: unavclDNSClient);
+begin
+  f_master := master;
+  //
+  inherited create();
+end;
+
+// --  --
+procedure myDNSClient.onAnswer(query: unaDNSQuery);
+begin
+  inherited;
+  //
+  f_master.doOnAnswer(query);
+end;
+
+
+{ unavclDNSClient }
+
+// --  --
+procedure unavclDNSClient.AfterConstruction();
+begin
+  f_cln := myDNSClient.create(self);
+  //
+  inherited;
+end;
+
+// --  --
+procedure unavclDNSClient.BeforeDestruction();
+begin
+  inherited;
+  //
+  freeAndNil(f_cln);
+end;
+
+// --  --
+procedure unavclDNSClient.doClose();
+begin
+  inherited;
+  //
+  client.stop();
+end;
+
+// --  --
+procedure unavclDNSClient.doOnAnswer(query: unaDNSQuery);
+begin
+  if (assigned(f_onAnswer)) then begin
+    //
+    f_lastAnswer := query;
+    f_onAnswer(self);
+    f_lastAnswer := nil;	// query will be removed right after returning from this method
+  end;
+end;
+
+// --  --
+function unavclDNSClient.doOpen(): bool;
+begin
+  result := (nil <> client) and client.start();
+end;
+
+// --  --
+function unavclDNSClient.getDNSServersList(): string;
+begin
+  if (nil <> client) then
+    result := client.getDNSServersList()
+  else
+    result := '';
+end;
+
+// --  --
+function unavclDNSClient.isActive(): bool;
+begin
+  result := (nil <> client) and (unatsRunning = client.status);
+end;
+
+
+initialization
 
 // --  --
 finalization
   // release global objects
   freeAndNil(g_socks);
 end.
-
-
 

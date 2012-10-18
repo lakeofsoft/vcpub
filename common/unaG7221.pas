@@ -35,7 +35,8 @@
   G.722.1 implementation based on ITU source code
 
   @Author Lake
-  @Version 1.0 First release
+
+  1.0 First release
 }
 
 unit
@@ -801,12 +802,12 @@ type
     }
     function init(sampleRate: int = 16000; bitrate: int = 24000): bool; virtual;
     {*
-        Size of portion of data (frame) the coder is expecting to process at once.
-        In bytes.
+	Size of portion of data (frame) the coder is expecting to process at once.
+	In bytes.
     }
     function chunkSize(): uint; virtual; abstract;
     {*
-        Encodes/decodes data.
+	Encodes/decodes data.
 
 	@return number of full frames processed.
     }
@@ -823,10 +824,18 @@ type
     }
     destructor Destroy(); override;
     {*
-        Sends more data to coder.
+	Opens the coder.
+    }
+    procedure open();
+    {*
+	Closes the coder.
+    }
+    procedure close();
+    {*
+	Sends more data to coder.
 
-        @data 16-bit samples
-        @len size of buffer in bytes
+	@param data 16-bit samples for encoder or
+	@param len size of buffer in bytes
 	@return number of full frames processed in this call.
     }
     function write(data: pointer; len: uint): int;
@@ -879,12 +888,12 @@ type
     procedure GET_NEXT_BIT();
   protected
     {*
-        Size of portion of data (frame) the coder is expecting to process at once.
-        In bytes.
+	Size of portion of data (frame) the coder is expecting to process at once.
+	In bytes.
     }
     function chunkSize(): uint; override;
     {*
-        Decodes data.
+	Decodes data.
     }
     function process(ptr: pointer; len: uint): int; override;
     {*
@@ -924,12 +933,12 @@ type
     function vector_huffman(category: int32; power_index: int32; raw_mlt_ptr: pFloat; word_ptr: pUInt32): int32;
   protected
     {*
-        Size of portion of data (frame) the coder is expecting to process at once.
-        In bytes.
+	Size of portion of data (frame) the coder is expecting to process at once.
+	In bytes.
     }
     function chunkSize(): uint; override;
     {*
-        Encodes data.
+	Encodes data.
     }
     function process(ptr: pointer; len: uint): int; override;
     {*
@@ -943,6 +952,7 @@ type
     }
     function encode(inFrame: pInt16; inSamples: int): int;
   public
+    //
   end;
 
 
@@ -1646,8 +1656,13 @@ end;
 //======================================= CODER ====================================
 //=======================================   ====================================
 
-
 { unaG7221Coder }
+
+// --  --
+procedure unaG7221Coder.close();
+begin
+  f_subStream.clear();
+end;
 
 // --  --
 constructor unaG7221Coder.create(sampleRate, bitrate: int);
@@ -1708,6 +1723,9 @@ begin
   //
   if (result) then
     f_subBuf := malloc(chunkSize());
+  //
+  if (nil <> f_subStream) then
+    f_subStream.clear();
 end;
 
 // --  --
@@ -1715,6 +1733,12 @@ procedure unaG7221Coder.notify(stream: pointer; sizeBytes: int);
 begin
   // override to get data
   inc(f_numFrames);
+end;
+
+// --  --
+procedure unaG7221Coder.open();
+begin
+  f_subStream.clear();
 end;
 
 // --  --
@@ -3479,7 +3503,6 @@ begin
   //
   result := number_of_region_bits;
 end;
-
 
 
 end.

@@ -154,8 +154,8 @@ procedure Tc_form_main.c_timer_updateTimer(Sender: TObject);
 var
   active: bool;
 begin
-  c_statusBar_main.panels[0].text := 'SRV in/out: ' + int2str(ipServer.inBytes, 10, 3) + '/' + int2str(ipServer.outBytes, 10, 3);
-  c_statusBar_main.panels[1].text := 'CLN in/out: ' + int2str(ipClient.inBytes, 10, 3) + '/' + int2str(ipClient.outBytes, 10, 3);
+  c_statusBar_main.panels[0].text := 'SRV in/out: ' + int2str(ipServer.inBytes[1], 10, 3) + '/' + int2str(ipServer.outBytes[1], 10, 3);
+  c_statusBar_main.panels[1].text := 'CLN in/out: ' + int2str(ipClient.inBytes[1], 10, 3) + '/' + int2str(ipClient.outBytes[1], 10, 3);
   //
   c_label_srvInfo.caption := 'Server is ' + choice(ipServer.active, 'active', 'closed') + ', ' + choice(0 < ipServer.clientCount, 'one peer is connected', 'no peer is connected');
   c_label_clnInfo.caption := 'Client is ' + choice(ipClient.active, 'connected', 'not connected');

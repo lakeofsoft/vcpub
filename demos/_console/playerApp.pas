@@ -102,7 +102,7 @@ begin
     unaFileStream(device.assignStream(unaFileStream, true)).initStream(in_file, GENERIC_READ);
 
     infoMessage('--------------------------');
-    infoMessage('Output device   : ' + unaWaveOutDevice(device).getCCaps().szPname + choice(unaWaveDevice(device).direct, ' [direct]', ''));
+    infoMessage('Output device   : ' + unaWaveOutDevice(device).getOutCaps().szPname + choice(unaWaveDevice(device).direct, ' [direct]', ''));
     infoMessage(' ');
   {$IFDEF CONSOLE}
     infoMessage('Sampling rate       : ' + int2Str(rate));

@@ -26,16 +26,81 @@
 
 {$I unaDef.inc }
 
+{$IFDEF DEBUG }
+  {$IFDEF __AFTER_D5__ }
+    {$IFDEF VC_HINT_COMPILE_MESSAGES }
+      {$MESSAGE HINT 'VC_DEBUG_VERSION' }
+    {$ENDIF VC_HINT_COMPILE_MESSAGES }
+  {$ENDIF __AFTER_D5__ }
+{$ENDIF DEBUG }
+
+
+{$IFDEF VC25_ENTERPRISE }
+  //
+  {$IFDEF __AFTER_D5__ }
+    {$IFDEF VC_HINT_COMPILE_MESSAGES }
+      {$MESSAGE HINT 'VC_ENTERPRISE' }
+    {$ENDIF VC_HINT_COMPILE_MESSAGES }
+  {$ENDIF __AFTER_D5__ }
+  //
+  {$IFDEF NO_ANSI_SUPPORT }
+    //
+    {$IFDEF __AFTER_D5__ }
+      {$IFDEF VC_HINT_COMPILE_MESSAGES }
+        {$MESSAGE HINT 'VC NO ANSI' }
+      {$ENDIF VC_HINT_COMPILE_MESSAGES }
+    {$ENDIF __AFTER_D5__ }
+    //
+    {$DEFINE VC25_OVERLAPPED }      // enable overlapped calls
+    {$DEFINE VC25_WINSOCK20 }       // enable WinSock 2.0 extensions
+    //
+    {$IFDEF FPC }
+    {$ELSE }
+      {$IFDEF VC25_OVERLAPPED }
+        //
+        {$IFDEF __AFTER_D5__ }
+          {$IFDEF VC_HINT_COMPILE_MESSAGES }
+            {$MESSAGE HINT 'VC_IOCP' }
+          {$ENDIF VC_HINT_COMPILE_MESSAGES }
+        {$ENDIF __AFTER_D5__ }
+        //
+	{$DEFINE VC25_IOCP }            // enable IOCP calls
+	//
+      {$ENDIF VC25_OVERLAPPED }
+    {$ENDIF FPC }
+  {$ELSE }
+    //
+    {$IFDEF __AFTER_D5__ }
+      {$IFDEF VC_HINT_COMPILE_MESSAGES }
+        {$MESSAGE HINT 'VC ANSI OK' }
+      {$ENDIF VC_HINT_COMPILE_MESSAGES }
+    {$ENDIF __AFTER_D5__ }
+    //
+  {$ENDIF NO_ANSI_SUPPORT }
+  //
+{$ELSE }
+  //
+  {$IFDEF __AFTER_D5__ }
+    {$IFDEF VC_HINT_COMPILE_MESSAGES }
+      {$MESSAGE HINT 'VC_PERSONAL' }
+    {$ENDIF VC_HINT_COMPILE_MESSAGES }
+  {$ENDIF __AFTER_D5__ }
+  //
+{$ENDIF VC25_ENTERPRISE }
+
 {*
+
   Contains definition of base types used in other units.
   Most used types are:
-    int = integer;
-    bool = LongBool;
-    unsigned = Cardinal;
+    int = int32/64 depending on target CPU
+    bool = LongBool
+    unsigned = Cardinal
 
   @Author Lake
-  @Version 2.5.2009.12 - some cleanup
+
+  Version 2.5.2009.12 - some cleanup
 }
+
 
 unit
   unaTypes;
@@ -47,16 +112,23 @@ type
   longword = cardinal;
 {$ENDIF __BEFORE_D4__ }
 
-  int8		= shortint;	/// signed 8 bits integer
-  int16		= smallint;	/// signed 16 bits integer
-  int32		= longint;	/// signed 32 bits integer
+// signed 8 bits integer
+  int8		= shortint;	
+// signed 16 bits integer
+  int16		= smallint;	
+// signed 32 bits integer
+  int32		= longint;	
 
-  uint8		= byte;		/// unsigned 8 bits integer
-  uint16	= word;		/// unsigned 16 bits integer
-  uint32	= longword;	/// unsigned 32 bits integer
+// unsigned 8 bits integer
+  uint8		= byte;		
+// unsigned 16 bits integer
+  uint16	= word;		
+// unsigned 32 bits integer
+  uint32	= longword;	
   {$IFNDEF CPU64 }
     {$IFDEF __BEFORE_D9__}
-    uint64	= int64;	/// NOTE: Delphi up to version 7 has no built-in support for unsigned 64-bit integers
+// NOTE: Delphi up to version 7 has no built-in support for unsigned 64-bit integers
+    uint64	= int64;	
     {$ENDIF __BEFORE_D9__}
   {$ENDIF CPU64 }
 
@@ -64,38 +136,45 @@ type
 	unsigned 64 bits integer type defined as two double words record
   }
   uint64Rec	= record
-    lo,			/// low double word of unsigned 64 bits integer
-    hi: uint32;		/// high double word of unsigned 64 bits integer
+// low double word of unsigned 64 bits integer
+    lo,			
+// high double word of unsigned 64 bits integer
+    hi: uint32;		
   end;
 
-  uint  = LongWord;     /// universal 32 bit unsigned integer
-
+// universal 32 bit unsigned integer
+  uint  = LongWord;     
 
   {$EXTERNALSYM unsigned }
-  pUnsigned 	= ^unsigned;	/// pointer to value of type "unsigned"
+// pointer to value of type "unsigned"
+  pUnsigned 	= ^unsigned;	
   {$IFDEF __AFTER_DE__ }
-  unsigned 	= NativeUInt;   /// general unsigned integer type, 32 or 64 or more bits depending on compiler
+// general unsigned integer type, 32 or 64 or more bits depending on compiler
+  unsigned 	= NativeUInt;   
   {$ELSE }
+// general unsigned integer type, 32 or 64 or more bits depending on compiler
     {$IFDEF CPU64 }
-      unsigned 	= uint64;     /// general unsigned integer type, 32 or 64 or more bits depending on compiler
+      unsigned 	= uint64;     
     {$ELSE }
-      unsigned 	= Cardinal;   /// 32 bit unsigned (in Delphies before XE2)
+      unsigned 	= Cardinal;   
     {$ENDIF CPU64 }
   {$ENDIF __AFTER_DE__ }
 
+// general signed integer type, 32 or 64 or more bits depending on compiler
   {$IFDEF __AFTER_DE__ }
-    int = NativeInt;	/// general signed integer type, 32 or 64 or more bits depending on compiler
+    int = NativeInt;	
   {$ELSE }
     {$IFDEF CPU64 }
-    int = int64;	/// 64 bit signed integer type
+    int = int64;	
     {$ELSE }
-    int = LongInt;	/// 32 bit signed integer type
+    int = LongInt;	
     {$ENDIF CPU64 }
   {$ENDIF __AFTER_DE__ }
 
 
   {$EXTERNALSYM int }
-  pInt = ^int;		/// pointer to a value of type "int"
+// pointer to a value of type "int"
+  pInt = ^int;		
   {$IFDEF CPU64 }
     //
     {$IFDEF FPC }
@@ -111,51 +190,75 @@ type
 
   {$EXTERNALSYM PLONG }
   {$EXTERNALSYM LONG }
-  PLONG = ^LONG;	/// pointer to type LONG (int)
-  LONG = int;		/// another name for type "int"
+// pointer to type LONG (int)
+  PLONG = ^LONG;	
+// another name for type "int"
+  LONG = int;		
 
   {$EXTERNALSYM bool }
   {$IFDEF FPC }
-  bool = boolean;	/// got some problems with LongBool under FPC64 (as of 2.4.2)
+// got some problems with LongBool under FPC64 (as of 2.4.2)
+  bool = boolean;	
   {$ELSE }
-  bool = LongBool;	/// general boolean type, 32 (or 64?/more?) bits (depending on compiler?). Defined in System.pas
+// general boolean type, 32 (or 64?/more?) bits (depending on compiler?). Defined in System.pas
+  bool = LongBool;	
   {$ENDIF FPC }
 
-  pInt8		= ^int8;	/// pointer to signed 8 bits integer value
-  pInt16	= ^int16;	/// pointer to signed 16 bits integer value
-  pInt32	= ^int32;	/// pointer to signed 32 bits integer value
+// pointer to signed 8 bits integer value
+  pInt8		= ^int8;	
+// pointer to signed 16 bits integer value
+  pInt16	= ^int16;	
+// pointer to signed 32 bits integer value
+  pInt32	= ^int32;	
   {$IFNDEF CPU64 }
-  pInt64	= ^int64;	/// pointer to signed 64 bits integer value
+// pointer to signed 64 bits integer value
+  pInt64	= ^int64;	
   {$ENDIF CPU64 }
 
-  pUint8	= ^uint8;	/// pointer to unsigned 8 bits integer value
-  pUint16	= ^uint16;	/// pointer to unsigned 16 bits integer value
-  pUint32	= ^uint32;	/// pointer to unsigned 32 bits integer value
-  pUint64	= ^uint64;	/// pointer to unsigned 64 bits integer value
+// pointer to unsigned 8 bits integer value
+  pUint8	= ^uint8;	
+// pointer to unsigned 16 bits integer value
+  pUint16	= ^uint16;	
+// pointer to unsigned 32 bits integer value
+  pUint32	= ^uint32;	
+// pointer to unsigned 64 bits integer value
+  pUint64	= ^uint64;	
 
   //
   {$EXTERNALSYM float }
-  float		= single;	/// single precision floating-point (4 bytes)
-  pFloat	= ^float;	///
+// single precision floating-point (4 bytes)
+  float		= single;	
+  pFloat	= ^float;	
 
-  aString       = AnsiString;   /// ansi string (1 char = 1 byte)
-  aChar         = AnsiChar;     /// ansi char (1 byte)
+// ansi string (1 char = 1 byte)
+  aString       = AnsiString;   
+// ansi char (1 byte)
+  aChar         = AnsiChar;     
+
+// unicode string
 {$IFDEF __AFTER_DB__ }
-  wString       = string;       /// unicode string
-  wChar         = char;         /// unicode char
+  wString       = string;       
+// unicode char
+  wChar         = char;         
 {$ELSE }
-  wString       = wideString;   /// wide string
+// wide string
+  wString       = wideString;   
 {$IFNDEF FPC }
-  wChar         = wideChar;     /// wide char    fastcall
+// wide char
+  wChar         = wideChar;     
 {$ENDIF FPC }
 {$ENDIF __AFTER_DB__ }
-  //
+  
 {$IFDEF __AFTER_DB__ }
-  paChar        = pAnsiChar;            /// pointer to ansi char
-  pwChar        = pChar;                /// pointer to unicode char
+// pointer to ansi char
+  paChar        = pAnsiChar;            
+// pointer to unicode char
+  pwChar        = pChar;                
 {$ELSE }
-  paChar        = pChar;                /// pointer to ansi char
-  pwChar        = pWideChar;            /// pointer to wide char
+// pointer to ansi char
+  paChar        = pChar;                
+// pointer to wide char
+  pwChar        = pWideChar;            
 {$ENDIF __AFTER_DB__ }
 
 {$IFDEF __BEFORE_DC__ }
@@ -174,7 +277,8 @@ type
   {$ENDIF CPU64 }
 {$ENDIF __BEFORE_DB__ }
 
-  unaAcquireType = int;	/// used as a counter to lock object
+// used as a counter to lock an object
+  unaAcquireType = int;	
 
 const
   c_max_memBlock	= $7FFFFFFF;
@@ -193,62 +297,105 @@ type
   pByte = ^byte;
   {$ENDIF __BEFORE_D6__ }
 
-  tArray = array[0 .. c_max_index_08 - 1] of byte;	/// array of bytes (unsigned 8 bits integer values)
-  pArray = ^tArray;					/// pointer to array of bytes (unsigned 8 bits integer values)
+// array of bytes (unsigned 8 bits integer values)
+  tArray = array[0 .. c_max_index_08 - 1] of byte;	
+// pointer to array of bytes (unsigned 8 bits integer values)
+  pArray = ^tArray;					
 
-  taCharArray = array[0 .. c_max_index_08 - 1] of aChar;	/// array of 1-byte chars
-  paCharArray = ^taCharArray;					/// pointer to array of 1-byte chars
+// array of 1-byte chars
+  taCharArray = array[0 .. c_max_index_08 - 1] of aChar;	
+// pointer to array of 1-byte chars
+  paCharArray = ^taCharArray;					
 
-  twCharArray = array[0 .. c_max_index_16 - 1] of wChar;	/// array of 2-bytes chars
-  pwCharArray = ^twCharArray;					/// pointer to array of 2-bytes chars
+// array of 2-bytes chars
+  twCharArray = array[0 .. c_max_index_16 - 1] of wChar;	
+// pointer to array of 2-bytes chars
+  pwCharArray = ^twCharArray;					
 
-  tInt8Array = array[0 .. c_max_index_08 - 1] of int8;	/// array of signed 8 bit integers
-  pInt8Array = ^tInt8Array;				/// pointer to array of signed 8 bit integers
+// array of signed 8 bit integers
+  tInt8Array = array[0 .. c_max_index_08 - 1] of int8;	
+// pointer to array of signed 8 bit integers
+  pInt8Array = ^tInt8Array;				
 
-  tUint8Array = tArray;					/// array of unsigned 8 bits integer values
-  pUint8Array = ^tUint8Array;				/// pointer to array of unsigned 8 bits integer values
+// array of unsigned 8 bits integer values
+  tUint8Array = tArray;					
+// pointer to array of unsigned 8 bits integer values
+  pUint8Array = ^tUint8Array;				
 
-  tInt16Array = array[0 .. c_max_index_16 - 1] of int16;	/// array of signed 16 bit integers
-  pInt16Array = ^tInt16Array;					/// pointer to array of signed 16 bit integers
+// array of signed 16 bit integers
+  tInt16Array = array[0 .. c_max_index_16 - 1] of int16;	
+// pointer to array of signed 16 bit integers
+  pInt16Array = ^tInt16Array;					
 
-  tUint16Array = array[0 .. c_max_index_16 - 1] of uint16;	/// array of signed 16 bit integers
-  pUint16Array = ^tUint16Array;					/// pointer to array of signed 16 bit integers
+// array of signed 16 bit integers
+  tUint16Array = array[0 .. c_max_index_16 - 1] of uint16;	
+// pointer to array of signed 16 bit integers
+  pUint16Array = ^tUint16Array;					
 
-  tInt32Array  = array[0 .. c_max_index_32 - 1] of int32;	/// array of signed 32 bit integers
-  pInt32Array = ^tInt32Array;					/// pointer to array of signed 32 bit integers
+// array of signed 32 bit integers
+  tInt32Array  = array[0 .. c_max_index_32 - 1] of int32;	
+// pointer to array of signed 32 bit integers
+  pInt32Array = ^tInt32Array;					
 
-  tUint32Array  = array[0 .. c_max_index_32 - 1] of uint32;	/// array of unsigned 32 bit integers
-  pUint32Array = ^tUint32Array;					/// pointer to array of unsigned 32 bit integers
+// array of unsigned 32 bit integers
+  tUint32Array  = array[0 .. c_max_index_32 - 1] of uint32;	
+// pointer to array of unsigned 32 bit integers
+  pUint32Array = ^tUint32Array;					
 
-  tInt64Array  = array[0 .. c_max_index_64 - 1] of int64;	/// array of signed 64 bit integers
-  pInt64Array = ^tInt64Array;                           	/// pointer to array of signed 64 bit integers
+// array of signed 64 bit integers
+  tInt64Array  = array[0 .. c_max_index_64 - 1] of int64;	
+// pointer to array of signed 64 bit integers
+  pInt64Array = ^tInt64Array;                           	
 
-  tUnsignedArray  = array[0 .. c_max_index_PTR - 1] of unsigned;/// array of unsigned 32/64 bit integers
-  pUnsignedArray = ^tUnsignedArray;                           	/// pointer to array of unsigned 32/64 bit integers
+// array of unsigned 64 bit integers
+  tUint64Array  = array[0 .. c_max_index_64 - 1] of uint64;	
+// pointer to array of signed 64 bit integers
+  pUint64Array = ^tUint64Array;                           	
 
-  tPtrArray = array [0 .. c_max_index_PTR - 1] of pointer;	/// array of pointers (32/64/more bits integers)
-  pPtrArray = ^tPtrArray;					/// pointer to array of pointers (32/64/more bits integers)
+// array of unsigned 32/64 bit integers
+  tUnsignedArray  = array[0 .. c_max_index_PTR - 1] of unsigned;
+// pointer to array of unsigned 32/64 bit integers
+  pUnsignedArray = ^tUnsignedArray;                           	
 
-  tPaCharArray = array [0 .. c_max_index_PTR - 1] of paChar;	/// array of paChars
-  pPaCharArray = ^tPaCharArray;					/// pointer to array of paChars
+// array of pointers (32/64/more bits integers)
+  tPtrArray = array [0 .. c_max_index_PTR - 1] of pointer;	
+// pointer to array of pointers (32/64/more bits integers)
+  pPtrArray = ^tPtrArray;					
 
-  tPwCharArray = array [0 .. c_max_index_PTR - 1] of pwChar;	/// array of pwChars
-  pPwCharArray = ^tPwCharArray;					/// pointer to array of pwChars
+// array of paChars
+  tPaCharArray = array [0 .. c_max_index_PTR - 1] of paChar;	
+// pointer to array of paChars
+  pPaCharArray = ^tPaCharArray;					
 
-  tSingleArray  = array[0 .. c_max_index_32 - 1] of single;	/// array of single precision floating-point (4 bytes) values
-  pSingleArray = ^tSingleArray;					/// pointer to array of single precision floating-point (4 bytes) values
+// array of pwChars
+  tPwCharArray = array [0 .. c_max_index_PTR - 1] of pwChar;	
+// pointer to array of pwChars
+  pPwCharArray = ^tPwCharArray;					
 
-  tFloatArray  = tSingleArray;				/// array of single precision floating-point (4 bytes) values
-  pFloatArray = ^tFloatArray;				/// pointer to array of single precision floating-point (4 bytes) values
-  //
-  tFloatArrayPArray = array[0 .. c_max_index_PTR - 1] of pFloatArray;		/// array of pointers to arrays of single precision floating-point (4 bytes) values
-  pFloatArrayPArray = ^tFloatArrayPArray;					/// pointer to array of pointers to arrays of single precision floating-point (4 bytes) values
+// array of single precision floating-point (4 bytes) values
+  tSingleArray  = array[0 .. c_max_index_32 - 1] of single;	
+// pointer to array of single precision floating-point (4 bytes) values
+  pSingleArray = ^tSingleArray;					
 
-  tDoubleArray  = array[0 .. c_max_index_64 - 1] of double;	/// array of double precision floating-point (8 bytes) values
-  pDoubleArray = ^tDoubleArray;					/// pointer to array of double precision floating-point (8 bytes) values
+// array of single precision floating-point (4 bytes) values
+  tFloatArray  = tSingleArray;				
+// pointer to array of single precision floating-point (4 bytes) values
+  pFloatArray = ^tFloatArray;				
+  
+// array of pointers to arrays of single precision floating-point (4 bytes) values
+  tFloatArrayPArray = array[0 .. c_max_index_PTR - 1] of pFloatArray;		
+// pointer to array of pointers to arrays of single precision floating-point (4 bytes) values
+  pFloatArrayPArray = ^tFloatArrayPArray;					
 
-  tExtendedArray  = array[0 .. c_max_index_80 - 1] of extended;	/// array of extended floating-point (10 bytes) values
-  pExtendedArray = ^tExtendedArray;				/// pointer to array of extended floating-point (10 bytes) values
+// array of double precision floating-point (8 bytes) values
+  tDoubleArray  = array[0 .. c_max_index_64 - 1] of double;	
+// pointer to array of double precision floating-point (8 bytes) values
+  pDoubleArray = ^tDoubleArray;					
+
+// array of extended floating-point (10 bytes) values
+  tExtendedArray  = array[0 .. c_max_index_80 - 1] of extended;	
+// pointer to array of extended floating-point (10 bytes) values
+  pExtendedArray = ^tExtendedArray;				
 
   {*
 	Complex single float
@@ -275,15 +422,17 @@ type
   pComplexDoubleArray = ^tComplexDoubleArray;
   tComplexDoubleArray = array[0..c_max_memBlock div sizeof(tComplexDouble) - 1] of tComplexDouble;
 
-  /// timeout type, currently is signed integer
-  ///
+  // timeout type, currently is signed integer
+  //
   tTimeout = int;	// INFINITE will be passed as -1
 
 const
 {$IFDEF FPC }
-  RT_RCDATAW = #10;			/// Not so wide version of RT_RCDATA
+// Not so wide version of RT_RCDATA
+  RT_RCDATAW = #10;			
 {$ELSE }
-  RT_RCDATAW = pWideChar(#10);		/// Wide version of RT_RCDATA
+// Wide version of RT_RCDATA
+  RT_RCDATAW = pWideChar(#10);		
 {$ENDIF }
 
 implementation

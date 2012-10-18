@@ -28,10 +28,10 @@
   FFT and DTMF VCL components.
 
   @Author Lake
-  @Version 2.5.2008.07 Still here
 
-  @Author Lake
-  @Version 2.5.2011.10 +drawStyle, +fallback, +grid
+  2.5.2008.07 Still here
+
+  2.5.2011.10 +drawStyle, +fallback, +grid
 }
 
 unit
@@ -45,7 +45,11 @@ uses
 {$IFDEF FMX }
   System.Types, System.UITypes, FMX.Types,
 {$ELSE }
+  {$IFDEF __AFTER_DE__ }
+  Vcl.Graphics, Vcl.Controls, Vcl.ExtCtrls,
+  {$ELSE }
   Graphics, Controls, ExtCtrls,
+  {$ENDIF __AFTER_DE__ }
 {$ENDIF FMX }
   Classes;
 
@@ -323,7 +327,11 @@ implementation
 
 
 uses
-  unaUtils, Math;
+  unaUtils,
+{$IFDEF __AFTER_DE__ }
+  UITypes,
+{$ENDIF __AFTER_DE__ }
+  Math;
 
 { TunadspFFTPipe }
 

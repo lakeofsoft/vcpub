@@ -44,16 +44,39 @@
 {$IFDEF VC25_OVERLAPPED }
   //
   {$IFNDEF VC25_WINSOCK20 }
-  VC25_WINSOCK20 symbol must be defined, since VC25_OVERLAPPED is defined
+    {$IFDEF __AFTER_D5__ }
+      {$MESSAGE ERROR 'VC25_WINSOCK20 symbol must be defined, since VC25_OVERLAPPED is defined' }
+    {$ENDIF __AFTER_D5__ }
   {$ENDIF VC25_WINSOCK20  }
   //
 {$ENDIF VC25_OVERLAPPED }
+
+
+{$IFDEF VC25_WINSOCK20 }
+  //
+  {$IFDEF __AFTER_D5__ }
+    {$IFDEF VC_HINT_COMPILE_MESSAGES }
+      {$MESSAGE HINT 'unaSockets.pas is linked with unaWSASockets since VC25_WINSOCK20 is defined' }
+    {$ENDIF VC_HINT_COMPILE_MESSAGES }
+  {$ENDIF __AFTER_D5__ }
+  //
+  {$IFDEF VC25_IOCP }
+    //
+    {$IFDEF __AFTER_D5__ }
+      {$IFDEF VC_HINT_COMPILE_MESSAGES }
+        {$MESSAGE HINT 'unaSockets.pas is linked with unaIOCPSockets since VC25_IOCP is defined' }
+      {$ENDIF VC_HINT_COMPILE_MESSAGES }
+    {$ENDIF __AFTER_D5__ }
+  {$ENDIF VC25_IOCP }
+  //
+{$ENDIF VC25_WINSOCK20 }
 
 {*
   Contains Windows sockets version 1.1 wrapper classes.
 
   @Author Lake
-  @Version 2.5.2008.02 IOCP and WinSock 2.0 extentions
+
+  Version 2.5.2008.02 IOCP and WinSock 2.0 extentions
 }
 
 
@@ -63,36 +86,44 @@ unit
 interface
 
 uses
-  Windows, unaTypes, unaClasses,
+  Windows, unaTypes, unaUtils, unaClasses,
   WinSock, WinInet;
 
 const
 {$IFDEF __BEFORE_D6__ }
   //
   {$EXTERNALSYM SD_BOTH }
-  SD_BOTH        	= 2;	/// missing in Delphi 5 or earlier
+// missing in Delphi 5 or earlier
+  SD_BOTH        	= 2;	
 {$ENDIF __BEFORE_D6__ }
 
 {$IFDEF FPC }
-  SD_BOTH        	= 2;	/// missing in Delphi 5 or earlier
+// missing in Delphi 5 or earlier
+  SD_BOTH        	= 2;	
 {$ENDIF FPC }
 
 
   {$EXTERNALSYM SO_MAX_MSG_SIZE }
-  SO_MAX_MSG_SIZE	= $2003;		/// maximum message size
+// maximum message size
+  SO_MAX_MSG_SIZE	= $2003;		
   //
-  c_defUdpConnTimeout 	= 60000 * 3;		/// default timeout for sockets "connected" to UDP server is 3 minutes
+// default timeout for sockets "connected" to UDP server is 3 minutes
+  c_defUdpConnTimeout 	= 60000 * 3;		
 
 var
   //
-  c_maxThreadPoolSize: unsigned	= 256;			/// maximum number of threads in pool
+// maximum number of threads in pool
+  c_maxThreadPoolSize: unsigned	= 256;			
 
 type
-  pIP4         = ^TIP4;
-  TIP4          = uint32;
+  pIPv4N	= ^TIPv4N;
+  TIPv4N        = array[0..3] of byte;	// network byte order
   //
-  pIPv6        = ^TIPv6;
-  TIPv6         = array[0..15] of byte;
+  pIPv4H	= ^TIPv4H;
+  TIPv4H        = uint32;
+  //
+  pIPv6H        = ^TIPv6H;
+  TIPv6H        = array[0..15] of byte;	// host byte order
 
 
   //
@@ -179,6 +210,7 @@ type
     //
     procedure setBindToPort(const value: string);
     function getBindToPort(): string;
+    procedure setBindToIP(const value: string);
   protected
     {*
 	Closes the socket.
@@ -270,7 +302,7 @@ type
     function close(graceful: bool = true): int;
     {*
 	Blocks until new connection will be established with socket, or timeout value expires.
-	<BR /><STRONG>NOTE</STRONG>: this method should be used with TCP sockets only.
+	@bold(NOTE): this method should be used with TCP sockets only.
 
 	@param socket [OUT] New socket handle.
 	@param timeout Timeout for operation.
@@ -398,11 +430,11 @@ type
     }
     procedure setHost(const host: string);
     {*
-      Sets remote port number for the socket. This value will be used to connect socket to.
+	Sets remote port for the socket to connect to.
     }
     function setPort(const port: string; noCheck: bool = false): bool; overload;
     {*
-      Sets remote port number for the socket. This value will be used to connect socket to.
+	Sets remote port number for the socket to connect to.
     }
     function setPort(port: word; noCheck: bool = false): bool; overload;
     {*
@@ -415,7 +447,8 @@ type
     function getPortInt(): word;
     {*
       Returns maximum transmission unit (MTU) size.
-      <BR /><STRONG>NOTE</STRONG>: this value should not be used as real MTU size, but only as an estimation for most cases.
+
+      @bold(NOTE): this value should not be used as real MTU size, but only as an estimation for most cases.
     }
     class function getGeneralMTU(): uint;
     {*
@@ -423,9 +456,9 @@ type
     }
     function getMTU(): uint;
     {*
-      Binds the socket to specified port.
-      If port value is -1 (default), this function uses the bindToPort property as a port number to bind to.
-      If port value is 0, this function auto-assigns first available port number for socket.
+	Binds the socket to specified port.
+	If port value is -1 (default), this function uses the bindToPort property as a port number to bind to.
+	If port value is 0, this function auto-assigns first available port number for socket.
 
 	@return 0 if successfull (or socket is not connected/listening), or specific WSA error.
     }
@@ -446,57 +479,45 @@ type
     }
     property handle: tSocket read f_socket;
     {*
-      Specifies remote host value for the socket. This value will be used to connect socket to.
+	Specifies remote host value for the socket. This value will be used to connect socket to.
     }
     property host: string read f_host write setHost;
     {*
-      Specifies socket address family. For most applications you should use the AF_INET value.
-      Other possible values: AF_INET/AF_NETBIOS/AF_INET6/AF_IRDA/AF_BTM
+	Specifies socket address family. For most applications you should use the AF_INET value.
+	Other possible values: AF_INET/AF_NETBIOS/AF_INET6/AF_IRDA/AF_BTM
     }
     property addressFamily: int read f_addressFamily;
     {*
-      Specifies protocol number to be used with socket.
-      Here is the list of most common values for the protocol although many other values are possible:
-      <UL>
-	<LI>IPPROTO_TCP - tcp</LI>
-	<LI>IPPROTO_UDP - user datagram protocol</LI>
-	<LI>IPPROTO_RM - The PGM protocol for reliable multicast</LI>
-      </UL>
+	Specifies protocol number to be used with socket (IPPROTO_TCP/UDP, etc.)
     }
     property socketProtocol: int read f_socketProtocol;
     {*
-      Specifies socket type to be used with socket. Following values are defined:
-      <UL>
-	<LI>SOCK_STREAM - stream socket
-	<LI>SOCK_DGRAM - datagram socket
-	<LI>SOCK_RAW - raw-protocol interface
-      </UL>
-      Other values are also defined in WinSock.pas
+	Specifies socket type to be used with socket (SOCK_STREAM/DGRAM, etc.)
     }
     property socketType: int read f_socketType;
     {*
-      Specifies IP address the socket should bind to.
-      Default value means the socket will bind to any availabe interface.
+	Specifies IP address the socket should bind to.
+	Default value means the socket will bind to any availabe interface.
     }
-    property bindToIP: string read f_bindToIP write f_bindToIP;
+    property bindToIP: string read f_bindToIP write setBindToIP;
     {*
-      Specifies Port name or number the socket should bind to.
-      Default value (0) means the socket will bind to first availabe port number.
-      Client sockets should always be bind to default port (0), unless you need some special behaviour.
+	Specifies Port name or number the socket should bind to.
+	Default value (0) means the socket will bind to first availabe port number.
+	Client sockets should always be bind to default port (0), unless you need some special behaviour.
     }
     property bindToPort: string read getBindToPort write setBindToPort;
     {*
-      Returns True is socket is TCP server socket and is listening,
-      or if socket is TCP client and is connected, or if socket is bind to UDP port/interface.
-      Otherwise returns false.
+	Returns True is socket is TCP server socket and is listening,
+	or if socket is TCP client and is connected, or if socket is bind to UDP port/interface.
+	Otherwise returns false.
     }
     property isActive: bool read getIsActive;
     {*
-      Size of sending buffer.
+	Size of sending buffer.
     }
     property sndBufSize: uint read getBufSizeSnd write setBufSizeSnd;
     {*
-      Size of receiving buffer.
+	Size of receiving buffer.
     }
     property rcvBufSize: uint read getBufSizeRcv write setBufSizeRcv;
   end;
@@ -562,7 +583,6 @@ type
     function sendto(var addr: sockaddr_in; const data: aString; noCheck: bool = true; flags: uint = 0): uint; overload;
     {*
 	Sends block of data to remote host. Flags could be 0, MSG_DONTROUTE or MSG_OOB.
-
 	If noCheck parameter is true it will not check the socket state before sending the data. This could be used to avoid unnecessary delays.
 
 	@return 0 if data was sent successfully, or specific WSA error otherwise.
@@ -570,7 +590,6 @@ type
     function sendto(var addr: sockaddr_in; data: pointer; size: uint; flags: uint = 0; timeout: tTimeout = 3000; noCheck: bool = false): uint; overload;
     {*
 	Sends block of data to remote host. Flags could be 0, MSG_DONTROUTE or MSG_OOB.
-
 	If noCheck parameter is true it will not check the socket state before sending the data. This could be used to avoid unnecessary delays.
 
 	@return 0 if data was sent successfully, or specific WSA error otherwise.
@@ -647,7 +666,6 @@ type
     procedure prepareSenderAddr(const groupAddr: string);
     procedure setTTL(value: DWORD);
   public
-    //
     {*
 	Joins the specified group.
 	Also binds a socket to port and interface specified by bindToPort and bindToIP property
@@ -746,27 +764,29 @@ type
     //
     {*
       Sends data to remote socket.
-      <BR />Returns 0 if data was sent successfully, or specific WSA error otherwise.
+
+      @return 0 if data was sent successfully, or specific WSA error otherwise.
     }
     function send(data: pointer; size: uint; noCheck: bool = false): uint;
     {*
-      Returns true if there are some chances data could be sent right now..
+      @Return @true if there are some chances data could be sent right now..
     }
     function okToWrite(timeout: tTimeout = 100; noCheckState: bool = false): bool;
     {*
       Compares given address with address of local socket.
-      <BR />Returns true if given address belongs to local socket.
+
+      	@return true if given address belongs to local socket.
     }
     function compareAddr(const addr: sockaddr_in): bool;
     //
     procedure release();
     //
     {*
-      Returns local socket class instance.
+      @Return local socket class instance.
     }
     property socket: unaSocket read f_threadSocket;
     {*
-      Returns pointer to sockaddr_in structure filled by local socket.
+      @Return pointer to sockaddr_in structure filled by local socket.
     }
     property paddr: pSockAddrIn read getAddr;
     {*
@@ -893,11 +913,11 @@ type
     unaseThreadAdjustSocketOptions
   );
 
-  /// Socks event handler type
+  // Socks event handler type
   unaSocksOnEventEvent = procedure(sender: tObject; event: unaSocketEvent; id, connId: tConID; data: pointer; size: uint) of object;
 
   {*
-    This class is used to create server and client sockets and manage the connections.
+	This class is used to create server and client sockets and manage the connections.
   }
   unaSocks = class(unaObject)
   private
@@ -905,10 +925,10 @@ type
     f_threadPoolSize: unsigned;
     f_lastThreadID: int;
     //
-    {$IFDEF VC25_IOCP }
+  {$IFDEF VC25_IOCP }
     f_isIOCP: bool;
     f_isRTP: bool;
-    {$ENDIF VC25_IOCP }
+  {$ENDIF VC25_IOCP }
     //
     //f_gate: unaInProcessGate;
     f_threads: unaSocksThreads;
@@ -918,19 +938,19 @@ type
     function getThreadByIndex(index: int): unaSocksThread;
     function getThreadFromPool(allowGrowUp: bool = true): unaSocksThread;
     //
-    {$IFDEF VC25_IOCP }
+  {$IFDEF VC25_IOCP }
     procedure setIsIOCP(value: bool);
     procedure setIsRTP(value: bool);
     //
     procedure recreateThreadsPool();
-    {$ENDIF VC25_IOCP }
+  {$ENDIF VC25_IOCP }
   protected
     {*
 	This virtual method is called every time new sockets event occur.
 
 	@param id Specifies the thread id for which the even applies.
 	@param connId Specifies the connection id of the thread for which the even applies.
-	@param event Specifies the type of event (see <A href="../unaSocketEvent.htm">unaSocketEvent</A> for details).
+	@param event Specifies the type of event (see @link(unaSocketEvent) for details).
 	@param data Data block available from client or server.
 	@param size Size of data.
     }
@@ -979,7 +999,7 @@ type
 	@param bindToPort Bind to this local port (default is '0').
 	@param overlapped Create overlapped socket (default is True).
 
-	@return Thread id or 0 if some error occured.
+	@return thread id or 0 if some error occured.
     }
     function createConnection(const host, port: string; protocol: int = IPPROTO_TCP; activate: bool = true; const bindToIP: string = '0.0.0.0'; const bindToPort: string = '0' {$IFDEF VC25_OVERLAPPED }; overlapped: bool = true{$ENDIF }): tConID;
     {*
@@ -1041,7 +1061,8 @@ type
 	@param id Thread id which handles the connection.
 	@param connId Client connection id (0 for client threads).
 	@param timeout Timeout in ms for acquiring (if needAcquire is True, default is 2000).
-	@param needAcquire Lock connection object before returning (default is True).<BR>WARNING! If needAcquire was True (default), you must call .release() method of returned connection when it is no longer needed.
+	@param needAcquire Lock connection object before returning (default is True).
+		WARNING! If needAcquire was @True (default), you must call @link(release release()) method of returned connection when it is no longer needed.
 
 	@return Connection object or nil.
     }
@@ -1146,7 +1167,7 @@ type
     }
     property onEvent: unaSocksOnEventEvent read f_onEvent write f_onEvent;
     //
-{$IFDEF VC25_IOCP }
+  {$IFDEF VC25_IOCP }
     {*
 	Specifies whether IOCP sockets must be used for threads.
     }
@@ -1155,7 +1176,7 @@ type
 	Specifies whether threads should be aware of RTP packets.
     }
     property isRTP: bool read f_isRTP write setIsRTP;
-{$ENDIF VC25_IOCP }
+  {$ENDIF VC25_IOCP }
   end;
 
 
@@ -1164,44 +1185,54 @@ function checkError(value: int; fatal: bool = true {$IFDEF DEBUG}; const caller:
 
 
 {*
-  Lookups host name.
-  <BR />Host name could be in integer ("194.44.186.254") or alpha ("www.microsoft.com") format or "" for local machine.
-  <BR />Returns 0 if successful or specific WSA error otherwise.
+    Lookups host name.
+    Host name could be in integer ("194.44.186.254") or alpha ("www.microsoft.com") format or "" for local machine.
+
+    @returns 0 if successful or specific WSA error otherwise.
 }
-function lookupHost(const host: string): int; overload;
+//function lookupHost(const host: string): int; overload;
 
 {*
-  Lookups host name. If the "list" parameter is not nil, it also lists all addresses assigned to a host.
-  <BR />Host name could be in integer ("194.44.186.254") or alpha ("www.microsoft.com") format or "" for local machine..
-  <BR />Returns 0 if successful or specific WSA error otherwise.
-  <BR />Also fills the given ip string with a string representation of the IP address of the host (if resolved).
+    Lookups host name. If the "list" parameter is not nil, it also lists all addresses assigned to a host.
+    Host name could be in integer ("194.44.186.254") or alpha ("www.microsoft.com") format or "" for local machine.
+    Fills the given ip string with a string representation of the IP address of the host (if resolved).
+
+    @returns 0 if successful or specific WSA error otherwise.
 }
 function lookupHost(const host: string; out ip: string; list: unaStringList = nil): int; overload;
-
 {*
-  Lookups host name.
-  <BR />Host name could be in integer ("194.44.186.254") or alpha ("www.microsoft.com") format or "" for local machine..
-  <BR />If lookup fails, it uses the default parameter value as the IP address of the host.
-  <BR />Returns IP address of the host or default parameter value if lookup fails.
-}
-function lookupHost(const host: string; defValue: TIP4): TIP4; overload;
+    Lookups host name.
 
+    @param host Host name. Could be in integer ("194.44.186.254") or alpha ("www.microsoft.com") format or "" for local machine.
+    @param defValue If lookup fails, it uses this default parameter value as the IP address (in host byte order) of the host.
+
+    @returns IP address (in host byte order) of the host or default parameter value if lookup fails.
+}
+function lookupHostH(const host: string): TIPv4H;
 {*
-         Lookups host info.
+    Lookups host name.
 
-         @param IP ip address in host byte order.
-         @return FQDN of the host (if any)
+    @param host Host name. Could be in integer ("194.44.186.254") or alpha ("www.microsoft.com") format or "" for local machine.
+    @param defValue If lookup fails, it uses this default parameter value as the IP address (in network byte order) of the host.
+
+    @returns IP address (in network byte order) of the host or default parameter value if lookup fails.
 }
-function getHostInfo(ip: TIP4): string;
+function lookupHostN(const host: string): TIPv4N;
+{*
+	 Lookups host info.
 
+	 @param IP ip address in host byte order.
+	 @return FQDN of the host (if any)
+}
+function getHostInfoH(const ipH: TIPv4H): string;
 {*
 	List all addresses assigned to a host.
 
 	@param host Host name could be in integer ("194.44.186.254") or alpha ("www.microsoft.com") format or "" for local machine.
+	@param list List to be filled with IP addresses
 	@return 0 if successful or specific WSA error otherwise.
 }
 function listAddresses(const host: string; list: unaStringList): int;
-
 {*
 	Lookups port number.
 
@@ -1209,7 +1240,6 @@ function listAddresses(const host: string; list: unaStringList): int;
 	@return port number if successful, or -1 if port is invalid or unknown.
 }
 function lookupPort(const port: string): int; overload;
-
 {*
 	Lookups port number.
 	@param port Port name in integer ("110") or string ("POP3") format.
@@ -1217,7 +1247,6 @@ function lookupPort(const port: string): int; overload;
 		Also fills given port_info parameter.
 }
 function lookupPort(const port: string; out port_info: protoent): int; overload;
-
 {*
 	Startups the Windows sockets by creating unaWsa class instance.
 }
@@ -1254,52 +1283,85 @@ function select(s: tSocket; r, w, e: pbool; timeout: tTimeout = tTimeout(INFINIT
 {*
 	Converts host byte order (little endian) unsigned 32 bits integer to string representing IP address (xxx.xxx.xxx.xxx).
 }
-function ipH2str(ip: TIP4): string; overload;
+function ipH2str(const ipH: TIPv4H): string; overload; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	.
 }
-function ipH2str(const ip: TIPv6): string; overload;
+function ipH2str(const ipH: TIPv6H): string; overload; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Converts network byte order (big endian) unsigned 32 bits integer to string representing IP address (xxx.xxx.xxx.xxx).
 }
-function ipN2str(ip: TIP4): string;
+function ipN2str(const ipN: TIPv4N): string; overload; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Converts IP from address to string representing IP address (xxx.xxx.xxx.xxx).
+}
+function ipN2str(const addr: TSockAddrIn): string; overload; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Converts host byte ordered IP to network byte order (big endian) unsigned 32 bits integer.
+}
+function ipH2ipN(const ipH: TIPv4H): TIPv4N; {$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Converts network byte order (big endian) unsigned 32 bits integer to host byte ordered IP.
+}
+function ipN2ipH(const ipN: TIPv4N): TIPv4H; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Converts network byte order (big endian) address record to host byte ordered IP.
+}
+function ipN2ipH(addr: PSockAddrIn): TIPv4H; overload;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Returns port (in host order) from address
+}
+function portHFromAddr(addr: PSockAddrIn): word;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Converts string representing IP address (xxx.xxx.xxx.xxx) into host byte order (little endian) unsigned 32 bits integer.
 }
-function str2ipH(const ip: string): TIP4;
+function str2ipH(const ip: string): TIPv4H;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Converts string representing IP address (xxx.xxx.xxx.xxx) into network byte order (big endian) unsigned 32 bits integer.
 }
-function str2ipN(const ip: string): TIP4;
+function str2ipN(const ip: string): TIPv4N;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Converts socket address to string.
 }
-function addr2str(addr: pSockAddrIn): string;
+function addr2str(addr: pSockAddrIn): string;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Converts string to socket address.
 	ipport should be in format udp://name-or-ip:port or tcp://name-or-ip:port
 }
-function str2addr(const ipport: string; var addr: sockaddr_in): bool;
-
+function str2addr(const ipport: string; var addr: sockaddr_in): bool;{$IFDEF UNA_OK_INLINE9 }inline;{$ENDIF UNA_OK_INLINE9 }
 {*
 	Return True if specified address is whiting multicast range.
 }
-function isMulticastAddr(const addr: string): bool;
+function isMulticastAddr(const addr: string): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Return True if specified address is whiting multicast range.
-	ip is little-endian.
+	@param ip IP in host order
 }
-function isMulticastAddrH(ip: TIP4): bool;
+function isMulticastAddrH(const ipH: TIPv4H): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Return True if specified address is whiting multicast range.
-	ip is big-endian (in network order).
+	@param ip IP in network order
 }
-function isMulticastAddrN(ip: TIP4): bool;
+function isMulticastAddrN(const ipN: TIPv4N): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Return True if specified address is whiting broadcast range.
-	ip is big-endian (in network order).
+	@param ip IP in network order
 }
-function isBroadcastAddrN(ip: TIP4): bool;
+function isBroadcastAddrN(const ipN: TIPv4N): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Checks if IP is assigned to LAN range
+
+	@param ip IP in network order
+	@return True if specified address is valid for LAN only and cannot "legitimately appear on the public Internet".
+}
+function isLocalNetworkAddrH(const ipH: TIPv4H): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Checks if specified IP address is referencing this host.
+
+	@param ip IP address
+	@return True if IP is referencing local host is some way (127.0.0.1, etc)
+}
+function isThisHostIP_N(const ipN: TIPv4N): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 {*
 	Returns True if two addresses are same (has same IP and port).
 }
@@ -1308,6 +1370,10 @@ function sameAddr(const addr1, addr2: sockaddr_in; ipOnly: bool = false): bool;{
 	Returns True if function succeeded.
 }
 function makeAddr(const host, port: string; var addr: sockaddr_in): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+{*
+	Returns true if both IPs are same
+}
+function sameIPN(const ipN1, ipN2: TIPv4N): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
 
 
 // -- IP/HTTP --
@@ -1324,13 +1390,20 @@ function ipQuery(const ip, port, query: string; proto: int = IPPROTO_TCP; callba
 type
   // URI crack record
   unaURICrack = packed record
-    r_scheme: string;         	/// scheme name
-    r_hostName: string;       	/// host name
-    r_port: INTERNET_PORT;      /// port
-    r_userName: string;      	/// user name
-    r_password: string;       	/// password
-    r_path: string;        	/// URL-path
-    r_extraInfo: string;	/// extra information (e.g. ?foo or #foo)
+// scheme name
+    r_scheme: string;         	
+// host name
+    r_hostName: string;       	
+// port (-1 is not specified)
+    r_port: int32;	      	
+// user name
+    r_userName: string;      	
+// password
+    r_password: string;       	
+// URL-path
+    r_path: string;        	
+// extra information (e.g. ?foo or #foo)
+    r_extraInfo: string;	
   end;
 
 {*
@@ -1354,7 +1427,7 @@ implementation
 
 
 uses
-  unaUtils, unaParsers
+  unaParsers
 {$IFDEF VC25_WINSOCK20 }
   , unaWSASockets
   {$IFDEF VC25_IOCP }
@@ -1491,11 +1564,11 @@ begin
       end
       else begin
 	//
-	tv.tv_sec := timeout shr 10;					// ~ timeout div 1000
+	tv.tv_sec := timeout shr 10;			// ~ timeout div 1000
 	if (1 = timeout) then
-	  tv.tv_usec := 1
+	  tv.tv_usec := 10
 	else
-	  tv.tv_usec := (((timeout - tv.tv_sec) shl 10) shl 10);	// ~ (timeout mod 1000) * 1000;
+	  tv.tv_usec := (timeout mod 1000) shl 10;	// ~ (timeout mod 1000) * 1000;
 	//
 	if (999999 < tv.tv_usec) then
 	  tv.tv_usec := 999999;
@@ -1526,23 +1599,35 @@ begin
 end;
 
 // --  --
-function lookupHost(const host: string): int;
-var
-  ip: string;
-begin
-  result := lookupHost(host, ip);
-end;
+//function lookupHost(const host: string): int;
+//var
+//  ip: string;
+//begin
+//  result := lookupHost(host, ip);
+//end;
 
 // --  --
-function lookupHost(const host: string; defValue: TIP4): TIP4;
+function lookupHostH(const host: string): TIPv4H;
 var
   ip: string;
 begin
   if (0 = lookupHost(host, ip)) then
     result := str2ipH(ip)
   else
-    result := defValue;
+    result := 0;
 end;
+
+// --  --
+function lookupHostN(const host: string): TIPv4N;
+var
+  ip: string;
+begin
+  if (0 = lookupHost(host, ip)) then
+    result := str2ipN(ip)
+  else
+    fillChar(result, sizeof(TIPv4N), #0);
+end;
+
 
 type
   pPointer = ^pointer;
@@ -1550,7 +1635,7 @@ type
 // --  --
 function lookupHost(const host: string; out ip: string; list: unaStringList): int;
 var
-  addr: TIP4;
+  addrN: TIPv4N;
   phost: pHostEnt;
   ar: pPointer;
   added: bool;
@@ -1564,8 +1649,8 @@ begin
     if (g_unaWSA.acquire(false, 3000, false {$IFDEF DEBUG }, ' in lookupHost(host=' + host + ')' {$ENDIF DEBUG })) then try
       //
       added := false;
-      addr := TIP4(inet_addr(paChar(aString(host))));
-      if ((addr = DWORD(INADDR_NONE)) or (addr = INADDR_ANY)) then begin
+      addrN := TIPv4N(inet_addr(paChar(aString(host))));
+      if ( sameIPN(addrN, ipH2ipN( DWORD(INADDR_NONE) )) or sameIPN(addrN, ipH2ipN(INADDR_ANY)) ) then begin
 	//
 	// try to resolve the name
 	phost := gethostbyname(paChar(aString(host)));
@@ -1574,13 +1659,13 @@ begin
 	  result := WSAGetLastError()
 	else begin
 	  //
-	  move(phost.h_addr^[0], addr, sizeof(TIP4));
+	  move(phost.h_addr^[0], addrN, sizeof(TIPv4N));
 	  if (nil <> list) then begin
 	    //
 	    ar := pointer(phost.h_addr_list);
 	    while (nil <> ar^) do begin
 	      //
-	      list.add(string(inet_ntoa(in_addr(pIP4(ar^)^))));
+	      list.add(string(inet_ntoa(in_addr(pUint32(ar^)^))));
 	      inc(ar);
 	    end;
 	    //
@@ -1591,7 +1676,7 @@ begin
       //
       if (0 = result) then begin
 	// return IP address
-	ip := string(inet_ntoa(in_addr(addr)));
+	ip := string(inet_ntoa(in_addr(addrN)));
 	//
 	if ((nil <> list) and not added) then
 	  list.add(ip);
@@ -1606,11 +1691,12 @@ begin
 end;
 
 // -- --
-function getHostInfo(ip: TIP4): string;
+function getHostInfoH(const ipH: TIPv4H): string;
 var
   he: pHOSTENT;
+  ip: uint32;
 begin
-  ip := TIP4(htonl(u_long(ip)));
+  ip := uint32(htonl(u_long(ipH)));
 {$IFDEF FPC }
   he := gethostbyaddr(pChar(@ip), sizeof(ip), AF_INET);
 {$ELSE }
@@ -1618,7 +1704,7 @@ begin
 {$ENDIF FPC }
   //
   if (nil = he) then
-    result := ipN2str(ip)
+    result := ipH2str(ipH)
   else
     result := string(he.h_name);
 end;
@@ -1639,7 +1725,7 @@ var
 begin
   result := lookupPort(port, port_info);
   if (0 = result) then
-    result := port_info.p_proto;
+    result := word(port_info.p_proto);
 end;
 
 // -- --
@@ -1680,43 +1766,82 @@ begin
 end;
 
 // --  --
-function ipH2str(ip: TIP4): string;
+function ipH2str(const ipH: TIPv4H): string;
 var
   inAddr: in_addr;
 begin
-  inAddr.s_addr := htonl(u_long(ip));
+  inAddr.s_addr := htonl(u_long(ipH));
   result := string(inet_ntoa(inAddr));
 end;
 
 // --  --
-function ipH2str(const ip: TIPv6): string;
+function ipH2str(const ipH: TIPv6H): string;
 var
   i: int;
 begin
   result := '';
   for i := 0 to 15 do
-    result := result + int2str(ip[i], 16) + ':';
+    result := result + int2str(ipH[i], 16) + ':';
 end;
 
 // --  --
-function ipN2str(ip: TIP4): string;
+function ipN2str(const ipN: TIPv4N): string;
 var
   inAddr: in_addr;
 begin
-  TIP4(inAddr.s_addr) := ip;
+  move(ipN, inAddr.s_addr, sizeof(u_long));
   result := string(inet_ntoa(inAddr));
 end;
 
 // --  --
-function str2ipH(const ip: string): TIP4;
+function ipN2str(const addr: TSockAddrIn): string;
 begin
-  result := TIP4(ntohl(inet_addr(paChar(aString(ip)))));
+  result := string(inet_ntoa(addr.sin_addr));
 end;
 
 // --  --
-function str2ipN(const ip: string): TIP4;
+function ipH2ipN(const ipH: TIPv4H): TIPv4N;
+var
+  l: uint32;
 begin
-  result := TIP4(inet_addr(paChar(aString(ip))));
+  l := swap32u(ipH);
+  move(l, result, sizeof(TIPv4N));
+end;
+
+// --  --
+function ipN2ipH(const ipN: TIPv4N): TIPv4H;
+begin
+  result := swap32u(uint32(ipN));
+end;
+
+// --  --
+function ipN2ipH(addr: PSockAddrIn): TIPv4H;
+begin
+  if (nil <> addr) then
+    result := ipN2ipH(TIPv4N(addr.sin_addr.S_addr))
+  else
+    result := 0;
+end;
+
+// --  --
+function portHFromAddr(addr: PSockAddrIn): word;
+begin
+  if (nil <> addr) then
+    result := ntohs(addr.sin_port)
+  else
+    result := 0;
+end;
+
+// --  --
+function str2ipH(const ip: string): TIPv4H;
+begin
+  result := TIPv4H(ntohl(inet_addr(paChar(aString(ip)))));
+end;
+
+// --  --
+function str2ipN(const ip: string): TIPv4N;
+begin
+  result := TIPv4N(inet_addr(paChar(aString(ip))));
 end;
 
 // --  --
@@ -1745,23 +1870,81 @@ begin
 end;
 
 // --  --
-function isMulticastAddrH(ip: TIP4): bool;
+function isMulticastAddrH(const ipH: TIPv4H): bool;
+var
+  i: byte;
 begin
-  ip := (ip shr 24) and $FF;
-  result := ((224 <= ip) and (ip <= 239));
+  i := (ipH shr 24) and $FF;
+  result := ((224 <= i) and (i <= 239));
 end;
 
 // --  --
-function isMulticastAddrN(ip: TIP4): bool;
+function isMulticastAddrN(const ipN: TIPv4N): bool;
+var
+  i: byte;
 begin
-  ip := ip and $FF;
-  result := ((224 <= ip) and (ip <= 239));
+  i := ipN[0];
+  result := ((224 <= i) and (i <= 239));
 end;
 
 // --  --
-function isBroadcastAddrN(ip: TIP4): bool;
+function isBroadcastAddrN(const ipN: TIPv4N): bool;
 begin
-  result := ($FF = (ip shr 24 and $FF));	// lame, but should work in most cases
+  result := ($FF = ipN[3]);	// lame, but should work in most cases
+end;
+
+// --  --
+function isLocalNetworkAddrH(const ipH: TIPv4H): bool;
+begin
+  result := (
+       (   0        				= ipH		  ) or
+       (uint32(000 shl 24)			= ipH and $FF000000) or
+       (uint32(010 shl 24)			= ipH and $FF000000) or
+       (uint32(127 shl 24)			= ipH and $FF000000) or
+       (uint32((169 shl 24) or (254 shl 16))	= ipH and $FFFF0000) or
+       (uint32((172 shl 24) or ( 16 shl 16)) 	= ipH and $FFF00000) or
+       (uint32(192 shl 24) 			= ipH and $FFFFFF00) or
+       (uint32((192 shl 24) or (  2 shl  8)) 	= ipH and $FFFFFF00) or
+       (uint32((192 shl 24) or (168 shl 16)) 	= ipH and $FFFF0000) or
+       (uint32((192 shl 24) or ( 18 shl 16))	= ipH and $FFFE0000) or
+       (uint32((198 shl 24) or ( 51 shl 16) or (100 shl 8)) = ipH and $FFFFFF00) or
+       (uint32((203 shl 24) or (113 shl  8)) 	= ipH and $FFFFFF00)
+     );
+end;
+
+// --  --
+function isThisHostIP_N(const ipN: TIPv4N): bool;
+var
+  ips: string;
+  i: int32;
+begin
+  result := false;
+  //
+  if (0 = uint32(ipN)) then
+    result := true	// 0.0.0.0
+  else begin
+    //
+    if (127 = ipN[0]) then
+      result := true	// 127.xxx.xxx.xxx loopback
+    else begin
+      //
+      with (unaStringList.create()) do try
+	//
+	lookupHost('', ips, _this as unaStringList);
+	ips := ipN2str(ipN);
+	for i := 0 to count - 1 do begin
+	  //
+	  if (sameString(ips, get(i))) then begin
+	    //
+	    result := true;
+	    break;
+	  end;
+	end;
+      finally
+	free();
+      end;
+    end;
+  end;
 end;
 
 // --  --
@@ -1780,9 +1963,15 @@ begin
   //
   addr.sin_family := AF_INET;
   addr.sin_port := htons(u_short( lookupPort(port) ));
-  addr.sin_addr.s_addr := inet_addr(paChar( aString( ipH2str(lookupHost(host, 0)) )));
+  addr.sin_addr.s_addr := inet_addr(paChar( aString( ipH2str(lookupHostH(host)) )));
   //
   result := (0 <> addr.sin_port) and (0 <> addr.sin_addr.s_addr);
+end;
+
+// --  --
+function sameIPN(const ipN1, ipN2: TIPv4N): bool;{$IFDEF UNA_OK_INLINE }inline;{$ENDIF UNA_OK_INLINE }
+begin
+  result := (ipN1[0] = ipN2[0]) and (ipN1[1] = ipN2[1]) and (ipN1[2] = ipN2[2]) and (ipN1[3] = ipN2[3]);
 end;
 
 
@@ -1885,8 +2074,8 @@ begin
       laddr.sin_addr.s_addr := inet_addr(paChar(aString(f_bindToIp)));
     end;
     //
-    if (TIP4(INADDR_NONE) = TIP4(laddr.sin_addr.s_addr)) then
-      TIP4(laddr.sin_addr.s_addr) := INADDR_ANY;
+    if (sameIPN(ipH2ipN(DWORD(INADDR_NONE)), TIPv4N(laddr.sin_addr.s_addr))) then
+      uint32(laddr.sin_addr.s_addr) := INADDR_ANY;
     //
     result := checkError(WinSock.bind(f_socket, laddr, sizeof(laddr)), true {$IFDEF DEBUG}, self._classID + '.bind()'{$ENDIF});
     f_bound := (0 = result);
@@ -2009,7 +2198,7 @@ begin
       end
       else begin
 	//
-	f_port.p_proto := ntohs(addr.sin_port);
+	f_port.p_proto := smallint(ntohs(addr.sin_port));
 	f_host := string(inet_ntoa(addr.sin_addr));
 	//
 	laddr := addr^;
@@ -2084,7 +2273,7 @@ end;
 // --  --
 function unaSocket.getBindToPort(): string;
 begin
-  result := int2str(f_bindToPort.p_proto);
+  result := int2str(word(f_bindToPort.p_proto));
 end;
 
 // --  --
@@ -2196,7 +2385,7 @@ end;
 function unaSocket.getPort(): string;
 begin
   if (f_port.p_name = nil) then
-    result := int2str(f_port.p_proto)
+    result := int2str(word(f_port.p_proto))
   else
     result := string(f_port.p_name);
 end;
@@ -2318,7 +2507,7 @@ begin
   else
     result := -1;
   //
-  if (WSAECONNRESET = result) then
+  if ((10050 <= result) and (result <= 10061)) then	// fatal socket error?
     close();
 end;
 
@@ -2332,12 +2521,11 @@ begin
   //
   if (len > 0) then begin
     //
-    SetLength(result, len);
+    setLength(result, len);
     if (read(@result[1], len, 100, noCheck) = 0) then
       SetLength(result, len)
     else
       result := '';
-    //
   end;
 end;
 
@@ -2347,22 +2535,20 @@ begin
   if (noCheck or okToWrite(1)) then begin
     //
     result := WinSock.send(f_socket, buf^, size, 0);
-    if (SOCKET_ERROR = result) then begin
-      //
+    if (SOCKET_ERROR = result) then
       result := checkError(result, true {$IFDEF DEBUG}, self._classID + '.send()'{$ENDIF})
-    end
     else begin
       //
       if (uint(result) = size) then
 	result := 0
       else
 	result := -2;
-      //
     end;
   end
   else begin
     //
     result := -1;
+    //
     {$IFDEF LOG_UNASOCKETS_ERRORS }
     logMessage(self._classID + '.send() - okToWrite() fails.');
     {$ENDIF LOG_UNASOCKETS_ERRORS }
@@ -2373,6 +2559,13 @@ end;
 function unaSocket.send(const value: aString; noCheck: bool): int;
 begin
   result := send(@value[1], Length(value), noCheck);
+end;
+
+// --  --
+procedure unaSocket.setBindToIP(const value: string);
+begin
+  if (f_bindToIP <> value) then
+    f_bindToIP := ipN2str(lookupHostN(value));
 end;
 
 // --  --
@@ -2603,7 +2796,6 @@ begin
   end
   else
     result := WSAEACCES;	// select() fails
-  //
 end;
 
 // --  --
@@ -2705,8 +2897,8 @@ begin
       else begin
 	//
 	maddr.imr_interface.s_addr := inet_addr(paChar(aString(bindToIP)));
-	if (TIP4(INADDR_NONE) = TIP4(maddr.imr_interface.s_addr)) then
-	  TIP4(maddr.imr_interface.s_addr) := INADDR_ANY;
+	if (sameIPN(ipH2ipN(DWORD(INADDR_NONE)), TIPv4N(maddr.imr_interface.s_addr))) then
+	  uint32(maddr.imr_interface.s_addr) := INADDR_ANY;
       end;
       //
       result := true;
@@ -2933,7 +3125,7 @@ type
   //
   // -- unaPacketStormBuffer --
   //
-  /// Internal packet buffer
+  //  Internal packet buffer
   punaPacketStormBuffer = ^unaPacketStormBuffer;
   unaPacketStormBuffer = packed record
     //
@@ -2951,7 +3143,8 @@ type
 
 const
   // --  --
-  c_maxPSBufs	= 4096;	/// max number of packet storm records.
+// max number of packet storm records.
+  c_maxPSBufs	= 4096;	
 
 type
   //
@@ -3435,13 +3628,14 @@ begin
   if (nil <> conn) then
     result := conn.paddr
   else
-    result := nil;  
+    result := nil;
 end;
 
 // --  --
 function unaSocksThread.execute(globalIndex: unsigned): int;
 const
-  cWaitTimeout	= 40;	// time slice (in ms) given to a Server to check all client connections
+  cWaitTimeout_Low	= 400;	// time slice (in ms) given to a Server to check all client connections
+  cWaitTimeout_Hi	= 4;	// time slice (in ms) given to a Server to check all client connections (hurry up mode)
 var
   i: int;
   newSocket: unaSocket;
@@ -3561,7 +3755,7 @@ begin
 	f_socks.event(unaseClientConnect, id, connection.connId);
       end;
       //
-      waitForDataTimeout := cWaitTimeout;
+      waitForDataTimeout := cWaitTimeout_Low;
       //
       while (not shouldStop) do begin
 	//
@@ -3582,7 +3776,7 @@ begin
 		  dataBuf := unaSocksPacketStormThread(f_psThread).bufferGet(maxDataSize);
 		  if (nil <> dataBuf) then begin
 		    //
-		    error := unaUdpSocket(threadSocket).recvfrom(addr, dataBuf.r_data, maxDataSize, true, 0, cWaitTimeout);
+		    error := unaUdpSocket(threadSocket).recvfrom(addr, dataBuf.r_data, maxDataSize, true, 0, cWaitTimeout_Low);
 		    if (0 < error) then begin
 		      //
 		      {$IFDEF LOG_RAW_DATA_PACKETS }
@@ -3590,7 +3784,7 @@ begin
 		      {$ENDIF }
 		      // new data from client
 		      dataBuf.r_dataSizeUsed := error;
-		      waitForDataTimeout := 1;	// next time do quick checks, we are in hurry
+		      waitForDataTimeout := cWaitTimeout_Hi;	// next time do quick checks, we are in hurry
 		      //
 		      wasAcq := true;
 		      connection := getConnectionByAddr(addr, true);
@@ -3656,14 +3850,14 @@ begin
 		      //
 		      Sleep(10);
 		      //
-		      waitForDataTimeout := cWaitTimeout;
+		      waitForDataTimeout := cWaitTimeout_Low;
 		    end;
 		  end;	// if (nil <> dataBuf) ...
 		  //
 		end
 		else begin
 		  //
-		  waitForDataTimeout := cWaitTimeout;
+		  waitForDataTimeout := cWaitTimeout_Low;
 		  //
 		  // quick test for UDP timeouts (if needed)
 		  if ((0 < udpConnectionTimeout) and connections.lock(true, 10)) then try
@@ -3703,7 +3897,7 @@ begin
 		    {$IFDEF LOG_RAW_DATA_PACKETS }
 		    //logMessage('UNA_SOCKETS: TCP SERVER --------- DOING LONG ACCEPT ---------');
 		    {$ENDIF }
-		    newSocket := threadSocket.accept(newSock, cWaitTimeout);	// long delay
+		    newSocket := threadSocket.accept(newSock, cWaitTimeout_Low);	// long delay
 		  end;
 		  //
 		  if (nil <> newSocket) then begin
@@ -3755,7 +3949,7 @@ begin
 			      logMessage('UNA_SOCKETS: TCP SERVER / new data chunk for connId=' + int2str(connection.connId) + '; size=' + int2str(dataSize) + '; CRC32=' + int2str(crc32(data, dataSize), 16));
 		      {$ENDIF }
 			      //
-			      waitForDataTimeout := 1;	// switch to quick checks, we are in hurry
+			      waitForDataTimeout := cWaitTimeout_Hi;	// switch to quick checks, we are in hurry
 			      noData := false;
 			      //
 			      //f_socks.event(unaseServerData, id, connection.connId, @data[1], length(data));
@@ -3826,9 +4020,9 @@ begin
 		if (noData) then begin
 		  //
 		  if (2 > connections.count) then
-		    waitForDataTimeout := cWaitTimeout
+		    waitForDataTimeout := cWaitTimeout_Low
 		  else
-		    waitForDataTimeout := cWaitTimeout div (connections.count);
+		    waitForDataTimeout := cWaitTimeout_Low div (connections.count);
 		  //
 		end;
 		//
@@ -3870,7 +4064,7 @@ begin
 			logMessage('UNA_SOCKETS: TCP CLIENT / new data chunk, size=' + int2str(dataBufSize) + '; CRC32=' + int2str(crc32(dataBuf, dataBufSize), 16));
 			{$ENDIF }
 			//
-			waitForDataTimeout := 1;	// quick cheks, we are in hurry
+			waitForDataTimeout := cWaitTimeout_Hi;	// quick cheks, we are in hurry
 			//
 			dataBuf.r_dataSizeUsed := dataBufSize;
 			unaSocksPacketStormThread(f_psThread).newPacket(connection.connId, dataBuf);
@@ -3891,7 +4085,7 @@ begin
 		      //
 		      if (0 > error) then
 			// no data for some reason
-			waitForDataTimeout := cWaitTimeout
+			waitForDataTimeout := cWaitTimeout_Low
 		      else
 			// analyze error code
 			checkSocketError(error, nil, true);
@@ -3899,7 +4093,7 @@ begin
 		  end;	// if (nil <> dataBuf) ..
 		end
 		else
-		  waitForDataTimeout := cWaitTimeout;
+		  waitForDataTimeout := cWaitTimeout_Low;
 		//
 	      end;
 
@@ -3922,7 +4116,7 @@ begin
 		      {$ENDIF }
 		      //
 		      dataBuf.r_dataSizeUsed := error;
-		      waitForDataTimeout := 1;	// quick checks, we are in hurry
+		      waitForDataTimeout := cWaitTimeout_Hi;	// quick checks, we are in hurry
 		      //
 		      //f_socks.event(unaseClientData, id, connection.connId, @data[1], length(data))
 		      unaSocksPacketStormThread(f_psThread).newPacket(connection.connId, dataBuf);
@@ -3941,7 +4135,7 @@ begin
 			  checkSocketError(WSAESHUTDOWN, nil, true);
 
 			else
-			  waitForDataTimeout := cWaitTimeout;
+			  waitForDataTimeout := cWaitTimeout_Low;
 
 		      end; // case
 		    end;
@@ -3949,7 +4143,7 @@ begin
 		  //
 		end
 		else
-		  waitForDataTimeout := cWaitTimeout;
+		  waitForDataTimeout := cWaitTimeout_Low;
 
 	      end;
 
@@ -4370,10 +4564,8 @@ begin
   //
   if ((nil <> result) and needAcquire) then begin
     //
-    if (not result.acquire(timeout)) then begin
-      //
+    if (not result.acquire(timeout)) then
       result := nil;
-    end;
   end;
 end;
 
@@ -4531,7 +4723,7 @@ begin
   thread := getThreadById(id);
   //
   if (nil <> thread) then
-    result := (unatsRunning = thread.getStatus())
+    result := (unatsRunning = thread.status)
   else
     result := false;
 end;
@@ -4858,7 +5050,7 @@ Content-Length: 924
 Connection: close
 Content-Type: text/html
 
-////// DATA GOES HERE //////////////////
+//-------- DATA GOES HERE ---------------//
 
 *)
 
@@ -5206,6 +5398,7 @@ begin
   uriComponents.dwPasswordLength := 1;
   uriComponents.dwUrlPathLength := 1;
   uriComponents.dwExtraInfoLength := 1;
+  uriComponents.nPort := Word(-1);
   //
   if (1 > pos('//', URI)) then
     URI := 'http://' + URI;
@@ -5222,7 +5415,15 @@ begin
   //
   if (result) then begin
     //
-    crack.r_port := uriComponents.nPort;
+    if (Word(-1) <> uriComponents.nPort) then begin
+      //
+      if (0 < uriComponents.nPort) then
+	crack.r_port := uriComponents.nPort
+      else
+	crack.r_port := -1;	// 0 is same as unspecified
+    end
+    else
+      crack.r_port := -1;	// not specified
     //
     {$IFNDEF NO_ANSI_SUPPORT }
       if (g_wideApiSupported) then begin

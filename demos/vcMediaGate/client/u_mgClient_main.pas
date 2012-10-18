@@ -164,7 +164,7 @@ procedure Tc_form_main.formShow(sender: tObject);
 begin
   loadControlPosition(self, f_ini);
   //
-        c_clb_debug.visible := {$IFDEF DEBUG }true{$ELSE }false{$ENDIF DEBUG };
+	c_clb_debug.visible := {$IFDEF DEBUG }true{$ELSE }false{$ENDIF DEBUG };
   c_label_debugInfo.visible := {$IFDEF DEBUG }true{$ELSE }false{$ENDIF DEBUG };
   c_checkBox_random.visible := {$IFDEF DEBUG }true{$ELSE }false{$ENDIF DEBUG };
   //
@@ -181,10 +181,10 @@ procedure Tc_form_main.c_timer_updateTimer(Sender: TObject);
   begin
     if (nil <> pipe) then begin
       //
-      result := 'In/Out: ' + int2str(pipe.inBytes, 10, 3) + '/' + int2str(pipe.outBytes, 10, 3) + ' bytes';
+      result := 'In/Out: ' + int2str(pipe.inBytes[0], 10, 3) + '/' + int2str(pipe.outBytes[0], 10, 3) + ' bytes';
       //
       if (pipe is unavclInOutIpPipe) then
-	result := result + ' lost: ' + int2str((pipe as unavclInOutIpPipe).inPacketsOutOfSeq) + ' packets'
+	result := result + ';   Network In/Out: ' + int2str(pipe.inBytes[1], 10, 3) + '/' + int2str(pipe.outBytes[1], 10, 3) + ' bytes;  lost: ' + int2str((pipe as unavclInOutIpPipe).inPacketsOutOfSeq) + ' packets'
     end
     else
       result := '<nil>';
@@ -229,13 +229,13 @@ begin
       //
       sampleSize := codecIn.pcm_bitsPerSample shr 3 * codecIn.pcm_numChannels;
       if (1 < sampleSize) then
-	c_label_stat.caption := 'Sent: ' + int2str(waveIn.outBytes div sampleSize, 10, 3) + ' samples / ' + int2str((waveIn.outBytes div sampleSize) div codecIn.pcm_samplesPerSec) + ' seconds.';
+	c_label_stat.caption := 'Sent: ' + int2str(waveIn.outBytes[0] div sampleSize, 10, 3) + ' samples / ' + int2str((waveIn.outBytes[0] div sampleSize) div codecIn.pcm_samplesPerSec) + ' seconds.';
     end
     else begin
       //
       sampleSize := codecOut.pcm_bitsPerSample shr 3 * codecOut.pcm_numChannels;
       if (1 < sampleSize) then
-	c_label_stat.caption := 'Received: ' + int2str(waveOut.inBytes div sampleSize, 10, 3) + ' samples / ' + int2str((waveOut.inBytes div sampleSize) div codecOut.pcm_samplesPerSec) + ' seconds.';
+	c_label_stat.caption := 'Received: ' + int2str(waveOut.inBytes[0] div sampleSize, 10, 3) + ' samples / ' + int2str((waveOut.inBytes[0] div sampleSize) div codecOut.pcm_samplesPerSec) + ' seconds.';
       //
     end;
     //

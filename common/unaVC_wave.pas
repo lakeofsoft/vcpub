@@ -39,16 +39,20 @@
 {*
   Contains audio wave pipes to be used in Delphi/C++Builder IDE.
 
-  <P>Wave components:
-    <LI><A href="unaVC_wave/unavclWaveInDevice.html">WaveIn</A>.
-    <LI><A href="unaVC_wave/unavclWaveOutDevice.html">WaveOut</A>.
-    <LI><A href="unaVC_wave/unavclWaveCodecDevice.html">WaveCodec</A>.
-    <LI><A href="unaVC_wave/unavclWaveRiff.html">WaveRIFF</A>.
-    <LI><A href="unaVC_wave/unavclWaveMixer.html">WaveMixer</A>.
-    <LI><A href="unaVC_wave/unavclWaveResampler.html">WaveResampler</A>.
+  Wave components:
+  @unorderedList(
+    @itemSpacing Compact
+    @item @link(unavclWaveInDevice WaveIn)
+    @item @link(unavclWaveOutDevice WaveOut)
+    @item @link(unavclWaveCodecDevice WaveCodec)
+    @item @link(unavclWaveRiff WaveRiff)
+    @item @link(unavclWaveMixer WaveMixer)
+    @item @link(unavclWaveResampler WaveResampler)
+  )
 
   @Author Lake
-  @Version 2.5.2008.02 Split from unaVCIDE.pas unit
+  
+	Version 2.5.2008.02 Split from unaVCIDE.pas unit
 }
 
 unit
@@ -58,8 +62,7 @@ interface
 
 uses
   Windows, unaTypes, unaClasses,
-  MMSystem, unaMsAcmApi, unaMsAcmClasses, unaWave,
-  unaVC_pipe,
+  MMSystem, unaMsAcmApi, unaMsAcmClasses, unaWave, unaVC_pipe,
   Classes;
 
 
@@ -130,6 +133,10 @@ type
     f_onAcmReq: tunaOnAcmReq;
     //
     f_sdo: bool;
+    f_channelMixMask: int;
+    f_channelConsumeMask: int;
+    //
+    f_waveEngine: unaVCWaveEngine;
     //
     function getSamplingParam(index: integer): unsigned;
     function getWaveErrorAsString(): string;
@@ -137,6 +144,7 @@ type
     function getMinVolLevel(): unsigned;
     //
     procedure myOnDA(sender: tObject; data: pointer; len: cardinal);
+    procedure myOnGetProviderFormat(var f: PWAVEFORMATEXTENSIBLE);
     //
     procedure setMapped(value: bool);
     procedure setDirect(value: bool);
@@ -161,6 +169,9 @@ type
     procedure setOnThreshold(value: unaWaveOnThresholdEvent);
     //
     procedure setSdm(value: unaWaveInSDMethods);
+    procedure setChannelMixMask(value: int);
+    procedure setChannelConsumeMask(value: int);
+    procedure setWaveEngine(value: unaVCWaveEngine);
   protected
     {*
 	Initializes the wave device.
@@ -185,7 +196,7 @@ type
     {*
 	Reads data from the wave device.
 
-      	@return Number of bytes read from device.
+	@return Number of bytes read from device.
     }
     function doRead(data: pointer; len: uint): uint; override;
     {*
@@ -248,7 +259,7 @@ type
     }
     procedure doRemoveProvider(provider: unavclInOutPipe); override;
     {*
-        Sets new device ID and re-creates device object if needed.
+	Sets new device ID and re-creates device object if needed.
 
         @param value New device ID value.
     }
@@ -307,151 +318,154 @@ type
     }
     function applyDeviceFormat(format: PWAVEFORMATEXTENSIBLE; isSrc: bool = true): bool; virtual;
     {*
-        ACM reqest.
+	ACM reqest.
 
-        Used mostly to disable default ACM enumeration.
+	Used mostly to disable default ACM enumeration.
     }
     procedure doAcmReq(req: uint; var acm: unaMsAcm); virtual;
     //
     // -- properties --
     //
     {*
-     	Internal.
+	Internal.
     }
     property deviceWasCreated: bool read f_deviceWasCreated;
     {*
-        Specifies whether device should add silence when it runs out of audio data.
+	Specifies whether device should add silence when it runs out of audio data.
     }
     property addSilence: boolean read f_addSilence write setAddSilence default false;
     {*
-        Specifies device ID for the wave device.
-        Ranges from 0 to number of wave devices - 1.
-        Default value is WAVE_MAPPER, which forces the component to use
-        default device assigned in Control Panel.
+	Specifies device ID for the wave device.
+	Ranges from 0 to number of wave devices - 1.
+	Default value is WAVE_MAPPER, which forces the component to use
+	default device assigned in Control Panel.
     }
     property deviceId: int read f_deviceId write setDeviceId;
     {*
-        Specifies audio format tag for the wave device.
+	Specifies audio format tag for the wave device.
     }
     property formatTag: unsigned read f_formatTag write setFormatTag default WAVE_FORMAT_PCM;
     {*
-        Specifies the device is immunable for format tag changes (usually useful for codecs).
+	Specifies the device is immunable for format tag changes (usually useful for codecs).
     }
     property formatTagImmunable: boolean read f_applyFormatTagImmunable write f_applyFormatTagImmunable default false;
     {*
-        Specifies whether wave device is mapped (obsolete).
+	Specifies whether wave device is mapped (obsolete).
     }
     property mapped: bool read f_mapped write setMapped default false;
     {*
-        Specifies whether wave device is direct (obsolete).
+	Specifies whether wave device is direct (obsolete).
     }
     property direct: bool read f_direct write setDirect default false;
     {*
-        Specifies whether device is working in real-time manner.
+	Specifies whether device is working in real-time manner.
     }
     property realTime: boolean read f_realTime write setRealTime default false;
     {*
-        Specifies whether wave stream should be looped from end to beginning.
+	Specifies whether wave stream should be looped from end to beginning.
     }
     property loop: boolean read f_loop write setLoop default false;
     {*
-        Specifies whether format of input stream of the device is PCM.
+	Specifies whether format of input stream of the device is PCM.
     }
     property inputIsPcm: boolean read f_inputIsPcm write setInputIsPcm default true;
     {*
-        Specifies driver mode for device.
+	Specifies driver mode for device.
     }
     property driverMode: unaAcmCodecDriverMode read f_driverMode write setDriverMode default unacdm_acm;
     {*
-        Specifies driver library for device.
+	Specifies driver library for device.
     }
     property driverLibrary: wString read f_driverLibrary write setDriverLibrary;
     {*
-        Specifies which method will be used to detect silence.
-      <UL>
-	<LI>unasdm_none - no silence detection</LI>
-	<LI>unasdm_VC - "old" method, which uses minVolumeLevel and minActiveTime</LI>
-	<LI>unasdm_DSP - uses DSP library to filter silence</LI>
-      <UL>
+	Specifies which method will be used to detect silence.
 
-        minActiveTime and minVolumeLevel properties control the silence detection behavior for unasdm_VC.
+	minActiveTime and minVolumeLevel properties control the silence detection behavior for unasdm_VC.
     }
     property silenceDetectionMode: unaWaveInSDMethods read f_sdmCache write setSdm default unasdm_none;
+    {*
+	MME, ASIO or DS
+    }
+    property waveEngine: unaVCWaveEngine read f_waveEngine write setWaveEngine default unavcwe_MME;
   public
     {*
     }
     constructor Create(AOwner: TComponent); override;
     {*
-        Creates the wave device and assigns default values for properties.
+	Creates the wave device and assigns default values for properties.
     }
     procedure AfterConstruction(); override;
     {*
-        Destroys the wave device.
+	Destroys the wave device.
     }
     procedure BeforeDestruction(); override;
     {*
-        Destroys previuosly created wave device, then creates new one.
-        Assigns required callbacks for device.
+	Destroys previuosly created wave device, then creates new one.
+	Assigns required callbacks for device.
     }
     procedure createDevice();
     {*
-        Creates ACM or openH323plugin driver for device (if needed).
+	Creates ACM or openH323plugin driver for device (if needed).
     }
     procedure createDriver();
     //
     {*
-        Refreshes the device format.
+	Refreshes the device format.
     }
     procedure ensureFormat();
     {*
-        Returns current volume of audio signal passing "through" wave device.
-        Returned volume range from 0 (silence) to 32768. Scale is linear. Use getLogVolume() method to get volume in logarithmic scale.
+	Returns current volume of audio signal passing "through" wave device.
+	Returned volume range from 0 (silence) to 32768. Scale is linear. Use getLogVolume() method to get volume in logarithmic scale.
 
-        @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
+	@param channel Channel number to return volume for. Default is $FFFFFFFF (median).
     }
     function getVolume(channel: uint = $FFFFFFFF): unsigned;
     {*
-        Returns unchenaged volume of audio signal passing "through" wave device.
-        Returned volume range from 0 (silence) to 32768. Scale is linear. Use getLogVolume() method to get volume in logarithmic scale.
+	Returns unchenaged volume of audio signal passing "through" wave device.
+	Returned volume range from 0 (silence) to 32768. Scale is linear. Use getLogVolume() method to get volume in logarithmic scale.
 
-        @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
+	@param channel Channel number to return volume for. Default is $FFFFFFFF (median).
     }
     function getUnVolume(channel: uint = $FFFFFFFF): unsigned;
     {*
-        Returns current volume of audio signal passing "through" wave device.
-        Returned volume range from 0 (silence) to 100. Scale is logarithmic. Use getVolume() method to get volume in linear scale.
+	Returns current volume of audio signal passing "through" wave device.
+	Returned volume range from 0 (silence) to 100. Scale is logarithmic. Use getVolume() method to get volume in linear scale.
 
-        @param channel Channel number to return volume for. Default is $FFFFFFFF (median).
+	@param channel Channel number to return volume for. Default is $FFFFFFFF (median).
     }
     function getLogVolume(channel: uint = $FFFFFFFF): unsigned;
     {*
-        Changes the volume of specified channel.
+	Changes the volume of specified channel.
 
-        @param volume 100 means no volume change (100%); 50 = 50%; 200 = 200% and so on.
-        @param channel Default value of -1 means this volume will be applied on all channels.
+	@param volume 100 means no volume change (100%); 50 = 50%; 200 = 200% and so on.
+	@param channel Default value of -1 means this volume will be applied on all channels.
     }
     procedure setVolume100(volume: unsigned = 100; channel: int = -1);
     {*
-        Flushes any data panding.
+	Flushes any data panding.
     }
     procedure flush();
+    {*
+	Share ASIO driver with other device.
+    }
+    procedure shareASIOwith(pipe: unavclInOutWavePipe);
     //
     // -- properties --
     //
     {*
-        ACM manager for the device (if any).
+	ACM manager for the device (if any).
     }
     property acm2: unaMsAcm read f_acm2;
     {*
-        Device driver.
+	Device driver.
     }
     property driver: unaMsAcmDriver read f_driver write setDriver;
     {*
-        Wave device associated with the pipe.
+	Wave device associated with the pipe.
     }
     property device: unaMsAcmStreamDevice read f_device;
     {*
-        PCM format of the wave device.
+	PCM format of the wave device.
     }
     property pcmFormatExt: PWAVEFORMATEXTENSIBLE read f_formatExt write setFormat;
     {*
@@ -472,11 +486,11 @@ type
     property waveErrorAsString: string read getWaveErrorAsString;
     //
     {*
-        When True tells the component to calculate audio volume of a data stream
-        coming into or from the component.
-        Use the getVolume() method to get the current volume level.
+	When True tells the component to calculate audio volume of a data stream
+	coming into or from the component.
+	Use the getVolume() method to get the current volume level.
 
-        This property must be also set to True if silenceDetectionMode is set to unasdm_VC.
+	This property must be also set to True if silenceDetectionMode is set to unasdm_VC.
     }
     property calcVolume: boolean read f_calcVolume write setCalcVolume default false;
     {*
@@ -487,49 +501,65 @@ type
     }
     property startDeviceOnOpen: bool read f_sdo write f_sdo default true;
     {*
-        Specifies channel mask for multi-channel data streams.
+	Specifies channel mask for multi-channel data streams.
     }
     property pcm_channelMask: unsigned index 3 read getSamplingParam write setSamplingParam default c_defSamplingChannelMask;
     {*
-        Minimum volume level for recording.
+	Minimum volume level for recording.
     }
     property minVolumeLevel: unsigned read getMinVolLevel write setMinVolLevel default 0;
     {*
-        Minimum active time for recording.
+	Minimum active time for recording.
     }
     property minActiveTime: unsigned read getMinActiveTime write setMinActiveTime default 0;
     {*
-        Fired when current level of signal has crossed the "silence" mark.
+	Fired when current level of signal has crossed the "silence" mark.
     }
     property onThreshold: unaWaveOnThresholdEvent read f_onThreshold write setOnThreshold;
   published
     {*
-        Specifies how many chunks of data (every chunk can hold 1/50 second of audio)
-        component can store in the input or output buffer, if data cannot be processed immediately.
+	Specifies how many chunks of data (every chunk can hold 1/50 second of audio)
+	component can store in the input or output buffer, if data cannot be processed immediately.
 
-        Set this property to 0 to disable the buffer overflow checking
-        (this could lead to uncontrolled memory usage grow).
+	Set this property to 0 to disable the buffer overflow checking
+	(this could lead to uncontrolled memory usage grow).
     }
     property overNum: unsigned read f_overNum write setOverNum default defOverNumValue;
     {*
-        Specifies number of samples per second for wave device.
-        Common values are 44100, 22050, 11025 and 8000.
+	Specifies number of samples per second for wave device.
+	Common values are 44100, 22050, 11025 and 8000.
     }
     property pcm_samplesPerSec: unsigned index 0 read getSamplingParam write setSamplingParam default c_defSamplingSamplesPerSec;
     {*
-        Specifies number of bits per sample for wave device.
-        Common values are 8 and 16.
+	Specifies number of bits per sample for wave device.
+	Common values are 8 and 16.
     }
     property pcm_bitsPerSample: unsigned index 1 read getSamplingParam write setSamplingParam default c_defSamplingBitsPerSample;
     {*
-        Specifies number of channels per sample for wave device.
-        Common values are 1 (mono) and 2 (stereo).
+	Specifies number of channels per sample for wave device.
+	Common values are 1 (mono) and 2 (stereo).
     }
     property pcm_numChannels: unsigned index 2 read getSamplingParam write setSamplingParam default c_defSamplingNumChannels;
     {*
-        Specifies whether device should not utilize ACM
+	Specifies whether device should not utilize ACM
     }
     property onAcmReq: tunaOnAcmReq read f_onAcmReq write f_onAcmReq;
+    {*
+	When -1 (default) all channels are included in output stream
+	When >= 0, only one specified channel is included
+    }
+    property channelMixMask: int read f_channelMixMask write setChannelMixMask default -1;
+    {*
+	Which channels to consume.
+    }
+    property channelConsumeMask: int read f_channelConsumeMask write setChannelConsumeMask default -1;
+    //
+    property onDataDSP;
+    property enableDataProxy;
+    property isFormatProvider;
+    property onDataAvailable;
+    property onFormatChangeAfter;
+    property onFormatChangeBefore;
   end;
 
 
@@ -539,12 +569,12 @@ type
   {*
     Real time PCM audio stream recording from the sound card or other hardware device.
 
-    <P><I>Usage</I>: If components has no provider component with
+    @bold(Usage): If components has no provider component with
     formatProvider set to True, specify PCM stream parameters before
     activating: pcm_SamplesPerSec, pcm_BitsPerSample and pcm_NumChannels.
     Set deviceId property if required.
 
-    <P><I>Example</I>: refer to the vcTalkNow demo. It has waveIn_server
+    @bold(Example): refer to the vcTalkNow demo. It has waveIn_server
     and waveIn_client components.
     Both are used to record real-time PCM stream to be sent to remote side.
     waveIn_server has c_codec_serverOut component as a consumer.
@@ -586,8 +616,14 @@ type
       Set active property to False to release the device as well.
     }
     property enableDataProcessing;
+    //
+    property waveEngine;
   end;
 
+
+  // playback options
+  unavcPlaybackOption = (unapo_smoothStartup, unapo_jitterRepeat);
+  unavcPlaybackOptions = set of unavcPlaybackOption;
 
   //
   // -- unavclWaveOutDevice --
@@ -595,11 +631,11 @@ type
   {*
     Real time PCM audio stream playback using the sound card or other hardware device.
 
-    <P><I>Usage</I>: If components has no provider component with
+    @bold(Usage): If components has no provider component with
     formatProvider=true, specify PCM stream parameters before
     activating: pcm_SamplesPerSec, pcm_BitsPerSample and pcm_NumChannels.
 
-    <P><I>Example</I>: refer to the vcTalkNow demo.
+    @bold(Example): refer to the vcTalkNow demo.
     It has waveOut_server and waveOut_client components.
     Both are used to playback real-time PCM stream received from remote side.
     In this demo, waveOut_server is a consumer of c_codec_serverIn component.
@@ -610,6 +646,8 @@ type
   private
     f_onFC: unavclPipeDataEvent;
     f_onFD: unavclPipeDataEvent;
+    //
+    f_po: unavcPlaybackOptions;
     //
     function getWaveOutDevice(): unaWaveOutDevice;
     procedure myOnACF(sender: tObject; data: pointer; size: cardinal);
@@ -627,12 +665,14 @@ type
 	Sets enableDataProcessing value.
     }
     procedure doSetEnableDP(value: boolean); override;
+    {*
+	Assign playback options
+    }
+    function doOpen(): bool; override;
   public
     {*
     }
     procedure AfterConstruction(); override;
-    //
-    //function getVolume(channel: int = 0): int; override;
     //
     {*
       Returns waveOut device.
@@ -651,7 +691,7 @@ type
     {*
       Fired when another audio chunk was passed to driver for playback.
       If you are self-feeding the playback, it means you have to feed another chunk to achieve continuous playback.
-      
+
       WARNING: This event is deprecated, refer to onFeedDone.
 
      <STRONG>NOTE</STRONG>: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
@@ -668,6 +708,12 @@ type
       <STRONG>NOTE</STRONG>: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event.
     }
     property onFeedDone: unavclPipeDataEvent read f_onFD write f_onFD;
+    //
+    property waveEngine;
+    {*
+	Controls how playback is started and what to do when waveout queue is out of audio data.
+    }
+    property playbackOptions: unavcPlaybackOptions read f_po write f_po;
   end;
 
 
@@ -680,24 +726,25 @@ type
     It can convert PCM stream to other format (compression) or other
     format to PCM (decompression).
 
-    <P><I>Usage</I>: If components has no provider component with
+    @bold(Usage): If components has no provider component with
     formatProvider=true, specify PCM stream parameters before
     activating: pcm_SamplesPerSec, pcm_BitsPerSample and pcm_NumChannels.
 
-    <P>Set formatTag property to specify the audio format you wish to
+    Set formatTag property to specify the audio format you wish to
     compress to or decompress from.
     Refer to WAVE_FORMAT_XXXX constants from unaMsAcmAPI.pas unit for possible
     values of this property, or you can use the output of amcEnum demo to
     receive the list of installed formats.
 
-    <P>Set inputIsPCM to true, if you wish to convert PCM stream to another
+    Set inputIsPCM to true, if you wish to convert PCM stream to another
     audio format (compression).
     Set inputIsPCM to false, if you wish to convert some audio format to
     PCM stream (decompression).
 
-    <P><I>Example</I>: refer to the vcTalkNow demo.
+    @bold(Example): refer to the vcTalkNow demo.
     It has c_codec_serverOut component, which is a consumer of waveIn_server
     component.
+
     That means PCM stream, produced by waveIn_server will be passed to
     c_codec_serverOut automatically.
     It also has ip_server as a consumer.
@@ -747,6 +794,8 @@ type
     //
     property formatTag;
     //property realTime;	 // MARCH 07: removed from published, since it makes more confusion than sence
+    {*
+    }
     property inputIsPcm;
     property calcVolume;
     //
@@ -766,7 +815,7 @@ type
     }
     property driverLibrary;
     {*
-      codec component is usually a format provider--so default value for was changed to true.
+     @noAutoLink(codec) component is usually a format provider--so default value for was changed to true.
     }
     property isFormatProvider default true;
     {*
@@ -788,7 +837,7 @@ type
     Reads audio stream from a WAV file, producing PCM stream,
     or creates and writes new WAV file.
 
-    <P><I>Usage</I>: set fileName property to specify the file to use.
+    @bold(Usage): set fileName property to specify the file to use.
     Set isInput to true if you wish to read from WAV file.
     Set isInput to false if you wish to create and write into WAV file.
     Set active to true, or call the open() method to start reading or writing.
@@ -797,12 +846,12 @@ type
     Set realTime to true if you wish the stream read from WAV file will
     be available in real time manner.
 
-    <P><I>Example (reading)</I>: refer to the vcWavePlayer demo.
+    @bold(Example reading): refer to the vcWavePlayer demo.
     Look for wavIn component, which is used to read the stream from WAV file.
     It has waveResampler as a consumer, that means read audio stream will
     be passed to waveResampler automatically.
 
-    <P><I>Example (writing)</I>: refer to the voiceRecDemo sample.
+    @bold(Example writing): refer to the voiceRecDemo sample.
     Look for waveRiff component, which is a consumer of waveIn component.
     That means PCM stream, produced by waveIn will be passed to
     waveRiff automatically. In this demo waveRiff component is used to
@@ -848,7 +897,8 @@ type
       Otherwise returns immediately after opening the device.
       If autoCloseOnDone property is true (default) device will be closed automatically when reading from file is complete.
       Otherwise use onStreamIsDone() event to be notified when reading from file is complete.
-      <BR>This function sets realTime property to false and isInput property to true.
+
+      This function sets realTime property to false and isInput property to true.
     }
     function loadFromFile(const fileName: wString; asynchronous: bool = false): bool;
     {*
@@ -857,7 +907,8 @@ type
       Otherwise returns immediately after opening the device.
       If autoCloseOnDone property is true (default) device will be closed automatically when reading from file is complete.
       Otherwise use onStreamIsDone() event to be notified when reading from file is complete.
-      <BR>This function sets realTime property to false and isInput property to true.
+
+      This function sets realTime property to false and isInput property to true.
     }
     function loadFromStream(stream: tStream; asynchronous: bool = false): bool;
     {*
@@ -865,7 +916,8 @@ type
       If asynchronous = false (default), does not return until whole data block is written, and closes the device after that.
       Otherwise returns immediately after opening the device and writing the data into it.
       Use the following code to verify if writing is complete: <CODE>if (waveStream.getDataAvailable(true) > chunkSize) then ...</CODE>
-      <BR>This function sets realTime and isInput properties to false.
+
+      This function sets realTime and isInput properties to false.
     }
     function saveToFile(const fileName: wString; data: pointer; size: uint; asynchronous: bool = false): bool;
     //
@@ -924,22 +976,22 @@ type
   {*
     Mixes two or more PCM audio streams. No ACM codecs are used by this component.
 
-    <P><I>Usage</I>: If components has no provider component with
+    @bold(Usage): If components has no provider component with
     formatProvider=true, specify PCM stream parameters before
     activating: set pcm_SamplesPerSec, pcm_BitsPerSample and pcm_NumChannels
     to specify the audio format parameters.
 
-    <P>Set realTime to true if you wish the mixing to be made in real time manner.
+    Set realTime to true if you wish the mixing to be made in real time manner.
     This component will mix as many streams as it has providers.
     Provider is any VC component, which has consumer property set to mixer component.
     Alternatively you can use addStream() and removeStream() method to add and
     remove streams (see Example B below).
 
-    <P><I>Example A</I>: c_mixer_client and c_mixer_server components are used
+    @bold(Example A): c_mixer_client and c_mixer_server components are used
     in vcNetTalk demo to mix PCM streams coming from live recording device
     and WAVe file stored on disk.
 
-    <P><I>Example B</I>: mixer is used in vcPulseGen demo to mix unlimited
+    @bold(Example B): mixer is used in vcPulseGen demo to mix unlimited
     number of sine waves. Refer to demo sources for details.
   }
   unavclWaveMixer = class(unavclInOutWavePipe)
@@ -1000,17 +1052,17 @@ type
     Audio stream conversion from one PCM format to another.
     No ACM codecs are used by this component.
 
-    <P><I>Usage</I>: If components has no provider component with
+    @bold(Usage): If components has no provider component with
     formatProvider=true, specify PCM stream parameters before
     activating: set pcm_SamplesPerSec, pcm_BitsPerSample and pcm_NumChannels
     to specify the source format parameters.
 
-    <P>Set dst_SamplesPerSec, dst_BitsPerSample and dst_NumChannels properties
+    Set dst_SamplesPerSec, dst_BitsPerSample and dst_NumChannels properties
     to specify the destination stream format parameters.
 
-    <P>Set realTime to true if you wish the resampling to be made in real time manner.
+    Set realTime to true if you wish the resampling to be made in real time manner.
 
-    <P><I>Example</I>: c_resampler_client and c_resampler_server components
+    @bold(Example): c_resampler_client and c_resampler_server components
     are used in vcNetTalk demo for resampling the streams produced
     by WAV-reading components to PCM parameters required by mixers.
   }
@@ -1092,9 +1144,12 @@ uses
 { MS ACM global }
 
 var
-  g_unavclACM: unaMsAcm;	/// global ACM object
-  g_unavclACMNeedEnum: bool = false;	/// True if ACM drivers enumeration was not performed yet.
-  g_unavclACMEnumFlags: uint;	/// ACM drivers enumeration flags.
+// global ACM object
+  g_unavclACM: unaMsAcm;	
+// True if ACM drivers enumeration was not performed yet.
+  g_unavclACMNeedEnum: bool = false;	
+// ACM drivers enumeration flags.
+  g_unavclACMEnumFlags: uint;	
 
 // --  --
 function setAcm(value: unaMsAcm = nil; flags: uint = 0): unaMsAcm;
@@ -1210,7 +1265,6 @@ begin
   inherited;
   //
   destroyOldDevice();
-  //
   mrealloc(f_formatExt);
   //
   driver := nil;	// make sure driver is freed
@@ -1224,6 +1278,11 @@ begin
   if (nil <> AOwner) then
     if (csLoading in AOwner.ComponentState) then
       f_loaded := false;
+  //
+  f_channelMixMask := -1;
+  f_channelConsumeMask := -1;
+  //
+  f_waveEngine := unavcwe_MME;
   //
   inherited;
 end;
@@ -1246,6 +1305,7 @@ begin
     //
     device.calcVolume := (calcVolume or device.calcVolume);
     device.onDataAvailable := myOnDA;
+    device.onGetProviderFormat := myOnGetProviderFormat;
     device.silenceDetectionMode := f_sdmCache;
   end;
   //
@@ -1321,6 +1381,11 @@ begin
     device.minVolumeLevel := f_minVolume;
     device.minActiveTime := f_minActiveTime;
     device.onThreshold := f_onThreshold;
+    device.channelMixMask := channelMixMask;
+    device.channelConsumeMask := channelConsumeMask;
+    //
+    if (device is unaWaveDevice) then
+      (device as unaWaveDevice).waveEngine := waveEngine;
   end;
 end;
 
@@ -1390,6 +1455,10 @@ end;
 
 // --  --
 function unavclInOutWavePipe.doOpen(): bool;
+{$IFDEF UNA_VCACM_USE_ASIO }
+var
+  nCh: int;
+{$ENDIF UNA_VCACM_USE_ASIO }
 begin
   inherited doOpen();
   //
@@ -1405,6 +1474,28 @@ begin
     if (not result) then
       logMessage(self.className + '.doOpen() - returned ' + int2str(f_waveError) + ' [' + device.getErrorText(f_waveError) + ']');
     {$ENDIF LOG_UNAVC_WAVE_ERRORS }
+    //
+    case (waveEngine) of
+
+      unavcwe_ASIO: begin
+	//
+	// update format with actual number of channels
+	//
+    {$IFDEF UNA_VCACM_USE_ASIO }
+	if ((nil <> f_formatExt) and (device is unaWaveDevice)) then begin
+	  //
+	  if (self is unavclWaveInDevice) then
+	    nCh := (device as unaWaveDevice).asioDriver().inputChannels
+	  else
+	    nCh := (device as unaWaveDevice).asioDriver().outputChannels;
+	  //
+	  fillPCMFormatExt(f_formatExt, trunc((device as unaWaveDevice).asioDriver().sampleRate), 16, 16, nCh);
+	  applyDeviceFormat(pcmFormatExt, inputIsPcm);
+	end;
+    {$ENDIF UNA_VCACM_USE_ASIO }
+      end;
+
+    end;
   end
   else
     result := f_deviceWasCreated;
@@ -1654,10 +1745,22 @@ begin
   with punavclWavePipeFormatExchange(data).r_formatM do begin
     //
     formatTag := self.formatTag;
-    formatOriginal.pcmSamplesPerSecond := f_formatExt.format.nSamplesPerSec;
-    formatOriginal.pcmBitsPerSample := f_formatExt.format.wBitsPerSample;
-    formatOriginal.pcmNumChannels := f_formatExt.format.nChannels;
-    formatChannelMask := f_formatExt.dwChannelMask;
+    if (nil <> f_formatExt) then begin
+      //
+      formatOriginal.pcmSamplesPerSecond := f_formatExt.format.nSamplesPerSec;
+      formatOriginal.pcmBitsPerSample := f_formatExt.format.wBitsPerSample;
+      formatOriginal.pcmNumChannels := f_formatExt.format.nChannels;
+      //
+      formatChannelMask := f_formatExt.dwChannelMask;
+    end
+    else begin
+      //
+      formatOriginal.pcmSamplesPerSecond := 44100;
+      formatOriginal.pcmBitsPerSample := 16;
+      formatOriginal.pcmNumChannels := 2;
+      //
+      formatChannelMask := 0;
+    end;
   end;
 end;
 
@@ -1804,6 +1907,15 @@ procedure unavclInOutWavePipe.myOnDA(sender: tObject; data: pointer; len: cardin
 begin
   if (enableDataProcessing) then
     onNewData(data, len, self);
+end;
+
+// --  --
+procedure unavclInOutWavePipe.myOnGetProviderFormat(var f: PWAVEFORMATEXTENSIBLE);
+begin
+  if ((nil <> providerOneAndOnly) and (providerOneAndOnly is unavclInOutWavePipe)) then
+    f := (providerOneAndOnly as unavclInOutWavePipe).f_formatExt
+  else
+    f := nil;
 end;
 
 // --  --
@@ -1976,6 +2088,58 @@ begin
 end;
 
 // --  --
+procedure unavclInOutWavePipe.setChannelConsumeMask(value: int);
+begin
+  if (channelConsumeMask <> value) then begin
+    //
+    if (nil <> device) then
+      device.channelConsumeMask := value;
+    //
+    f_channelConsumeMask := value;
+  end;
+end;
+
+// --  --
+procedure unavclInOutWavePipe.setChannelMixMask(value: int);
+begin
+  if (channelMixMask <> value) then begin
+    //
+    if (nil <> device) then
+      device.channelMixMask := value;
+    //
+    f_channelMixMask := value;
+  end;
+end;
+
+// --  --
+procedure unavclInOutWavePipe.setWaveEngine(value: unavcWaveEngine);
+begin
+  if (waveEngine <> value) then begin
+    //
+    if ((nil <> device) and (device is unaWaveDevice)) then
+      (device as unaWaveDevice).waveEngine := value;
+    //
+    f_waveEngine := value;
+  end;
+end;
+
+// --  --
+procedure unavclInOutWavePipe.shareASIOwith(pipe: unavclInOutWavePipe);
+var
+  sd: unaWaveDevice;
+begin
+  if ((nil <> device) and (device is unaWaveDevice)) then begin
+    //
+    if ((nil <> pipe) and (nil <> pipe.device) and (pipe.device is unaWaveDevice))  then
+      sd := pipe.device as unaWaveDevice
+    else
+      sd := nil;
+    //
+    (device as unaWaveDevice).shareASIOwith(sd);
+  end;
+end;
+
+// --  --
 procedure unavclInOutWavePipe.setVolume100(volume: unsigned; channel: int);
 begin
   if (nil <> device) then
@@ -2018,6 +2182,8 @@ begin
   inherited;
   //
   inputIsPCM := false;
+  //
+  playbackOptions := [unapo_smoothStartup, unapo_jitterRepeat];
 end;
 
 // --  --
@@ -2039,18 +2205,28 @@ type
   end;
 
 // --  --
+function unavclWaveOutDevice.doOpen: bool;
+begin
+  case (waveEngine) of
+
+    unavcwe_MME: begin
+      //
+      unaWaveOutDevice(device).smoothStartup := (unapo_smoothStartup in playbackOptions);
+      unaWaveOutDevice(device).jitterRepeat := (unapo_jitterRepeat in playbackOptions);
+    end;
+
+  end;
+  //
+  result := inherited doOpen();
+end;
+
+// --  --
 procedure unavclWaveOutDevice.doSetEnableDP(value: boolean);
 begin
   inherited;
   //
-  if (not value and (nil <> getWaveOutDevice())) then begin
-    //
+  if (not value and (nil <> getWaveOutDevice())) then
     myWaveOutDev(getWaveOutDevice()).flush2(false);
-    //
-{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-    myWaveOutDev(getWaveOutDevice()).paused := true;
-{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-  end;
 end;
 
 // --  --
@@ -2364,6 +2540,8 @@ end;
 
 // --  --
 function unavclWaveRiff.getFormatExchangeData(out data: pointer): uint;
+var
+  fmt: PWAVEFORMATEXTENSIBLE;
 begin
   result := inherited getFormatExchangeData(data);
   //
@@ -2374,17 +2552,23 @@ begin
     //
     with punavclWavePipeFormatExchange(data).r_formatM do begin
       //
-      if (0 = waveStream.status) then begin
+      case (waveStream.status) of
+
+	0: fmt := waveStream.dstFormatExt;
+	1: fmt := waveStream.srcFormatExt;
+	else
+	   fmt := nil;
+      end;
+      //
+      if (nil <> fmt) then begin
 	// input is OK
-	formatOriginal.pcmSamplesPerSecond := waveStream.dstFormatExt.format.nSamplesPerSec;
-	formatOriginal.pcmBitsPerSample := waveStream.dstFormatExt.format.wBitsPerSample;
-	formatOriginal.pcmNumChannels := waveStream.dstFormatExt.format.nChannels;
-	formatChannelMask := waveStream.dstFormatExt.dwChannelMask;
+	formatOriginal.pcmSamplesPerSecond := fmt.format.nSamplesPerSec;
+	formatOriginal.pcmBitsPerSample := fmt.format.wBitsPerSample;
+	formatOriginal.pcmNumChannels := fmt.format.nChannels;
+	formatChannelMask := fmt.dwChannelMask;
 	//
 	// also update the internal format, so properties will correspond to file parameters
-	//f_pcmFormat := waveStream.dstFormat^;
-	//fillPCMFormatEx(f_formatEx, @waveStream.dstFormatEx.format);
-	duplicateFormat(waveStream.dstFormatExt, f_formatExt);
+	duplicateFormat(fmt, f_formatExt);
       end;
     end;
     //
@@ -2476,6 +2660,7 @@ end;
 procedure unavclWaveRiff.setFileName(const value: wString);
 var
   fmt: pWAVEFORMATEX;
+  fEx: PWAVEFORMATEXTENSIBLE;
 begin
   f_fileName := value;
   //
@@ -2490,9 +2675,15 @@ begin
       //
       if (0 = waveStream.status) then begin
 	//
-	pcm_samplesPerSec := waveStream.srcFormatExt.Format.nSamplesPerSec;
-	pcm_bitsPerSample := waveStream.srcFormatExt.Format.wBitsPerSample;
-	pcm_numChannels := waveStream.srcFormatExt.Format.nChannels;
+	// 03-jun-2012: changed to dstFormatExt
+	if (nil <> waveStream.dstFormatExt) then
+	  fEx := waveStream.dstFormatExt
+	else
+	  fEx := waveStream.srcFormatExt;
+	//
+	pcm_samplesPerSec := fEx.Format.nSamplesPerSec;
+	pcm_bitsPerSample := fEx.Format.wBitsPerSample;
+	pcm_numChannels := fEx.Format.nChannels;
 	//
 	case (waveStream.fileType) of
 

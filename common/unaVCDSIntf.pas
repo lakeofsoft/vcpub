@@ -23,6 +23,10 @@
 
 {$I unaDef.inc}
 
+{*
+	DS interfaces
+}
+
 unit
   unaVCDSIntf;
 

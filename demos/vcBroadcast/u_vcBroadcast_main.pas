@@ -347,9 +347,9 @@ begin
     //
 {$IFDEF __AFTER_D4__ }
     if (0 = c_pageControl_main.activePageIndex) then
-      c_statusBar_main.simpleText := c_statusBar_main.simpleText + 'Sent: ' + int2str(c_broadcastServer.packetsSent, 10, 3) + ' packets; ' + int2str(c_broadcastServer.outBytes shr 10, 10, 3) + ' KB'
+      c_statusBar_main.simpleText := c_statusBar_main.simpleText + 'Sent: ' + int2str(c_broadcastServer.packetsSent, 10, 3) + ' packets; ' + int2str(c_broadcastServer.outBytes[1] shr 10, 10, 3) + ' KB'
     else
-      c_statusBar_main.simpleText := c_statusBar_main.simpleText + 'Received: ' + int2str(c_broadcastClient.packetsReceived, 10, 3) + ' packets; ' + int2str(c_broadcastClient.outBytes shr 10, 10, 3) + ' KB'
+      c_statusBar_main.simpleText := c_statusBar_main.simpleText + 'Received: ' + int2str(c_broadcastClient.packetsReceived, 10, 3) + ' packets; ' + int2str(c_broadcastClient.outBytes[1] shr 10, 10, 3) + ' KB'
 {$ENDIF }
   end;
 end;

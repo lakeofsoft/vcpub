@@ -32,7 +32,9 @@
   libspeex.dll wrapper.
 
   @Author Lake
-  @Version 2.5.2010.01 Initial release
+  
+Version 2.5.2010.01 Initial release
+
 }
 
 unit
@@ -889,9 +891,6 @@ const
 //#endif
 
 
-
-
-
 //* Copyright (C) Jean-Marc Valin */
 (**
    @file speex_echo.h
@@ -1067,7 +1066,7 @@ type
  * @param quality Resampling quality between 0 and 10, where 0 has poor quality
  * and 10 has very high quality.
  * @return Newly created resampler state
- * @retval NULL Error: not enough memory
+ * @return NULL Error: not enough memory
  *)
   speex_resampler_init = function(nb_channels: spx_uint32_t;
 				  in_rate: spx_uint32_t;
@@ -1086,7 +1085,7 @@ type
  * @param quality Resampling quality between 0 and 10, where 0 has poor quality
  * and 10 has very high quality.
  * @return Newly created resampler state
- * @retval NULL Error: not enough memory
+ * @return NULL Error: not enough memory
  *)
   speex_resampler_init_frac = function(nb_channels: spx_uint32_t;
 				       ratio_num: spx_uint32_t;
@@ -1575,6 +1574,9 @@ type
     //
     procedure setMode(value: int);
     procedure setActive(value: bool);
+    //
+    function getIntValue(index: Integer): int32; virtual; abstract;
+    procedure setIntValue(index: Integer; value: int32); virtual; abstract;
   protected
     function enter(timeout: tTimeout = 3000): bool;
     procedure leave();
@@ -1637,6 +1639,9 @@ type
 	True when initialized.
     }
     property active: bool read getActive write setActive;
+    {*
+    }
+    property PLC_TUNING: int32 index SPEEX_SET_PLC_TUNING read getIntValue write setIntValue;
   end;
 
   {*
@@ -1683,6 +1688,9 @@ type
 	Reads encoded bytes from speex and notifies via encoder_write().
     }
     procedure notify_data();
+    //
+    function getIntValue(index: Integer): int32; override;
+    procedure setIntValue(index: Integer; value: int32); override;
   protected
     function doInit(): pointer; override;
     procedure doOpen(); override;
@@ -1743,6 +1751,8 @@ type
   }
   unaSpeexDecoder = class(unaSpeexCoder)
   private
+    function getIntValue(index: Integer): int32; override;
+    procedure setIntValue(index: Integer; value: int32); override;
   protected
     function doInit(): pointer; override;
     procedure doOpen(); override;
@@ -2516,6 +2526,12 @@ begin
 end;
 
 // --  --
+function unaSpeexEncoder.getIntValue(index: Integer): int32;
+begin
+  lib.api.r_encoder_ctl(state, index + 1, @result);	// "index + 1" in extremely dirty hack, but seem to be OK for now
+end;
+
+// --  --
 function unaSpeexEncoder.getQuality(): int;
 begin
   result := f_quality;
@@ -2617,6 +2633,13 @@ begin
   finally
     leave();
   end;
+end;
+
+// --  --
+procedure unaSpeexEncoder.setIntValue(index: Integer; value: int32);
+begin
+  // credits: Ozz Nixon
+  lib.api.r_encoder_ctl(state, index, @value);
 end;
 
 // --  --
@@ -2742,6 +2765,18 @@ begin
   // nothing to do here so far
 end;
 
+// --  --
+function unaSpeexDecoder.getIntValue(index: Integer): int32;
+begin
+  lib.api.r_decoder_ctl(state, index + 1, @result);	// "index + 1" in extremely dirty hack, but seem to be OK for now
+end;
+
+// --  --
+procedure unaSpeexDecoder.setIntValue(index: Integer; value: int32);
+begin
+  // credits: Ozz Nixon
+  lib.api.r_decoder_ctl(state, index, @value);
+end;
 
 
 { unaSpeexDSP }

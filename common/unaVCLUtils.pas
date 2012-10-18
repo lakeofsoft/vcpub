@@ -24,6 +24,9 @@
 
 {$I unaDef.inc}
 
+{*
+	VCL utility functions and classes
+}
 unit
   unaVCLUtils;
 

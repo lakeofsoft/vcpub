@@ -43,7 +43,8 @@
   Contains basic pipe class - unavclInOutPipe.
 
   @Author Lake
-  @Version 2.5.2008.02 Split from unaVCIDE.pas unit
+  
+Version 2.5.2008.02 Split from unaVCIDE.pas unit
 }
 
 unit
@@ -63,7 +64,8 @@ uses
 
 const
   //
-  c_proxyDataArraySize	= 64;	/// Size of proxy thread data array
+// Size of proxy thread data array
+  c_proxyDataArraySize	= 64;	
 
   //
   // ignore provider options
@@ -122,8 +124,8 @@ type
     //
     f_ipo: unsigned;
     //
-    f_inBytes: int64;
-    f_outBytes: int64;
+    f_inBytes: array[0..7] of int64;
+    f_outBytes: array[0..7] of int64;
     f_opt: unsigned;
     //
     f_dataAvail: unavclPipeDataEvent;
@@ -178,6 +180,8 @@ type
 	@return Provider of a pipe.
     }
     function getProvider(index: int = 0): unavclInOutPipe;
+    function getInBytes(index: int): int64;
+    function getOutBytes(index: int): int64;
   protected
     {*
       Writes data into the pipe.
@@ -192,11 +196,14 @@ type
     }
     function getAvailableDataLen(index: integer): uint; virtual; abstract;
     {*
-	Increments (or decrements in/outBytes property by delta.
+	Increments (or decrements) in/outBytes property by delta.
 
+	@param index counter index, from 0 to 7. 0 is reserved for consumers/providers, 1 for network
+	@param isIn true for input
+	@param delta delta size
 	@return New value of in/outBytes
     }
-    function incInOutBytes(isIn: bool; delta: int): int64;
+    function incInOutBytes(index: int; isIn: bool; delta: int): int64;
     {*
 	Opens the pipe.
     }
@@ -308,6 +315,55 @@ type
 	List of providers.
     }
     property _providers: unaObjectList read f_providers;
+    {*
+      When True the component will assign stream format to the consumer (if any).
+      This simplifies the process of distributing stream format among linked components.
+
+      For example @link unavclWaveRiff component
+      can assign PCM format for linked @link unavclWaveOutDevice
+      component, so WAVe file will be played back correctly.
+    }
+    property isFormatProvider: boolean read f_isFormatProvider write f_isFormatProvider default false;
+    {*
+	Data will be placed to proxy thread before processing.
+	This allows component to return from the write() method as soon as possible.
+    }
+    property enableDataProxy: boolean read f_enableDataProxy write f_enableDataProxy default false;
+    //
+    // -- EVENTS --
+    //
+    {*
+      This event is fired every time component has produced or received new chunk of data.
+      Use this event to access the raw stream data.
+      Any modifications you made with data will not affect data consumers.
+      To modify data before it will passed to consumers, use onDataDSP() event.
+
+      NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event
+    }
+    property onDataAvailable: unavclPipeDataEvent read f_dataAvail write f_dataAvail;
+    {*
+      This event is fired every time component has produced or received new
+      chunk of data.
+      Use this event to access the raw stream data.
+      Any modifications you made on data will be passed to comsumers.
+      To modify data without affecting consumers, use onDataAvailable() event.
+
+      NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event
+    }
+    property onDataDSP: unavclPipeDataEvent read f_dataDSP write f_dataDSP;
+    {*
+      This event is fired after new format was applied to a pipe.
+
+      NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event
+    }
+    property onFormatChangeAfter: unavclPipeAfterFormatChangeEvent read f_afterFormatChange write f_afterFormatChange;
+    {*
+      This event is fired before new format is about to be applied to a pipe.
+      Using allowFormatChange parameter it is possible to disable format's applying.
+
+      NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event
+    }
+    property onFormatChangeBefore: unavclPipeBeforeFormatChangeEvent read f_beforeFormatChange write f_beforeFormatChange;
   public
     {*
 	Creates list of consumers and providers, internal critical section and data proxy thread.
@@ -434,12 +490,16 @@ type
     property availableDataLenOut: uint index 1 read getAvailableDataLen;
     {*
 	Number of bytes received by the pipe.
+
+	@param index 0 - received from providers; 1 - received from network
     }
-    property inBytes: int64 read f_inBytes;
+    property inBytes[index: int]: int64 read getInBytes;
     {*
 	Number of bytes produced by the pipe.
+
+	@param index 0 - sent to consumers; 1 - sent to network
     }
-    property outBytes: int64 read f_outBytes;
+    property outBytes[index: int]: int64 read getOutBytes;
     {*
 	Specifies whether the component would perform any data processing.
     }
@@ -504,7 +564,7 @@ type
       which is coming as input for component.
       Stream will be saved in "as is" format.
 
-      <P>For example, <A href="../../unaVC_wave/unavclWaveOutDevice.html">unavclWaveOutDevice</A> will
+      For example, @link unavclWaveOutDevice will
       store input stream as a sequence of PCM samples.
     }
     property dumpInput: wideString read f_dumpInput write f_dumpInput;
@@ -514,66 +574,28 @@ type
       output from the component.
       Stream will be saved in "as is" format.
 
-      <P>For example, <A href="../../unaVC_wave/unavclWaveInDevice.html">unavclWaveInDevice</A> will
+      For example, @link unavclWaveInDevice will
       store output stream as sequence of PCM samples.
     }
     property dumpOutput: wideString read f_dumpOutput write f_dumpOutput;
     {*
-      When True the component will assign stream format to the consumer (if any).
-      This simplifies the process of distributing stream format among linked components.
-
-      <P>For example <A href="../../unaVC_wave/unavclWaveRiff.html">unavclWaveRiff</A> component
-      can assign PCM format for linked <A href="../../unaVC_wave/unavclWaveOutDevice.html">unavclWaveOutDevice</A>
-      component, so WAVe file will be played back correctly.
-    }
-    property isFormatProvider: boolean read f_isFormatProvider write f_isFormatProvider default false;
-    {*
        When True tells the component it must activate consumer (if any)
        before activating itself. Same applies for deactivation.
 
-       <P>When False the component does not change the consumer state.
+       When @False the component does not change the consumer state.
     }
     property autoActivate: boolean read f_autoActivate write f_autoActivate default true;
-    {*
-	Data will be placed to proxy thread before processing.
-	This allows component to return from the write() method as soon as possible.
-    }
-    property enableDataProxy: boolean read f_enableDataProxy write f_enableDataProxy default false;
-    //
-    // -- EVENTS --
-    //
-    {*
-      This event is fired every time component has produced or received new chunk of data.
-      Use this event to access the raw stream data.
-      Any modifications you made with data will not affect data consumers.
-      To modify data before it will passed to consumers, use onDataDSP() event.
+  end;
 
-      <P><STRONG>NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event</STRONG>.
-    }
-    property onDataAvailable: unavclPipeDataEvent read f_dataAvail write f_dataAvail;
-    {*
-      This event is fired every time component has produced or received new
-      chunk of data.
-      Use this event to access the raw stream data.
-      Any modifications you made on data will be passed to comsumers.
-      To modify data without affecting consumers, use onDataAvail() event.
-
-      <P><STRONG>NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event</STRONG>.
-    }
-    property onDataDSP: unavclPipeDataEvent read f_dataDSP write f_dataDSP;
-    {*
-      This event is fired after new format was applied to a pipe.
-
-      <P><STRONG>NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event</STRONG>.
-    }
-    property onFormatChangeAfter: unavclPipeAfterFormatChangeEvent read f_afterFormatChange write f_afterFormatChange;
-    {*
-      This event is fired before new format is about to be applied to a pipe.
-      Using allowFormatChange parameter it is possible to disable format's applying.
-
-      <P><STRONG>NOTE: VCL is NOT multi-threading safe, and you should avoid using VCL routines and classes in this event</STRONG>.
-    }
-    property onFormatChangeBefore: unavclPipeBeforeFormatChangeEvent read f_beforeFormatChange write f_beforeFormatChange;
+  {*
+	Non-absract dummy implementation of base pipe
+  }
+  unavclInOutPipeImpl = class(unavclInOutPipe)
+  protected
+    function doWrite(data: pointer; len: uint; provider: pointer = nil): uint; override;
+    function doRead(data: pointer; len: uint): uint; override;
+    function getAvailableDataLen(index: integer): uint; override;
+    function isActive(): bool; override;
   end;
 
 
@@ -737,7 +759,7 @@ begin
   //
   if (not f_destroying and (0 < len)) then begin
     //
-    if (unatsRunning <> getStatus()) then
+    if (unatsRunning <> status) then
       start();
     //
     newHead := f_head;
@@ -1059,8 +1081,8 @@ begin
   if (not active) then begin
     //
     // clear statistics
-    f_inBytes := 0;
-    f_outBytes := 0;
+    fillChar(f_inBytes, sizeof(f_inBytes), #0);
+    fillChar(f_outBytes, sizeof(f_outBytes), #0);
     //
     f_closing := false;
     //
@@ -1125,22 +1147,22 @@ var
   provName: string;
   {$ENDIF LOG_UNAVC_PIPE_INFOEX }
 begin
-  {$IFDEF LOG_UNAVC_PIPE_INFOEX }
+{$IFDEF LOG_UNAVC_PIPE_INFOEX }
   if (nil <> provider) then
     provName := provider.name
   else
     provName := 'nil';
   //
   logMessage(className + '[' + name + '].doSetActive(v=' + bool2strStr(value) + ' /a=' + bool2strStr(active) + ' /to=' + int2str(timeout) + ') by ' + provName);
-  {$ELSE }
+{$ELSE }
     //
-    {$IFDEF LOG_UNAVC_PIPE_INFOS }
-      logMessage('  ==: ' + className + '[' + name + '].doSetActive(' + bool2strStr(value) + '/' + bool2strStr(active) + ') :==');
-    {$ENDIF LOG_UNAVC_PIPE_INFOS }
+  {$IFDEF LOG_UNAVC_PIPE_INFOS }
+    logMessage('  =: ' + className + '[' + name + '].doSetActive(' + bool2strStr(active) + '=>' + bool2strStr(value) + ') :=');
+  {$ENDIF LOG_UNAVC_PIPE_INFOS }
     //
-  {$ENDIF LOG_UNAVC_PIPE_INFOEX }
+{$ENDIF LOG_UNAVC_PIPE_INFOEX }
   //
-  notReal := ((csLoading in componentState) or (csDesigning in componentState) or (csDestroying in componentState));
+  notReal := ((csLoading in componentState) or (csDesigning in componentState){ or (csDestroying in componentState)});
   if (notReal) then
     f_shouldActivate := value
   else begin
@@ -1232,9 +1254,9 @@ begin
   finally
   end;
   //
-  {$IFDEF LOG_UNAVC_PIPE_INFOEX }
+{$IFDEF LOG_UNAVC_PIPE_INFOEX }
   logMessage(className + '[' + name + '].doSetActive() -- EXIT');
-  {$ENDIF LOG_UNAVC_PIPE_INFOEX }
+{$ENDIF LOG_UNAVC_PIPE_INFOEX }
 end;
 
 // --  --
@@ -1294,6 +1316,18 @@ begin
 end;
 
 // --  --
+function unavclInOutPipe.getInBytes(index: int): int64;
+begin
+  result := f_inBytes[index and 7];
+end;
+
+// --  --
+function unavclInOutPipe.getOutBytes(index: int): int64;
+begin
+  result := f_outBytes[index and 7];
+end;
+
+// --  --
 function unavclInOutPipe.getPosition(): int64;
 begin
   // BCB stuff
@@ -1328,17 +1362,17 @@ begin
 end;
 
 // --  --
-function unavclInOutPipe.incInOutBytes(isIn: bool; delta: int): int64;
+function unavclInOutPipe.incInOutBytes(index: int; isIn: bool; delta: int): int64;
 begin
   if (isIn) then begin
     //
-    inc(f_inBytes, delta);
-    result := f_inBytes;
+    inc(f_inBytes[index and 7], delta);
+    result := f_inBytes[index and 7];
   end
   else begin
     //
-    inc(f_outBytes, delta);
-    result := f_outBytes;
+    inc(f_outBytes[index and 7], delta);
+    result := f_outBytes[index and 7];
   end;
 end;
 
@@ -1496,7 +1530,7 @@ begin
     end;
     //
     if (0 < len) then
-      incInOutBytes(false, len);
+      incInOutBytes(0, false, len);
     //
     triggerDataAvailEvent(data, len);
   end;
@@ -1614,7 +1648,7 @@ begin
     end;
     //
     if (0 < result) then
-      incInOutBytes(true, result);
+      incInOutBytes(0, true, result);
   end
   else
     result := 0;
@@ -1628,6 +1662,36 @@ begin
   else
     result := 0;
 end;
+
+
+{ unavclInOutPipeImpl }
+
+// --  --
+function unavclInOutPipeImpl.doRead(data: pointer; len: uint): uint;
+begin
+  // do nothing
+  result := 0;
+end;
+
+// --  --
+function unavclInOutPipeImpl.doWrite(data: pointer; len: uint; provider: pointer): uint;
+begin
+  // do nothing
+  result := 0;
+end;
+
+// --  --
+function unavclInOutPipeImpl.getAvailableDataLen(index: integer): uint;
+begin
+  result := 0;
+end;
+
+// --  --
+function unavclInOutPipeImpl.isActive(): bool;
+begin
+  result := false;
+end;
+
 
 
 initialization

@@ -39,27 +39,37 @@
 
 
 {*
+  @Author Lake
+
   Contains components and classes to be used in Delphi/C++Builder IDE.
 
-  <P>Wave components:
-    <LI><A href="unaVC_wave/unavclWaveInDevice.html">WaveIn</A>.
-    <LI><A href="unaVC_wave/unavclWaveOutDevice.html">WaveOut</A>.
-    <LI><A href="unaVC_wave/unavclWaveCodecDevice.html">WaveCodec</A>.
-    <LI><A href="unaVC_wave/unavclWaveRiff.html">WaveRIFF</A>.
-    <LI><A href="unaVC_wave/unavclWaveMixer.html">WaveMixer</A>.
-    <LI><A href="unaVC_wave/unavclWaveResampler.html">WaveResampler</A>.
+  Wave components:
+  @unorderedList(
+    @itemSpacing Compact
+    @item @link(unavclWaveInDevice WaveIn)
+    @item @link(unavclWaveOutDevice WaveOut)
+    @item @link(unavclWaveCodecDevice WaveCodec)
+    @item @link(unavclWaveRiff WaveRiff)
+    @item @link(unavclWaveMixer WaveMixer)
+    @item @link(unavclWaveResampler WaveResampler)
+  )
 
-  <P>IP components:
-    <LI><A href="unaVC_socks/unavclIPClient.html">IPClient</A>.
-    <LI><A href="unaVC_socks/unavclIPServer.html">IPServer</A>.
-    <LI><A href="unaVC_socks/unavclIPBroadcastServer.html">BroadcastServer</A>.
-    <LI><A href="unaVC_socks/unavclIPBroadcastClient.html">BroadcastClient</A>.
+  IP components:
+  @unorderedList(
+    @itemSpacing Compact
+    @item @link(unavclIPClient IPClient)
+    @item @link(unavclIPServer IPServer)
+    @item @link(unavclIPBroadcastServer IPBroadcastServer)
+    @item @link(unavclIPBroadcastClient IPBroadcastClient)
+  )
 
-  <P>Scripting:
-    <LI><A href="unaVC_script/unavclScriptor.html">Scriptor</A> component.
+  Scripting:
+  @unorderedList(
+    @itemSpacing Compact
+    @item @link(unavclScriptor Scriptor)
+  )
 
-  @Author Lake
-  @Version 2.5.2008.03 Split into _pipe, _wave, _socks, _script units
+  Version 2.5.2008.03 Split into _pipe, _wave, _socks, _script units
 }
 
 unit
@@ -88,21 +98,49 @@ type
 // --
 // wave pipes
 // --
-  TunavclWaveInDevice 		= class(unavclWaveInDevice) end;	/// WaveIn component.
-  TunavclWaveOutDevice		= class(unavclWaveOutDevice) end;	/// WaveOut component.
-  TunavclWaveCodecDevice	= class(unavclWaveCodecDevice) end;	/// WaveCodec component.
-  TunavclWaveRiff		= class(unavclWaveRiff) end;		/// WaveRIFF component.
-  TunavclWaveMixer		= class(unavclWaveMixer) end;		/// WaveMixer component.
-  TunavclWaveResampler		= class(unavclWaveResampler) end;	/// WaveResampler component.
+
+  // WaveIn component.
+  TunavclWaveInDevice 		= class(unavclWaveInDevice) end;
+  // WaveOut component.
+  TunavclWaveOutDevice		= class(unavclWaveOutDevice) end;
+  // WaveCodec component.
+  TunavclWaveCodecDevice	= class(unavclWaveCodecDevice) end;
+  // WaveRIFF component.
+  TunavclWaveRiff		= class(unavclWaveRiff) end;
+  // WaveMixer component.
+  TunavclWaveMixer		= class(unavclWaveMixer) end;
+  // WaveResampler component.
+  TunavclWaveResampler		= class(unavclWaveResampler) end;
 
 
 // --
 // IP pipes
 // --
-  TunavclIPOutStream		= class(unavclIPClient) end;		/// IPClient component.
-  TunavclIPInStream		= class(unavclIPServer) end;         	/// IPServer component.
-  TunavclIPBroadcastServer	= class(unavclIPBroadcastServer) end;	/// BroadcastServer component.
-  TunavclIPBroadcastClient	= class(unavclIPBroadcastClient) end;	/// BroadcastClient component.
+
+  // IPClient component.
+  TunavclIPOutStream		= class(unavclIPClient) end;
+  // IPServer component.
+  TunavclIPInStream		= class(unavclIPServer) end;
+  // BroadcastServer component.
+  TunavclIPBroadcastServer	= class(unavclIPBroadcastServer) end;
+  // BroadcastClient component.
+  TunavclIPBroadcastClient	= class(unavclIPBroadcastClient) end;
+
+// --
+// STUN
+// --
+
+  // STUN Client component.
+  TunavclSTUNClient		= class(unavclSTUNClient) end;
+  // STUN Server component.
+  TunavclSTUNServer		= class(unavclSTUNServer) end;
+
+// --
+// DNS
+// --
+
+  // DNS Client component.
+  TunavclDNSClient		= class(unavclDNSClient) end;
 
 
 {$IFDEF UNAVCIDE_SCRIPT_COMPONENT }
@@ -110,13 +148,15 @@ type
 // --
 // scripting
 // --
-  TunavclScriptor		= class(unavclScriptor) end;		/// Scriptor component.
+
+  // Scriptor component.
+  TunavclScriptor		= class(unavclScriptor) end;
 
 {$ENDIF UNAVCIDE_SCRIPT_COMPONENT }
 
 
 {*
-  Registers VC pipes in Delphi IDE components palette.
+  Registers VC components in Delphi IDE Tools Palette.
 }
 procedure Register();
 
@@ -148,6 +188,14 @@ begin
 {$IFDEF UNAVCIDE_SCRIPT_COMPONENT }
     , TunavclScriptor
 {$ENDIF UNAVCIDE_SCRIPT_COMPONENT }
+  ]);
+  //
+  RegisterComponents(c_VC_reg_IP_section_name, [
+    //
+    //
+    TunavclSTUNClient,
+    TunavclSTUNServer,
+    TunavclDNSClient
   ]);
 end;
 

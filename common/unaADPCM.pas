@@ -1,6 +1,4 @@
 
-{$I unaDef.inc }
-
 (*
 	----------------------------------------------
 
@@ -23,6 +21,12 @@
 	----------------------------------------------
 *)
 
+{$I unaDef.inc }
+
+{*
+	ADPCM encoder and decoder
+}
+
 unit
   unaADPCM;
 
@@ -30,7 +34,8 @@ unit
   ADPCM encoder and decoder
 
   @Author Lake
-  @Version 1.0 First release
+
+  Version 1.0 First release
 }
 
 interface
@@ -205,7 +210,7 @@ type
 
 
 const
-  c_max_step	= 88;	///
+  c_max_step	= 88;	//
 
   {*
   }

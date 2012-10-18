@@ -18,6 +18,11 @@
 
 {$I unaDef.inc }
 
+{*
+	FFT implementation
+
+}
+
 unit
   unaFFT;
 

@@ -32,10 +32,10 @@
   OGG/Vorbis wrapper.
 
   @Author Lake
-  @Version 2.5.2008.07 Still here
+  
+	Version 2.5.2008.07 Still here
 
-  @Author Lake
-  @Version 2.5.2008.12 libvorbis.dll stuff
+ 	Version 2.5.2008.12 libvorbis.dll stuff
 }
 
 unit
@@ -2713,4 +2713,3 @@ end;
 
 
 end.
-

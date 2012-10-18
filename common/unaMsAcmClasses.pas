@@ -6,8 +6,8 @@
 	  Voice Communicator components version 2.5
 
 	----------------------------------------------
-	  Copyright (c) 2002-2011 Lake of Soft
-		     All rights reserved
+	  (c) 2012 Lake of Soft
+	  All rights reserved
 
 	  http://lakeofsoft.com/
 	----------------------------------------------
@@ -25,6 +25,7 @@
 		Lake, Jan-Feb 2009
 		Lake, Feb-Dec 2010
 		Lake, Mar-Jun 2011
+		Lake, Jan-May 2012
 
 	----------------------------------------------
 *)
@@ -37,23 +38,27 @@
 {$ENDIF VC_LIC_PUBLIC }
 
 {*
+
   Contains Microsoft ACM wrapper and core VC wave device classes.
 
   @Author Lake
 
-  @Version 2.5.2009.07:
+  Version 2.5.2009.07:
     + new getUnVolume() method;
 
-  @Version 2.5.2008.07:
+  Version 2.5.2008.07:
     + new callback model;
     + SetVolume100()/GetVolume() for all wave components;
     + Silence detection built in into all wave components;
 
-  @Version 2.5.2010.02:
+  Version 2.5.2010.02:
     + new VAD mode based on 3GPP codec;
 
-  @Version 2.5.2010.12:
+  Version 2.5.2010.12:
     * jitter effect on WaveOut;
+
+  Version 2.5.2012.04:
+    * ASIO;
 
 }
 
@@ -64,17 +69,19 @@ interface
 
 {$IFDEF DEBUG }
   //
-  {$DEFINE LOG_UNAMSACMCLASSES_INFOS }	// log informational messages
-  {$DEFINE LOG_UNAMSACMCLASSES_ERRORS }	// log critical errors
+  {$DEFINE LOG_UNAMSACMCLASSES_INFOS }		// log informational messages
+  {$DEFINE LOG_UNAMSACMCLASSES_ERRORS }		// log critical errors
+  {x $DEFINE LOG_UNAMSACMCLASSES_INFOS_EX }	// log extra informational messages
   //
-  // low level logging, do not use
+  // low level logging
   {xx $DEFINE DEBUG_LOG }
   {xx $DEFINE DEBUG_LOG_CODEC }
-  {xx $DEFINE DEBUG_LOG_RT }
+  {xx $DEFINE DEBUG_LOG_RT }	// real timer logging
   {xx $DEFINE DEBUG_LOG_MIXER }
   {xx $DEFINE DEBUG_LOG_MIXER2 }
   {xx $DEFINE DEBUG_LOG_MARKBUFF }
   {xx $DEFINE DEBUG_LOG_JITTER }
+  {xx $DEFINE DEBUG_LOG_RIFF_MPEG }
 {$ENDIF DEBUG }
 
 uses
@@ -87,6 +94,9 @@ uses
 {$IFDEF VC25_ENTERPRISE }
   una3GPPVAD,
 {$ENDIF VC25_ENTERPRISE }
+{$IFDEF UNA_VCACM_USE_ASIO }
+  unaASIOAPI,
+{$ENDIF UNA_VCACM_USE_ASIO }
 {$IFDEF UNA_PROFILE }
   unaProfile,
 {$ENDIF UNA_PROFILE }
@@ -369,15 +379,16 @@ type
     {*
       Enumerates waveform-audio formats available from the ACM driver.
       You can specify any combination of the following values for flags parameter:
-      <UL>
-	<LI>ACM_FORMATENUMF_HARDWARE - The enumerator should only enumerate formats that are supported as native input or output formats on one or more of the installed waveform-audio devices.</LI>
-	<LI>ACM_FORMATENUMF_INPUT - Enumerator should enumerate only formats that are supported for input (recording).</LI>
-	<LI>ACM_FORMATENUMF_NCHANNELS - The nChannels member of the WAVEFORMATEX structure pointed to by the pwfx parameter is valid. The enumerator will enumerate only a format that conforms to this attribute.</LI>
-	<LI>ACM_FORMATENUMF_NSAMPLESPERSEC - The nSamplesPerSec member of the WAVEFORMATEX structure pointed to by the pwfx parameter is valid. The enumerator will enumerate only a format that conforms to this attribute.</LI>
-	<LI>ACM_FORMATENUMF_OUTPUT - Enumerator should enumerate only formats that are supported for output (playback).</LI>
-	<LI>ACM_FORMATENUMF_WBITSPERSAMPLE - The wBitsPerSample member of the WAVEFORMATEX structure pointed to by the pwfx parameter is valid. The enumerator will enumerate only a format that conforms to this attribute.</LI>
-	<LI>ACM_FORMATENUMF_WFORMATTAG - This is default flag, and you should use it in most cases.</LI>
-      </UL>
+      @unorderedList(
+	@itemSpacing Compact
+		@item (ACM_FORMATENUMF_HARDWARE - The enumerator should only enumerate formats that are supported as native input or output formats on one or more of the installed waveform-audio devices)
+		@item (ACM_FORMATENUMF_INPUT - Enumerator should enumerate only formats that are supported for input (recording))
+		@item (ACM_FORMATENUMF_NCHANNELS - The nChannels member of the WAVEFORMATEX structure pointed to by the pwfx parameter is valid. The enumerator will enumerate only a format that conforms to this attribute)
+		@item (ACM_FORMATENUMF_NSAMPLESPERSEC - The nSamplesPerSec member of the WAVEFORMATEX structure pointed to by the pwfx parameter is valid. The enumerator will enumerate only a format that conforms to this attribute)
+		@item (ACM_FORMATENUMF_OUTPUT - Enumerator should enumerate only formats that are supported for output (playback))
+		@item (ACM_FORMATENUMF_WBITSPERSAMPLE - The wBitsPerSample member of the WAVEFORMATEX structure pointed to by the pwfx parameter is valid. The enumerator will enumerate only a format that conforms to this attribute)
+		@item (ACM_FORMATENUMF_WFORMATTAG - This is default flag, and you should use it in most cases)
+      )
       Enumerated formats will be stored in the formats list. You can access them using getFormat() method.
     }
     function enumFormats(flags: uint = 0; force: bool = false; pwfx: pWAVEFORMATEX = nil; tagsOnly: bool = false): MMRESULT;
@@ -460,13 +471,15 @@ type
       srcFormat is a WAVEFORMATEX structure that identifies the source format for which a destination format will be suggested by the driver.
       dstFormat is a WAVEFORMATEX structure that will receive the suggested destination format for the srcFormat format. Depending on the flags parameter, some members of the structure pointed to by dstFormat may require initialization.
       The following values are defined for flags parameter:
-      <UL>
-	<LI>ACM_FORMATSUGGESTF_NCHANNELS - The nChannels member of the structure pointed to by dstFormat is valid. The ACM will query the driver if it can suggest a destination format matching nChannels or fail.</LI>
-	<LI>ACM_FORMATSUGGESTF_NSAMPLESPERSEC - The nSamplesPerSec member of the structure pointed to by dstFormat is valid. The ACM will query acceptable the driver if it can suggest a destination format matching nSamplesPerSec or fail.</LI>
-	<LI>ACM_FORMATSUGGESTF_WBITSPERSAMPLE - The wBitsPerSample member of the structure pointed to by dstFormat is valid. The ACM will query acceptable the driver if it can suggest a destination format matching wBitsPerSample or fail.</LI>
-	<LI>ACM_FORMATSUGGESTF_WFORMATTAG - The wFormatTag member of the structure pointed to by dstFormat is valid. The ACM will query the driver if it can suggest a destination format matching wFormatTag or fail.</LI>
-      </UL>
-      Returns MMSYSERR_NOERROR if successful or an error code otherwise.
+	@unorderedList(
+     		@itemSpacing Compact
+		@item (ACM_FORMATSUGGESTF_NCHANNELS - The nChannels member of the structure pointed to by dstFormat is valid. The ACM will query the driver if it can suggest a destination format matching nChannels or fail)
+		@item (ACM_FORMATSUGGESTF_NSAMPLESPERSEC - The nSamplesPerSec member of the structure pointed to by dstFormat is valid. The ACM will query acceptable the driver if it can suggest a destination format matching nSamplesPerSec or fail)
+		@item (ACM_FORMATSUGGESTF_WBITSPERSAMPLE - The wBitsPerSample member of the structure pointed to by dstFormat is valid. The ACM will query acceptable the driver if it can suggest a destination format matching wBitsPerSample or fail)
+		@item (ACM_FORMATSUGGESTF_WFORMATTAG - The wFormatTag member of the structure pointed to by dstFormat is valid. The ACM will query the driver if it can suggest a destination format matching wFormatTag or fail)
+      )
+
+      @Returns MMSYSERR_NOERROR if successful or an error code otherwise.
     }
     function suggestCodecFormat(srcFormat: pWAVEFORMATEX; dstFormat: pWAVEFORMATEX; flags: uint): MMRESULT;
     // -- other --
@@ -502,7 +515,7 @@ type
     Driver usually corresponds to one specific audio format and may contain converters, codecs and filters.
     You should explicitly call enumDrivers() method to enumerate installed drivers.
 
-    <P />Every installed driver has unique manufacturer and product identifiers (MID and PID).
+    Every installed driver has unique manufacturer and product identifiers (MID and PID).
     You can use these identifiers to locate specific driver.
     Use getDriver() method to retrieve driver by index or MID/PID pair.
   }
@@ -527,10 +540,11 @@ type
     {*
       Enumerates installed ACM drivers.
       The following values are defined for flags parameter:
-      <UL>
-	<LI>ACM_DRIVERENUMF_DISABLED - Disabled ACM drivers should be included in the enumeration.</LI>
-	<LI>ACM_DRIVERENUMF_NOLOCAL - Only global drivers should be included in the enumeration.</LI>
-      </UL>
+	@unorderedList(
+	 @itemSpacing Compact
+		@item (ACM_DRIVERENUMF_DISABLED - Disabled ACM drivers should be included in the enumeration)
+		@item (ACM_DRIVERENUMF_NOLOCAL - Only global drivers should be included in the enumeration)
+      )
       Enumerated drivers are stored in driver list. You can access them using the getDriver() method.
     }
     procedure enumDrivers(flags: uint = 0);
@@ -679,18 +693,36 @@ type
 
 
   {*
-    This event is used to inform the class owner about new data when it becomes available.
-    It should be used only with classes which produces the data (like unaWaveInDevice or unaMsAcmCodec).
+      This event is used to inform the class owner about new data when it becomes available.
+      It should be used only with classes which produces the data (like unaWaveInDevice or unaMsAcmCodec).
   }
   unaWaveDataEvent = procedure (sender: tObject; data: pointer; size: Cardinal) of object;
 
-  // --  --
+  {*
+	Fired when switching from silence to voice and back.
+  }
   unaWaveOnThresholdEvent = procedure (sender: tObject; var passThrough: bool) of object;
+
+  {*
+  	Returns external provider format
+  }
+  unaWaveGetProviderFormatEvent = procedure (var f: PWAVEFORMATEXTENSIBLE) of object;
+
 
   {*
 	Voice Activity Detection (VAD) methods
   }
-  unaWaveInSDMethods = (unasdm_none, unasdm_VC, unasdm_DSP, unasdm_3GPPVAD1);
+  unaWaveInSDMethods = 
+(
+//no silence detection
+	unasdm_none, 
+//"old" method, which uses minVolumeLevel and minActiveTime
+	unasdm_VC,
+//uses DSP library to filter silence
+	unasdm_DSP, 
+//"new" 3GPP method (recommended)
+	unasdm_3GPPVAD1
+);
 
 
   {$IFDEF UNA_VC_ACMCLASSES_USE_DSP }
@@ -706,18 +738,18 @@ type
   {*
     This is abstract class used as a base for classes dealing with audio streams (codecs, waveIn and waveOut, mixers).
 
-    <P />Before opening stream device you should specify source and destination formats of audio streams device will work with.
+    Before opening stream device you should specify source and destination formats of audio streams device will work with.
     Method setFormat() will be called to set up source and destination format structures. You can access these structures later using the srcFormat and dstFormat properties.
     They are pointers on WAVEFORMATEX and should be treated as read-only data. Destructor takes care about releasing these structures.
 
-    <P />All stream processing is done chunk by chunk. Chunk is the minimal amount of data which can be processed once in a time.
+    All stream processing is done chunk by chunk. Chunk is the minimal amount of data which can be processed once in a time.
     Chunk size is calculated automatically, and it will be enough to hold about 1/10 of second of audio. Use chunkSize property to examine current size of chunk.
 
-    <P />Since processing the audio stream could take some time, unaMsAcmStreamDevice has build-in mechanism which prevents stream overloading.
+    Since processing the audio stream could take some time, unaMsAcmStreamDevice has build-in mechanism which prevents stream overloading.
     Use the checkOverload property to enable or disable this mechanism. numOverload property specifies maximum number of unprocessed chunks in output or input stream.
     When actual number reaches this value, all new chunks will be discarded, until there will be enough space in the stream to put new chunk of data.
 
-    <P />inBytes and outBytes properties holds the amount of audio data written to and read from device.
+    inBytes and outBytes properties holds the amount of audio data written to and read from device.
   }
   unaMsAcmStreamDevice = class(unaThread)
   private
@@ -770,7 +802,7 @@ type
     f_nextHdr: int;
     {$ELSE }
     f_headers: unaObjectList;
-    f_lastHeaderNum: unsigned;
+    f_lastHeaderNum: int;
     f_lastDoneHeaderNum: unsigned;
     {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
     f_inProgress: unsigned;	// number of headers in queue (our version)
@@ -822,33 +854,47 @@ type
     //
     f_sdm: unaWaveInSDMethods;
     //
+    f_channelMixMask: int;
+    f_channelMixBuf, f_channelMixBufEx: pointer;
+    f_channelMixBufSize: int;
+    //
+    f_channelConsumeMask: int;
+    f_channelConsumeBuf, f_channelConsumeBufEx: pointer;
+    f_channelConsumeBufSize: int;
+    //
     f_onThreshold: unaWaveOnThresholdEvent;
+    //
+    f_onGetProviderFormat: unaWaveGetProviderFormatEvent;
     //
     procedure setMinVL(value: unsigned);
     {*
-      Calls beforeNewChunk() to check for silence, volume adjust, etc.
-      If no silence (or silence detection is not enabled):
-	2) passes chunk to consumers (if any)
-	3) writes chunk into internal buffer (if assigned)
+	Calls beforeNewChunk() to check for silence, volume adjust, etc.
+	If no silence (or silence detection is not enabled):
+	  2) passes chunk to consumers (if any)
+	  3) writes chunk into internal buffer (if assigned)
 
-      internalWrite() is called when:
-	waveCodec - produces new chunk
-	waveIn - produces new chunk
-	waveRiff - reads new chunk
-	waveMixer - produces new chunk
-	waveResampler - produces new chunk
+	internalWrite() is called when:
+	  waveCodec - produces new chunk
+	  waveIn - produces new chunk
+	  waveRiff - reads new chunk
+	  waveMixer - produces new chunk
+	  waveResampler - produces new chunk
     }
     function internalWrite(buf: pointer; size: unsigned; formatExt: PWAVEFORMATEXTENSIBLE): unsigned;
     {*
-      Reads size bytes from internal buffer into buf.
-      Calls beforeNewChunk() to check for silence, volume adjust, etc.
-      Returns number of bytes actually read (could be 0 if no data, or silence, etc).
+	Checks if channelConsumeMask is not -1 and mixes channels as necessary
+    }
+    procedure internalConsumeData(var buf: pointer; var size: unsigned);
+    {*
+	Reads size bytes from internal buffer into buf.
+	Calls beforeNewChunk() to check for silence, volume adjust, etc.
+	Returns number of bytes actually read (could be 0 if no data, or silence, etc).
 
-      internalRead() is called when:
-	waveCodec - wants to read new chunk from input buffer
-	waveOut - wants to read new chunk from input buffer
-	waveRiff - wants to read new chunk from input buffer
-	waveResampler - wants to read new chunk from input buffer
+	internalRead() is called when:
+	  waveCodec - wants to read new chunk from input buffer
+	  waveOut - wants to read new chunk from input buffer
+	  waveRiff - wants to read new chunk from input buffer
+	  waveResampler - wants to read new chunk from input buffer
     }
     function internalRead(buf: pointer; size: unsigned; formatExt: PWAVEFORMATEXTENSIBLE): unsigned;
     //
@@ -861,7 +907,7 @@ type
     //
     {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
     {$ELSE }
-    function getNextHeaderNum(): unsigned;
+    function getNextHeaderNum(): int;
     function adjustLastDoneHeaderNum(num: unsigned): bool;
     function locateHeaderTry(header: unaMsAcmDeviceHeader; locateUnused: bool = false; locateNotInQuery: bool = false): bool;
     function locateHeader(locateUnused: bool = false; locateNotInQuery: bool = false): unaMsAcmDeviceHeader;
@@ -878,33 +924,33 @@ type
     function checkSilence(data: pointer; len: unsigned; formatExt: PWAVEFORMATEXTENSIBLE): bool;
   protected
     {*
-      Sets the source or destination PCM format for device.
-      Format is given in string representation using base64 encoding.
+      	Sets the source or destination PCM format for device.
+      	Format is given in string representation using base64 encoding.
     }
     function setFormat(isSrc: bool; const format: aString): bool; overload;
     {*
-      Sets the source or destination PCM format for device.
-      Format is given in string representation using base64 encoding.
+      	Sets the source or destination PCM format for device.
+      	Format is given in string representation using base64 encoding.
     }
     function setFormatExt(isSrc: bool; const formatExt: string): bool; overload;
     {*
-      Sets the source or destination PCM format for device. Format is given as WAVEFORMATEX structure.
+      	Sets the source or destination PCM format for device. Format is given as WAVEFORMATEX structure.
     }
     function setFormat(isSrc: bool; format: pWAVEFORMATEX): bool; overload; virtual;
     function setFormatExt(isSrc: bool; formatExt: PWAVEFORMATEXTENSIBLE): bool; overload; virtual;
     //
     {*
-      Opens device. This method is usually overrided by descendant classes to perform the actual job.
+      	Opens device. This method is usually overrided by descendant classes to perform the actual job.
     }
     function doOpen(flags: uint): MMRESULT; virtual;
     function open2(query: bool = false; timeout: tTimeout = 10001; flags: uint = 0; startDevice: bool = true): MMRESULT; virtual;
     {*
-      Closes device. This method is usually overrided by descendant classes to perform the actual job.
+	Closes device. This method is usually overrided by descendant classes to perform the actual job.
     }
     function doClose(timeout: tTimeout = 1): MMRESULT; virtual;
     {*
-      Uses mmGetErrorCodeText2() to produce the error message.
-      Other devices could have own doGetErrorText() implementation.
+	Uses mmGetErrorCodeText2() to produce the error message.
+	Other devices could have own doGetErrorText() implementation.
     }
     function doGetErrorText(errorCode: MMRESULT): string; virtual;
     {}
@@ -917,11 +963,11 @@ type
     function beforeNewChunk(data: pointer; size: unsigned; formatExt: PWAVEFORMATEXTENSIBLE): bool; virtual;
     //
     {*
-      Prepares the buffer header before first use. Descendant classes must override this method.
+	Prepares the buffer header before first use. Descendant classes must override this method.
     }
     function prepareHeader(header: pointer): MMRESULT; virtual; abstract;
     {*
-      Unprepares the buffer header after last use. Descendant classes must override this method.
+	Unprepares the buffer header after last use. Descendant classes must override this method.
     }
     function unprepareHeader(header: pointer): MMRESULT; virtual; abstract;
     //
@@ -930,7 +976,7 @@ type
     {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
     //
     {*
-      Called after the device was opened. Descendant classes may override this method to perform additional actions required by hardware/software.
+	Called after the device was opened. Descendant classes may override this method to perform additional actions required by hardware/software.
     }
     function afterOpen(): MMRESULT; virtual;
     procedure afterClose(closeResult: MMRESULT); virtual;
@@ -942,6 +988,8 @@ type
     function flush2(waitForComplete: bool = true): bool; virtual;
     function doWrite(buf: pointer; size: unsigned): unsigned; virtual;
     //
+    function getProviderFormat(): PWAVEFORMATEXTENSIBLE; virtual;
+    //
     function getMasterIsSrc2(): bool; virtual; abstract;
     function formatChooseDef2(var format: pWAVEFORMATEX): MMRESULT; dynamic;
     //
@@ -952,26 +1000,34 @@ type
     //
     procedure setRealTime(value: bool); virtual;
     //
-    property dstChunkSize: unsigned read f_dstChunkSize;
+    // -- properties --
     //
+    {*
+	Size in bytes of internal buffer used to handle the audio stream data.
+    }
+    property dstChunkSize: unsigned read f_dstChunkSize;
+    {*
+	WinAPI device handle (if applicable)
+    }
+    property handle: unsigned read f_handle;
   public
     {*
-      Initializates class instance.
+	Initializates class instance.
     }
     constructor create(createInStream: bool = true; createOutStream: bool = true; inOverNum: unsigned = 0; outOverNum: unsigned = 0; calcVolume: bool = false);
     destructor Destroy(); override;
     procedure AfterConstruction(); override;
     procedure BeforeDestruction(); override;
     {*
-      Opens the device.
+	Opens the device.
     }
     function open(query: bool = false; timeout: tTimeout = 10002; flags: uint = 0; startDevice: bool = true): MMRESULT;
     {*
-      Closes the device.
+	Closes the device.
     }
     function close(timeout: tTimeout = 10012): MMRESULT;
     {*
-      Returns true if device was opened successfully.
+	Returns true if device was opened successfully.
     }
     function isOpen(): bool;
     //
@@ -1011,123 +1067,123 @@ type
     }
     function okToRead(): bool;
     {*
-      Returns current position in samples.
+	Returns current position in samples.
     }
     function getPosition(): int64;
     //
     {*
-      Reads data from device.
-      Returns size of actual returned data.
-      Specify 0 as size parameter value when reading from ACM codec device.
+	Reads data from device.
+	Returns size of actual returned data.
+	Specify 0 as size parameter value when reading from ACM codec device.
     }
     function read(buf: pointer; size: unsigned = 0): unsigned;
     {*
-      Sends data to device.
+	Sends data to device.
     }
     function write(buf: pointer; size: unsigned): unsigned;
     //
     function flush(waitForComplete: bool = true): bool;
     {*
-      Returns number of bytes available to read from the device.
+	Returns number of bytes available to read from the device.
     }
     function getDataAvailable(isIn: bool): unsigned;
     {*
-      Returns true if device is output device (playback or codec).
-      Returns false if device is input device (recording).
+	Returns true if device is output device (playback or codec).
+	Returns false if device is input device (recording).
     }
     function getMasterIsSrc(): bool;
     //
     {*
-      Assigns input or output stream for device.
-      You can specify nil as stream to disable the input/output.
-      If you wish the device to destroy the stream in own destructor - specify true in careDestroy parameter.
+	Assigns input or output stream for device.
+	You can specify nil as stream to disable the input/output.
+	If you wish the device to destroy the stream in own destructor - specify true in careDestroy parameter.
     }
     function assignStream(isInStream: bool; stream: unaAbstractStream; careDestroy: bool = false): unaAbstractStream; overload;
     {*
-      Assigns input or output stream for device.
-      Stream will be created using the provided stream class.
-      If you wish the device to destroy the stream in own destructor - specify true in careDestroy parameter.
+	Assigns input or output stream for device.
+	Stream will be created using the provided stream class.
+	If you wish the device to destroy the stream in own destructor - specify true in careDestroy parameter.
     }
     function assignStream(streamClass: unaAbstractStreamClass; isInStream: bool; careDestroy: bool = true): unaAbstractStream; overload;
     {*
-      Adds a new consumer for device output.
-      All data produced by device will be passed to all consumers added by this method.
-      If you wish to destroy the output stream leave the default true value for removeOutStream parameter.
-      (Stream will be destroyed only if it was not a stream assigned by assignStream() with careDestroy = false).
+	Adds a new consumer for device output.
+	All data produced by device will be passed to all consumers added by this method.
+	If you wish to destroy the output stream leave the default true value for removeOutStream parameter.
+	(Stream will be destroyed only if it was not a stream assigned by assignStream() with careDestroy = false).
     }
     function addConsumer(device: unaMsAcmStreamDevice; removeOutStream: bool = true): unsigned;
     {*
-      Removes consumer from consumers list.
+	Removes consumer from consumers list.
     }
     function removeConsumer(device: unaMsAcmStreamDevice): bool;
     //
     {*
-      Default implementation of format choosing routine.
+	Default implementation of format choosing routine.
     }
     function formatChooseDef(var format: pWAVEFORMATEX): MMRESULT;
     {*
-      Returns error message text corresponding to given errorCode parameter.
+	Returns error message text corresponding to given errorCode parameter.
     }
     function getErrorText(errorCode: MMRESULT): string;
     {*
-      Waits for data either in inStream or in outStream.
-      Returns true if data is available, false if timeout has expired
+	Waits for data either in inStream or in outStream.
+	Returns true if data is available, false if timeout has expired
     }
     function waitForData(waitForInData: bool; timeout: tTimeout; expectedDataSize: unsigned = 0): bool;
     //
     //
     {*
-      Size in bytes of internal buffer used to handle the audio stream data.
+	Size in bytes of internal buffer used to handle the audio stream data.
     }
     property chunkSize: unsigned read f_chunkSize;
     {*
-      Specifies number of chunks produced by component per second.
-      Note, that not all components are working in real time, in which case this property has no meaning.
-      Readonly property, change the global c_defChunksPerSecond variable if you wish to change this number.
+	Specifies number of chunks produced by component per second.
+	Note, that not all components are working in real time, in which case this property has no meaning.
+	Readonly property, change the global c_defChunksPerSecond variable if you wish to change this number.
     }
     property chunkPerSecond: unsigned read f_chunkPerSecond;
     {*
-      Specifies whether volume level calculation should be performed.
-      Set to true if planning to use silence detection when silenceDetectionMode is set to unasdm_VC.
+	Specifies whether volume level calculation should be performed.
+	Set to true if planning to use silence detection when silenceDetectionMode is set to unasdm_VC.
     }
     property calcVolume: bool read f_calcVolume write setCalcVolume;
     //
     {*
-      Number of bytes passed to device (as input). Playback and codec devices increase this value.
+	Number of bytes passed to device (as input). Playback and codec devices increase this value.
     }
     property inBytes: int64 read f_inBytes;
     {*
-      Number of bytes produced by device (as output). Recording and codec devices increase this value.
+	Number of bytes produced by device (as output). Recording and codec devices increase this value.
     }
     property outBytes: int64 read f_outBytes;
     {*
-      Returns source format for device.
+	Returns source format for device.
     }
     property srcFormatExt: PWAVEFORMATEXTENSIBLE read f_srcFormatExt;
     {*
-      Returns destination format for device.
+	Returns destination format for device.
     }
     property dstFormatExt: PWAVEFORMATEXTENSIBLE read f_dstFormatExt;
     //
     {*
-      Returns string representation of source format.
+	Returns string representation of source format.
     }
     property srcFormatInfo: string read f_srcFormatInfo;
     {*
-      Returns string representation of destination wave format.
+	Returns string representation of destination wave format.
     }
     property dstFormatInfo: string read f_dstFormatInfo;
     //
     {*
-      Data passed to device first is strored in inStream
+	Data passed to device first is strored in inStream
     }
     property inStream: unaAbstractStream read f_inStream;
     {*
-      Data produced by device first is stored in outStream
+	Data produced by device first is stored in outStream
     }
     property outStream: unaAbstractStream read f_outStream;
     {*
-      Number of chunks passed to Windows ACM or wave device.
+	Number of chunks passed to Windows ACM or wave device and not yet processed.
     }
     property inProgress: unsigned read f_inProgress;
     //
@@ -1135,62 +1191,90 @@ type
     }
     property realTime: bool read f_realTime write setRealTime;
     {*
-	number of input chunks which could be queued
+	Number of input chunks which could be queued
     }
     property overNumIn: unsigned read f_inOverCN write setInOverCN;
     {*
-	total amount of in-data skipped due to overload
+	Total amount of in-data skipped due to overload
     }
     property inOverloadTotal: int64 read f_inOverloadTotal;
     {*
-	number of output chunks which could be queued
+	Number of output chunks which could be queued
     }
     property overNumOut: unsigned read f_outOverCN write setOutOverCN;
     {*
-	total amount of out-data skipped due to overload
+	Total amount of out-data skipped due to overload
     }
     property outOverloadTotal: int64 read f_outOverloadTotal;
     {*
-      Specifies whether component will flush unfinished data before closing.
+	Specifies whether component will flush unfinished data before closing.
     }
     property flushBeforeClose: bool read f_flushBeforeClose write f_flushBeforeClose;
     {*
-      Specifies the minimum value of volume level for silence detection.
-      Has meaning only when silenceDetectionMode is set to unasdm_VC.
-      <BR />Set this property to 0 to disable the volume detection feature.
+	Specifies the minimum value of volume level for silence detection.
+	Has meaning only when silenceDetectionMode is set to unasdm_VC.
+
+	Set this property to 0 to disable the volume detection feature.
     }
     property minVolumeLevel: unsigned read f_minVL write setMinVL;
     {*
-      Specifies the minimum amount of time (in milliseconds) for silence detection to be active once activated.
-      Has meaning only when silenceDetectionMode is set to unasdm_VC.
+	Specifies the minimum amount of time (in milliseconds) for silence detection to be active once activated.
+	Has meaning only when silenceDetectionMode is set to unasdm_VC.
     }
     property minActiveTime: unsigned read f_minAT write f_minAT;
     {*
-      True if components is currently not producing any audio chunks due to low signal level.
+	True if components is currently not producing any audio chunks due to low signal level.
     }
     property isSilence: bool read f_isSilence;
     {*
-      Specifies which method will be used to detect silence.
-      <UL>
-	<LI>unasdm_none - no silence detection</LI>
-	<LI>unasdm_VC  - "old" method, which uses minVolumeLevel and minActiveTime</LI>
-	<LI>unasdm_DSP - not always perfect</LI>
-	<LI>unasdm_3GPPVAD1 - recommended for voice</LI>
-      <UL>
+	Specifies which method will be used to detect silence.
     }
     property silenceDetectionMode: unaWaveInSDMethods read f_sdm write f_sdm;
-    //
+    {
+	The channel(s) to pass to consumers. Default is -1 ($FFFFFFFF), means all channels.
+
+	Each bit set to 1 means the channel will be passed to consumers.
+	Least significant bit corresponds to channel #0.
+	All channels are mixed into one (mono) channel, unless -1 is specified as mask.
+
+	NOTE: for stereo, mask 3 and -1 are different.
+	 3 means two channels will be mixed into one
+	-1 means two channels will be passed as is
+
+	If this filed is set to 0, no data will be passed to consumers.
+
+	Consumers must be smart enough to receive only 1 channel even if data format has more channels.
+    }
+    property channelMixMask: int read f_channelMixMask write f_channelMixMask;
+    {*
+	Mix incoming channels into one. Default is -1 ($FFFFFFFF), means no mixing.
+
+	Each bit set to 1 means the channel will mixed.
+	Least significant bit corresponds to channel #0.
+	All channels are mixed into one (mono) channel, unless -1 is specified as mask.
+
+	NOTE: for stereo, mask 3 and -1 are different.
+	 3 means two channels will be mixed into one
+	-1 means two channels will be consumed as is
+
+	If this filed is set to 0, no data will be consumed.
+    }
+    property channelConsumeMask: int read f_channelConsumeMask write f_channelConsumeMask;
     //
     //-- events --
     //
     {*
-      This event is fired when current level of signal is crossing the "silence" mark.
+	This event is fired when current level of signal is crossing the "silence" mark.
     }
     property onThreshold: unaWaveOnThresholdEvent read f_onThreshold write f_onThreshold;
     {*
-      This event is called when new data is available.
+	This event is called when new data is available.
     }
     property onDataAvailable: unaWaveDataEvent read f_onDA write f_onDA;
+    {*
+	Returns format assigned to external provider.
+    }
+    property onGetProviderFormat: unaWaveGetProviderFormatEvent read f_onGetProviderFormat write f_onGetProviderFormat;
   end;
 
 
@@ -1211,11 +1295,11 @@ type
     f_codec: unaMsAcmCodec;
   protected
     {*
-      Used to return different statuses of header.
+	Used to return different statuses of header.
     }
     function getStatus(index: integer): bool; override;
     {*
-      Used to set different statuses of header.
+      	Used to set different statuses of header.
     }
     procedure setStatus(index: integer; value: bool); override;
     //
@@ -1224,30 +1308,30 @@ type
     procedure rePrepare(); override;
   public
     {*
-      Creates ACM codec header and allocates required buffers.
+	Creates ACM codec header and allocates required buffers.
     }
     constructor create(codec: unaMsAcmCodec; srcSize: unsigned; dstSize: unsigned);
     destructor Destroy(); override;
     //
     {*
-      Writes data to the source codec buffer.
+	Writes data to the source codec buffer.
     }
     procedure write(data: pointer; size: unsigned; offset: unsigned = 0);
     {*
-      Reallocate source buffer.
+	Reallocate source buffer.
     }
     procedure grow(newsize: unsigned);
     //
     {*
-      Returns true if header is released by codec.
+	Returns true if header is released by codec.
     }
     property isDone: bool index ACMSTREAMHEADER_STATUSF_DONE read getStatus write setStatus;
     {*
-      Returns true if header is still in codec queue.
+	Returns true if header is still in codec queue.
     }
     property inQueue: bool index ACMSTREAMHEADER_STATUSF_INQUEUE read getStatus write setStatus;
     {*
-      Returns true if header was prepared.
+      	Returns true if header was prepared.
     }
     property isPrepared: bool index ACMSTREAMHEADER_STATUSF_PREPARED read getStatus write setStatus;
   end;
@@ -1265,15 +1349,15 @@ type
     This class is wrapper over Windows Multimedia streams API. Create it specifying the driver you wish to use with the stream.
     You can get list of available drivers from unaMsAcm class instance.
 
-    <P />Codec usually takes source (input) stream, converts it into another wave format, and produces destination (output) stream.
+    Codec usually takes source (input) stream, converts it into another wave format, and produces destination (output) stream.
     Before opening the codec you should specify source and destination formats using the setFormat() method.
     isSrc parameter is true for source format and false for destination. tag and index are specific for selected driver.
 
-    <P />For example, Microsoft PCM Converter driver has tag = 1 and index specifies sampling parameters.
+    For example, Microsoft PCM Converter driver has tag = 1 and index specifies sampling parameters.
     So, if you specify tag=1, index=1 as source and tag=1, index=9 as destination, codec will convert 8,000 kHz; 8 Bit; stereo PCM stream into 22,050 kHz; 8 Bit; stereo PCM stream.
     You can easily enumerate all formats supported by specific driver using the unaMsAcmDriver.enumFormats() method.
 
-    <P />After setting source and destination formats call the open() method to activate the codec.
+    After setting source and destination formats call the open() method to activate the codec.
     If you wish to check specified formats conversion is supported by codec, rather than opening it, specify true for query parameter.
     open() returns MMSYSERR_NOERR if codec was activated successfully. After that you need to feed the source stream using write() method, and periodically check destination stream, calling read() method.
     When you are finished with codec, destroy it or call the close() method.
@@ -1339,43 +1423,49 @@ type
     procedure BeforeDestruction(); override;
     //
     {*
-      Sets the source or destination format for codec.
+	Sets the source or destination format for codec.
     }
     procedure setFormatIndex(isSrc: bool; tag, index: unsigned);
     {*
-      Use this method when you do not know the exact format supported by the codec, but do know the driver, tag and index of the desired format.
+	Use this method when you do not know the exact format supported by the codec, but do know the driver, tag and index of the desired format.
     }
     procedure setFormatSuggest(isSrc: bool; desiredDriver: unaMsAcmDriver; tag, index: unsigned; flags: uint = ACM_FORMATSUGGESTF_NCHANNELS + ACM_FORMATSUGGESTF_NSAMPLESPERSEC + ACM_FORMATSUGGESTF_WBITSPERSAMPLE); overload;
     {*
-      Use this method when you do know non-PCM parameters of source or dest stream.
+	Use this method when you do know non-PCM parameters of source or dest stream.
     }
     function setFormatSuggest(isSrcPCM: bool; const format: WAVEFORMATEX): bool; overload;
     {*
-      Use this method when you do know PCM parameters of source or dest stream.
+	Use this method when you do know PCM parameters of source or dest stream.
     }
     function setPcmFormatSuggest(isSrcPCM: bool; samplesPerSec: unsigned = c_defSamplingSamplesPerSec; bitsPerSample: unsigned = c_defSamplingBitsPerSample; numChannels: unsigned = c_defSamplingNumChannels; formatTag: unsigned = 0): bool; overload;
     {*
-      Use this method when you do know PCM parameters of source or dest stream.
+	Use this method when you do know PCM parameters of source or dest stream.
     }
     function setPcmFormatSuggest(isSrcPCM: bool; pcmFormat: pWAVEFORMATEX; formatTag: unsigned): bool; overload;
     {*
-      Returns the driver used to perform the codec job.
+	Returns the driver used to perform the codec job.
     }
     property driver: unaMsAcmDriver read f_driver write setDriver;
     {*
-      Specifies library file (DLL) for a driver. Not used with ACM codecs, where you should specify driver directly instead.
+	Specifies library file (DLL) for a driver. Not used with ACM codecs, where you should specify driver directly instead.
     }
     property driverLibrary: wString read f_driverLibrary write setDriverLibrary;
     {*
-      Since codec is input/output device, we need to have second chunk of data.
+	Since codec is input/output device, we need to have second chunk of data.
     }
     property dstChunkSize;
     {*
-      Specifies driver mode: ACM, installable or internal.
+	Specifies driver mode: ACM, installable or internal.
     }
     property driverMode: unaAcmCodecDriverMode read f_driverMode write f_driverMode;
-    {}
+    {*
+	H323 Codec description
+    }
     property oH323codecDesc[index: int]: ppluginCodec_definition read getoH323pluginDesc;
+    {*
+	WinAPI ACM handle
+    }
+    property handle;
   end;
 
 
@@ -1435,24 +1525,49 @@ type
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
 
 
+  {*
+	DS is not supported yet.
+  }
+  unaVCWaveEngine = (unavcwe_MME, unavcwe_ASIO, unavcwe_DS);
+
+
   //
   // -- unaWaveDevice --
   //
   {*
-    This abstract class is used as base for unaWaveInDevice (recorder) and unaWaveOutDevice (playback) devices.
+      This abstract class is used as base for unaWaveInDevice (recorder) and unaWaveOutDevice (playback) devices.
 
-    <P />Since both In and Out devices are working with PCM streams only, we can simplify the process of specifying wave formats.
-    Instead of tag/index pair setSampling() method takes three parameters: samples per second, bits per sample and number of channels.
-    Commonly used values for samples per second are 8,000; 11,025; 22,050 and 44,100. Bits per sample could be 8 or 16 or more.
-    Number of channels is usually 1 (mono) or 2 (stereo).
+      Since both In and Out devices are working with PCM streams only, we can simplify the process of specifying wave formats.
+      Instead of tag/index pair setSampling() method takes three parameters: samples per second, bits per sample and number of channels.
+      Commonly used values for samples per second are 8,000; 11,025; 22,050 and 44,100. Bits per sample could be 8 or 16 or more.
+      Number of channels is usually 1 (mono) or 2 (stereo).
   }
   unaWaveDevice = class(unaMsAcmStreamDevice)
   private
     f_deviceID: uint;
+    f_noCaps: bool;
+    //
     f_mapped: bool;
     f_direct: bool;
     f_handles: array[byte] of tHandle;
     f_handlesCnt: unsigned;
+    f_handlesNonHdrCnt: unsigned;
+    //
+    f_waveEngine: unaVCWaveEngine;
+    //
+{$IFDEF UNA_VCACM_USE_ASIO }
+    f_asioDriverList: unaAsioDriverList;
+    f_asioDriver: unaAsioDriver;
+    f_asioBP: unaAsioBufferProcessor;
+    //
+    f_ASIODriverIsShared: bool;
+{$ENDIF UNA_VCACM_USE_ASIO }
+    //
+    f_sharedASIODevice: unaWaveDevice;
+    f_ASIODuplex: bool;
+    //
+    procedure setWaveEngine(value: unaVCWaveEngine);
+    procedure setDeviceId(value: uint);
     //
 {$IFDEF DEBUG_LOG }
     function displayHeadersUsage(): bool;
@@ -1465,38 +1580,68 @@ type
     {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
     //
     function execute(globalIndex: unsigned): int; override;
-    //
+    {*
+
+    }
     function open2(query: bool = false; timeout: tTimeout = 10004; flags: uint = 0; startDevice: bool = true): MMRESULT; override;
+    {*
+    }
     function close2(timeout: tTimeout = 10014): MMRESULT; override;
   public
     {*
-      From Microsoft MSDN:
-      <BR />mapped - The deviceID parameter specifies a waveform-audio device to be mapped to by the wave mapper.
-      <BR />direct - If this flag is specified, the ACM driver does not perform conversions on the audio data.
+	  @param mapped - The deviceID parameter specifies a waveform-audio device to be mapped to by the wave mapper.
+	  @param direct - If this flag is specified, the ACM driver does not perform conversions on the audio data.
     }
     constructor create(deviceID: uint = WAVE_MAPPER; mapped: bool = false; direct: bool = false; isIn: bool = true; overNum: unsigned = 0);
     {*
-      Since most wave devices supports PCM formats only it is handy to have this method.
+    }
+    procedure BeforeDestruction(); override;
+    {*
+	Since most wave devices supports PCM formats only it is handy to have this method.
     }
     function setSampling(samplesPerSec: unsigned = c_defSamplingSamplesPerSec; bitsPerSample: unsigned = c_defSamplingBitsPerSample; numChannels: unsigned = c_defSamplingNumChannels): bool; overload;
+    {*
+	Since most wave devices supports PCM formats only it is handy to have this method.
+    }
     function setSampling(pcmFormat: pWAVEFORMATEX): bool; overload;
+    {*
+	Since most wave devices supports PCM formats only it is handy to have this method.
+    }
     function setSampling(const pcmFormat: unaPCMFormat): bool; overload;
+    {*
+	Since most wave devices supports PCM formats only it is handy to have this method.
+    }
     function setSamplingExt(isSrc: bool; format: PWAVEFORMATEXTENSIBLE): bool;
+{$IFDEF UNA_VCACM_USE_ASIO }
+    {*
+	ASIO driver assigned for device.
+    }
+    function asioDriver(): unaAsioDriver;
+{$ENDIF UNA_VCACM_USE_ASIO }
+    {*
+	Share ASIO driver with specified device.
+	When ASIO is shared, no new ASIO driver will be initialized.
+
+	@param device Wave device to share ASIO driver with. If nil, old share will be removed (if any).
+    }
+    procedure shareASIOwith(device: unaWaveDevice);
     //
     {*
-      From Microsoft MSDN:
-      <BR />direct - If this flag is specified, the ACM driver does not perform conversions on the audio data.
+	If this flag is specified, the ACM driver does not perform conversions on the audio data.
     }
     property direct: bool read f_direct write f_direct;
     {*
-      From Microsoft MSDN:
-      <BR />mapped - The deviceID parameter specifies a waveform-audio device to be mapped to by the wave mapper.
+	The deviceID parameter specifies a waveform-audio device to be mapped to by the wave mapper.
     }
     property mapped: bool read f_mapped write f_mapped;
     {*
-      Device Id.
+	Device Id.
     }
-    property deviceId: uint read f_deviceId write f_deviceId;
+    property deviceId: uint read f_deviceId write setDeviceId;
+    {*
+	MME, ASIO or DS
+    }
+    property waveEngine: unaVCWaveEngine read f_waveEngine write setWaveEngine;
   end;
 
 
@@ -1508,7 +1653,7 @@ type
     deviceID parameter used to construct instances of this class can be
     from 0 to unaWaveInDevice.getDeviceCount() - 1, or you can use WAVE_MAPPER value instead.
 
-    <P />After opening the device check periodically output stream by calling read() method,
+    After opening the device check periodically output stream by calling read() method,
     or use onDataAvailable() event to receive new data chunks.
   }
   unaWaveInDevice = class(unaWaveDevice)
@@ -1541,16 +1686,43 @@ type
     }
     function getMasterIsSrc2(): bool; override;
   public
+    {*
+	Creates wave recording device.
+    }
     constructor create(deviceID: uint = WAVE_MAPPER; mapped: bool = false; direct: bool = true; overNum: unsigned = 0);
-    procedure AfterConstruction(); override;
-    procedure BeforeDestruction(); override;
-    //
-    function getCCaps(): pWAVEINCAPSW;
+    {*
+	MME only.
+
+	@return device caps.
+    }
+    function getInCaps(): pWAVEINCAPSW;
+    {*
+	Displays format selection dialog.
+    }
     function formatChoose(var format: pWAVEFORMATEX; const title: wString = ''; style: unsigned = ACMFORMATCHOOSE_STYLEF_INITTOWFXSTRUCT; enumFlag: unsigned = ACM_FORMATENUMF_HARDWARE + ACM_FORMATENUMF_INPUT; enumFormat: pWAVEFORMATEX = nil): MMRESULT;
-    // -- class functions --
+    //
+    {*
+	MME only.
+
+	@return device caps.
+    }
     class function getCaps(deviceID: uint; var caps: WAVEINCAPSW): bool; overload;
+    {*
+	MME only.
+
+	@return recording device count.
+    }
     class function getDeviceCount(): unsigned;
+    {*
+	MME only.
+
+	@return device error text.
+    }
     class function getErrorText(errorCode: MMRESULT): string;
+    {*
+	WinAPI MME handle
+    }
+    property handle;
   end;
 
 
@@ -1562,23 +1734,29 @@ type
     deviceID parameter used to construct instance of this class can be
     from 0 to unaWaveOutDevice.getDeviceCount() - 1, or you can use WAVE_MAPPER value instead.
 
-    <P />After opening the device feed periodically input stream by calling write() method.
+    After opening the device feed periodically input stream by calling write() method.
     If device is unable to load next chunk when needed it can produce a chunk of "silence" and feed it automatically to hardware.
     Use autoFeed property to enable/disable this behavior.
   }
   unaWaveOutDevice = class(unaWaveDevice)
   private
     f_caps: WAVEOUTCAPSW;
+    //
     f_outOfStream: int64;
     f_outOfData: int64;
     //
     f_dwReentranceCnt: int;
     //
-{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-    f_paused: bool;
-    f_ji: bool;
+  {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+    f_awaitingPrefill: bool;
+    f_smoothStartup: bool;
+    f_jitterRepeat: bool;
+    //
     f_hdrIndex: int;
-{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+  {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+  {$IFDEF UNA_VCACM_USE_ASIO }
+    f_asioBuf: unaMemoryStream;
+  {$ENDIF UNA_VCACM_USE_ASIO }
     //
     f_onACF: unaWaveDataEvent;
     f_onACD: unaWaveDataEvent;
@@ -1619,25 +1797,51 @@ type
     }
     function flush2(waitForComplete: bool = true): bool; override;
     {*
-	//
+	Passes data to waweout buffers.
     }
     function doWrite(buf: pointer; size: unsigned): unsigned; override;
 {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
     {*
     }
-    property paused: bool read f_paused write f_paused;
+    property awaitingPrefill: bool read f_awaitingPrefill;
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
   public
     constructor create(deviceID: uint = WAVE_MAPPER; mapped: bool = false; direct: bool = false; overNum: unsigned = 0);
-    //
+    {*
+	Allocates resources.
+    }
     procedure AfterConstruction(); override;
-    //
-    function getCCaps(): pWAVEOUTCAPSW;
-    // -- class functions --
+    {*
+	Releases resources.
+    }
+    procedure BeforeDestruction(); override;
+    {*
+	MME only.
+
+	@return device caps.
+    }
+    function getOutCaps(): pWAVEOUTCAPSW;
+    {*
+	MME only.
+
+	@return device caps.
+    }
     class function getCaps(deviceID: uint; var caps: WAVEOUTCAPSW): bool; overload;
+    {*
+	MME only.
+
+	@return device caps.
+    }
     class function getDeviceCount(): unsigned;
+    {*
+	MME only.
+
+	@return device caps.
+    }
     class function getErrorText(errorCode: MMRESULT): string;
-    //
+    {*
+	Displays format selection dialog.
+    }
     function formatChoose(var format: pWAVEFORMATEX; const title: wString = ''; style: unsigned = ACMFORMATCHOOSE_STYLEF_INITTOWFXSTRUCT; enumFlag: unsigned = ACM_FORMATENUMF_HARDWARE + ACM_FORMATENUMF_OUTPUT; enumFormat: pWAVEFORMATEX = nil): MMRESULT;
     {*
 	Not supported yet. Use getVolume() instead.
@@ -1665,10 +1869,20 @@ type
     property onAfterChunkDone: unaWaveDataEvent read f_onACD write f_onACD;
 {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
     {*
-	Jitter improve.
+	If True (default), when out of buffers (or during startup) WaveOut be paused till c_waveOut_unpause_after buffers are prepared for playback.
+	If False, playback will start immediately.
     }
-    property jitterImprove: bool read f_ji write f_ji;
+    property smoothStartup: bool read f_smoothStartup write f_smoothStartup;
+    {*
+	If True (default), when out of buffers will repeat last chunk several times until WaveOut has enough buffers for playback (but no more than 5 times).
+	If False, no chunks will be repeated.
+    }
+    property jitterRepeat: bool read f_jitterRepeat write f_jitterRepeat;
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+    {*
+	WinAPI MME handle
+    }
+    property handle;
   end;
 
 
@@ -1683,6 +1897,10 @@ type
   unaWaveSoftwareDevice = class(unaWaveDevice)
   private
     f_realTimerCount: int;
+{$IFDEF DEBUG_LOG_RT }
+    f_timerTM: uint64;
+    f_timerPassed: int64;
+{$ENDIF DEBUG_LOG_RT }
     //
     f_realTimer: unaAbstractTimer;
     f_nonrealTimeDelay: unsigned;
@@ -1693,7 +1911,7 @@ type
     procedure onTick(sender: tObject); virtual;
     {*
       WARNING! this call will change the realtime clock interval.
-      <BR />so, be careful when setting the format of realtime devices with non-default timer interval.
+      so, be careful when setting the format of realtime devices with non-default timer interval.
     }
     function setFormat(isSrc: bool; format: pWAVEFORMATEX): bool; override;
     procedure setRealTime(value: bool); override;
@@ -1713,8 +1931,8 @@ type
     function getMasterIsSrc2(): bool; override;
   public
     constructor create(realTime: bool = false; isIn: bool = true; overNum: unsigned = 0);
-    destructor Destroy(); override;
     procedure AfterConstruction(); override;
+    procedure BeforeDestruction(); override;
     //
     property realTimer: unaAbstractTimer read f_realTimer;
   end;
@@ -1727,9 +1945,9 @@ type
   //
   {*
     RIFF WAVE stream.
-    <BR>Use this class to read or create RIFF WAVE files.
-    <BR>Non-PCM files will be automatically converted to PCM format when possible.
-    <BR>Creation of non-PCM files is also possible.
+    Use this class to read or create RIFF WAVE files.
+    Non-PCM files will be automatically converted to PCM format when possible.
+    Creation of non-PCM files is also possible.
   }
   unaRiffStream = class(unaWaveSoftwareDevice)
   private
@@ -1746,7 +1964,7 @@ type
 {$ENDIF VCX_DEMO }
     f_fileName: wString;
     //
-    f_originalSize: unsigned;
+    f_factSize: unsigned;
     f_dataSizeOfs: unsigned;
     f_riffSrcFormat: pWAVEFORMATEX;
     f_riffDstFormatTag: unsigned;
@@ -1789,7 +2007,7 @@ type
     procedure setStreamPos(value: unsigned);
     function readNextChunk(): bool;
 {$IFNDEF VC_LIC_PUBLIC }
-    function getMpegFS: int;
+    function getMpegFS(): int;
 {$ENDIF VC_LIC_PUBLIC }
   protected
     function afterOpen(): MMRESULT; override;
@@ -1797,11 +2015,11 @@ type
     //
     function onHeaderDone(header: unaWaveHeader; wakeUpByHeaderDone: bool): bool; override;
     {*
-      Forces all awaiting data to be resampled.
+	Forces all awaiting data to be resampled.
     }
     function flush2(waitForComplete: bool = true): bool; override;
     {*
-      Returns current position in wav stream.
+	Returns current position in wav stream.
     }
     function doGetPosition(): int64; override;
     {*
@@ -1810,11 +2028,11 @@ type
     function doWrite(buf: pointer; size: unsigned): unsigned; override;
   public
     {*
-      Opens existing file for reading.
+	Opens existing file for reading.
     }
     constructor create(const fileName: wString; realTime: bool = false; loop: bool = false; acm: unaMsAcm = nil);
     {*
-      Creates new RIFF WAVE file for writing.
+	Creates new RIFF WAVE file for writing.
     }
     constructor createNew(const fileName: wString; const srcFormat: WAVEFORMATEX; dstFormatTag: unsigned = WAVE_FORMAT_PCM; acm: unaMsAcm = nil);
     constructor createNewExt(const fileName: wString; srcFormat: pWAVEFORMATEXTENSIBLE; dstFormatTag: unsigned = WAVE_FORMAT_PCM; acm: unaMsAcm = nil);
@@ -1823,15 +2041,15 @@ type
     procedure AfterConstruction(); override;
     //
     {*
-      Assigns new existing file for reading.
+	Assigns new existing file for reading.
     }
     function assignRIFile(const fileName: wString): int;
     {*
-      Assigns ouput file for writing.
+	Assigns ouput file for writing.
     }
     function assignRIFileWriteSrc(const fileName: wString; srcFormat: pWAVEFORMATEX; dstFormatTag: unsigned = WAVE_FORMAT_PCM): int;
     {*
-      Assigns ouput file for writing.
+	Assigns ouput file for writing.
     }
     function assignRIFileWriteDst(const fileName: wString; dstFormat: pWAVEFORMATEX): int;
     //
@@ -1855,31 +2073,31 @@ $0FFFFFFF - no init
     }
     property status: int read f_status;
     {*
-      Codec used for compression or decompression.
+	Codec used for compression or decompression.
     }
     property codec: unaMsAcmCodec read f_codec;
     {*
-      WAV file name.
+	WAV file name.
     }
     property fileName: wString read f_fileName;
     {*
-      WAVe stream size in bytes.
+	WAVe stream size in bytes.
     }
     property streamSize: unsigned read f_streamSize;
     {*
-      Current position in WAVe stream in bytes.
+	Current position in WAVe stream in bytes.
     }
     property streamPosition: unsigned read f_streamPos write setStreamPos;
     {*
-      True when no more data can be read from stream (and loop = false).
+	True when no more data can be read from stream (and loop = false).
     }
     property streamIsDone: bool read f_streamIsDone;
     {*
-      Number of bytes in the input file.
+	Number of bytes indicated in 'fact' chunk.
     }
-    property originalSize: unsigned read f_originalSize;
+    property factSize: unsigned read f_factSize;
     {*
-      Set this property to true if you wish to loop the file reading operation from end to beginning.
+	Set this property to true if you wish to loop the file reading operation from end to beginning.
     }
     property loop: bool read f_loop write f_loop;
     {*
@@ -1893,7 +2111,7 @@ $0FFFFFFF - no init
     property mpegFrameSize: int read getMpegFS;
 {$ENDIF VC_LIC_PUBLIC }
     {*
-    	This event is fired when reading from file is done.
+	This event is fired when reading from file is done.
     }
     property onStreamIsDone: unaOnRiffStreamIsDone read f_onStreamIsDone write f_onStreamIsDone;
   end;
@@ -2000,8 +2218,9 @@ $0FFFFFFF - no init
 
   {*
     This class can resample audio stream from one PCM format to another.
-    <BR />It does not use ACM codecs.
-    <BR />8, 16 and 32 bits samples with virtually unlimited number of channels and samples per second are supported.
+    It does not use ACM codecs.
+
+    8, 16 and 32 bits samples with virtually unlimited number of channels and samples per second are supported.
   }
   unaWaveResampler = class(unaWaveSoftwareDevice)
   private
@@ -2013,6 +2232,8 @@ $0FFFFFFF - no init
     f_speexdsp: array[0..31] of unaSpeexDSP;	// up to 32 channels
     f_speextried: bool;
     f_speexavail2: bool;
+    //
+    f_inputConsumed: bool;
     //
     f_subBuf: pArray;
     f_subBufSize: int;
@@ -2128,7 +2349,7 @@ function formatIsPCM(format: pWAVEFORMATEXTENSIBLE): bool; overload;
 // --  --
 {*
   Fills the WAVEFORMATEX structure according to the specified sampling parameters.
-  Returns pointer on format parameter (result := @format).
+  Returns pointer on format parameter (result := @@format).
 }
 function fillPCMFormat(var format: WAVEFORMATEX; samplesPerSecond: unsigned = c_defSamplingSamplesPerSec; bitsPerSample: unsigned = c_defSamplingBitsPerSample; numChannels: unsigned = c_defSamplingNumChannels): pWAVEFORMATEX; overload;
 {*
@@ -2138,7 +2359,7 @@ function fillPCMFormat(var format: WAVEFORMATEX; samplesPerSecond: unsigned = c_
 function fillPCMFormat(samplesPerSecond: unsigned = c_defSamplingSamplesPerSec; bitsPerSample: unsigned = c_defSamplingBitsPerSample; numChannels: unsigned = c_defSamplingNumChannels): WAVEFORMATEX; overload;
 {*
   Fills the PWAVEFORMATEXTENSIBLE structure according to the specified sampling parameters.
-  Returns pointer on format parameter (result := @format).
+  Returns pointer on format parameter (result := @@format).
 }
 function fillPCMFormatExt(var format: PWAVEFORMATEXTENSIBLE; samplesPerSecond: unsigned = c_defSamplingSamplesPerSec; containerSize: unsigned = c_defSamplingBitsPerSample; validBitsPerSample: unsigned = c_defSamplingBitsPerSample; numChannels: unsigned = c_defSamplingNumChannels; channelMask: DWORD = SPEAKER_DEFAULT): PWAVEFORMATEXTENSIBLE; overload;
 function fillPCMFormatExt(var format: PWAVEFORMATEXTENSIBLE; const subtype: tGuid; samplesPerSecond: unsigned = c_defSamplingSamplesPerSec; containerSize: unsigned = c_defSamplingBitsPerSample; validBitsPerSample: unsigned = c_defSamplingBitsPerSample; numChannels: unsigned = c_defSamplingNumChannels; channelMask: DWORD = SPEAKER_DEFAULT): PWAVEFORMATEXTENSIBLE; overload;
@@ -2273,7 +2494,8 @@ begin
   result := @f_details;
 end;
 
-{ unaMsAcmFilter }
+
+  { unaMsAcmFilter }
 
 // --  --
 constructor unaMsAcmFilter.create();
@@ -2304,7 +2526,8 @@ begin
   end;
 end;
 
-{ unaMsAcmFormat }
+
+  { unaMsAcmFormat }
 
 // --  --
 constructor unaMsAcmFormat.create();
@@ -2343,7 +2566,8 @@ begin
   result := unaMsAcmClasses.formatChoose(bufW, title);
 end;
 
-{ unaMsAcmObjectTag }
+
+  { unaMsAcmObjectTag }
 
 // --  --
 constructor unaMsAcmObjectTag.create(driver: unaMsAcmDriver);
@@ -2353,7 +2577,8 @@ begin
   f_driver := driver;
 end;
 
-{ unaMsAcmFilterTag }
+
+  { unaMsAcmFilterTag }
 
 // --  --
 constructor unaMsAcmFilterTag.create(driver: unaMsAcmDriver; tag: pACMFILTERTAGDETAILS);
@@ -2363,7 +2588,8 @@ begin
   f_tag := tag^;
 end;
 
-{ unaMsAcmFormatTag }
+
+  { unaMsAcmFormatTag }
 
 // --  --
 constructor unaMsAcmFormatTag.create(driver: unaMsAcmDriver; tag: pACMFORMATTAGDETAILS);
@@ -2373,7 +2599,8 @@ begin
   f_tag := tag^;
 end;
 
-{ unaMsAcmDriver }
+
+  { unaMsAcmDriver }
 
 // --  --
 function unaMsAcmDriver.about(wnd: HWND): MMRESULT;
@@ -2869,7 +3096,8 @@ begin
   end;
 end;
 
-{ unaMsAcm }
+
+  { unaMsAcm }
 
 // --  --
 procedure unaMsAcm.addEnumedDriver(id: HACMDRIVERID; support: unsigned);
@@ -3036,7 +3264,8 @@ begin
   result := true;
 end;
 
-{ unaMsAcmDeviceHeader }
+
+  { unaMsAcmDeviceHeader }
 
 // --  --
 procedure unaMsAcmDeviceHeader.AfterConstruction();
@@ -3100,7 +3329,7 @@ begin
 {$ELSE }
   if (f_needRePrepare) then
     if (nil <> f_device) then
-      f_num := f_device.getNextHeaderNum();
+      f_num := unsigned(f_device.getNextHeaderNum());
   //
   f_needRePrepare := true;
   f_isFree := false;
@@ -3117,7 +3346,7 @@ begin
 end;
 
 
-{ unaMsAcmStreamDevice }
+  { unaMsAcmStreamDevice }
 
 // --  --
 function unaMsAcmStreamDevice.addConsumer(device: unaMsAcmStreamDevice; removeOutStream: bool): unsigned;
@@ -3148,11 +3377,10 @@ begin
 end;
 
 {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-
 {$ELSE }
 
 // --  --
-function unaMsAcmStreamDevice.adjustLastDoneHeaderNum(num: unsigned): bool; assembler
+function unaMsAcmStreamDevice.adjustLastDoneHeaderNum(num: unsigned): bool;
 asm
 //	IN:	EAX = Self
 //		EDX = num
@@ -3348,6 +3576,12 @@ begin
   {$ENDIF UNA_VC_ACMCLASSES_USE_DSP }
   //
   freeAndNil(f_deviceEvent);
+  //
+  mrealloc(f_channelMixBuf);
+  mrealloc(f_channelMixBufEx);
+  //
+  mrealloc(f_channelConsumeBuf);
+  mrealloc(f_channelConsumeBufEx);
   //
 {$IFDEF VC25_ENTERPRISE }
   vad1_exit(f_3gppvad1);
@@ -3799,8 +4033,15 @@ begin
       //
       f_closing := false;
     end
-    else
+    else begin
+      //
+      if (0 < f_nextHdr) then try
+	clearHeaders();
+      except
+      end;
+
       result := MMSYSERR_NOERROR;
+    end;
     //
   finally
     releaseWO();
@@ -3835,6 +4076,9 @@ begin
   f_careInStreamDestroy := true;
   f_careOutStreamDestroy := true;
   //
+  f_channelMixMask := -1;
+  f_channelConsumeMask := -1;
+  //
   f_calcVolume := calcVolume;
   //
 {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
@@ -3860,7 +4104,11 @@ begin
   destroyStream(true);
   destroyStream(false);
   //
+{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+  clearHeaders();
+{$ELSE }
   freeAndNil(f_headers);
+{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
   freeAndNil(f_consumers);
   freeAndNil(f_notifyDevices);
 end;
@@ -3938,6 +4186,8 @@ end;
 // --  --
 function unaMsAcmStreamDevice.doWrite(buf: pointer; size: unsigned): unsigned;
 begin
+  internalConsumeData(buf, size);
+  //
   result := 0;
   //
   if (isOpen() and (not f_closing or f_flushing)) then begin
@@ -4064,12 +4314,9 @@ end;
 {$ELSE }
 
 // --  --
-function unaMsAcmStreamDevice.getNextHeaderNum(): unsigned; assembler
-asm
-	mov	edx, 1
-   lock xadd	[eax + offset f_lastHeaderNum], edx
-	mov	eax, edx
-	inc	eax
+function unaMsAcmStreamDevice.getNextHeaderNum(): int;
+begin
+  result := InterlockedIncrement(f_lastHeaderNum);
 end;
 
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
@@ -4078,6 +4325,31 @@ end;
 function unaMsAcmStreamDevice.getPrevVolume(channel: unsigned): unsigned;
 begin
   result := unsigned(f_prevVolume[channel]);
+end;
+
+// --  --
+function unaMsAcmStreamDevice.getProviderFormat(): PWAVEFORMATEXTENSIBLE;
+var
+  device: unaMsAcmStreamDevice;
+begin
+  if (assigned(f_onGetProviderFormat)) then
+    f_onGetProviderFormat(result)
+  else begin
+    //
+    result := nil;
+    //
+    if (0 < f_notifyDevices.count) then begin
+      //
+      device := f_notifyDevices[0];
+      if (nil <> device) then begin
+	//
+	if (nil <> device.dstFormatExt) then
+	  result := device.dstFormatExt
+	else
+	  result := device.srcFormatExt;
+      end;
+    end;
+  end;
 end;
 
 // --  --
@@ -4123,6 +4395,79 @@ begin
 end;
 
 // --  --
+procedure unaMsAcmStreamDevice.internalConsumeData(var buf: pointer; var size: unsigned);
+var
+  nCh, bits, sz, nsamples, chNum, mask: int;
+  f: PWAVEFORMATEXTENSIBLE;
+  fillCh: int;
+begin
+  if (-1 <> channelConsumeMask) then begin
+    //
+    f := getProviderFormat();
+    if (nil <> f) then begin
+      //
+      nCh := f.Format.nChannels;
+      bits := f.Format.wBitsPerSample;
+    end
+    else begin
+      //
+      nCh := 1;
+      bits := 16;
+    end;
+    //
+    // more than 1 channel and mask is non-zero?
+    if ((1 < nCh) and (0 <> channelConsumeMask)) then begin
+      //
+      sz := int(size) div nCh;
+      if (sz > f_channelConsumeBufSize) then begin
+	//
+	f_channelConsumeBufSize := sz;
+	mrealloc(f_channelConsumeBuf, f_channelConsumeBufSize);
+	mrealloc(f_channelConsumeBufEx, f_channelConsumeBufSize);
+      end;
+      //
+      if (8 = bits) then
+	fillCh := $80
+      else
+	fillCh := $0;
+      //
+      fillChar(f_channelConsumeBuf^, f_channelConsumeBufSize, fillCh);
+      //
+      nsamples := (int(size) div nCh) div (bits shr 3);
+      //
+      chNum := 0;
+      mask := channelConsumeMask;
+      while (0 <> mask) do begin
+	//
+	if (1 = (1 and mask)) then begin
+	  //
+	  waveExtractChannel(buf, f_channelConsumeBufEx, nsamples, bits, nCh, chNum);
+	  waveMix(f_channelConsumeBufEx, f_channelConsumeBuf, f_channelConsumeBuf, nsamples, bits, bits, bits);
+	end;
+	//
+	mask := mask shr 1;
+	inc(chNum);
+      end;
+      //
+      // replace values
+      buf := f_channelConsumeBuf;
+      size := sz;
+    end
+    else begin
+      //
+      if (0 = channelConsumeMask) then
+	size := 0	// no channels -- no data
+      else begin
+	//
+	// we have 1 channel, let see if it is in the mask
+	if (1 <> (channelConsumeMask and 1)) then
+	  size := 0	// no luck, even mono channel is not included in the mask -- no data
+      end;
+    end;
+  end;
+end;
+
+// --  --
 function unaMsAcmStreamDevice.internalRead(buf: pointer; size: unsigned; formatExt: PWAVEFORMATEXTENSIBLE): unsigned;
 begin
 {$IFDEF UNA_PROFILE }
@@ -4157,6 +4502,8 @@ end;
 function unaMsAcmStreamDevice.internalWrite(buf: pointer; size: unsigned; formatExt: PWAVEFORMATEXTENSIBLE): unsigned;
 var
   i: int;
+  f: PWAVEFORMATEXTENSIBLE;
+  nCh, sz, nsamples, fillCh, mask, chNum, bits: int;
 begin
 {$IFDEF UNA_PROFILE }
   profileMarkEnter(profId_unaMsAcmStreamDevice_internalWrite);
@@ -4167,7 +4514,77 @@ begin
     //
     if (beforeNewChunk(buf, size, formatExt)) then begin
       //
-      inc(f_outBytes, size);
+      if (-1 <> channelMixMask) then begin
+	//
+	if (nil <> formatExt) then
+	  f := formatExt
+	else
+	  if (nil <> dstFormatExt) then
+	    f := dstFormatExt
+	  else
+	    f := srcFormatExt;
+	//
+	if (nil <> f) then begin
+	  //
+	  nCh := f.Format.nChannels;
+	  bits := f.Format.wBitsPerSample;
+	end
+	else begin
+	  //
+	  nCh := 1;
+	  bits := 16;
+	end;
+	//
+	// more than 1 channel and mask is non-zero?
+	if ((1 < nCh) and (0 <> channelMixMask)) then begin
+	  //
+	  sz := int(size) div nCh;
+	  if (sz > f_channelMixBufSize) then begin
+	    //
+	    f_channelMixBufSize := sz;
+	    mrealloc(f_channelMixBuf, f_channelMixBufSize);
+	    mrealloc(f_channelMixBufEx, f_channelMixBufSize);
+	  end;
+	  //
+	  if (8 = bits) then
+	    fillCh := $80
+	  else
+	    fillCh := $0;
+	  //
+	  fillChar(f_channelMixBuf^, f_channelMixBufSize, fillCh);
+	  //
+	  nsamples := (int(size) div nCh) div (bits shr 3);
+	  //
+	  chNum := 0;
+	  mask := channelMixMask;
+	  while (0 <> mask) do begin
+	    //
+	    if (1 = (1 and mask)) then begin
+	      //
+	      waveExtractChannel(buf, f_channelMixBufEx, nsamples, bits, nCh, chNum);
+	      waveMix(f_channelMixBufEx, f_channelMixBuf, f_channelMixBuf, nsamples, bits, bits, bits);
+	    end;
+	    //
+	    mask := mask shr 1;
+	    inc(chNum);
+	  end;
+	  //
+	  // replace values, assumes consumers are smart enough to understand there is the only one chnannel
+	  buf := f_channelMixBuf;
+	  size := sz;
+	end
+	else begin
+	  //
+	  if (0 = channelMixMask) then
+	    size := 0	// no channels -- no data
+	  else begin
+	    //
+	    // we have 1 channel, let see if it is in the mask
+	    if (1 <> (channelMixMask and 1)) then
+	      size := 0	// no luck, even mono channel is not included in the mask -- no data
+	  end;
+	end;
+      end;
       //
       // signal onDA event
       if (assigned(f_onDA)) then begin
@@ -4192,9 +4609,10 @@ begin
 	  //
 	  result := 0;
 	  inc(f_outOverloadTotal, size);
-          {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
+	  //
+	{$IFDEF LOG_UNAMSACMCLASSES_INFOS_EX }
 	  logMessage(_classID + '.internalWrite() overload, skipped ' + int2str(size) + ' bytes, stream size = ' + int2str(outStream.getAvailableSize()) + ', total skipped=' + int2str(f_outOverloadTotal, 10, 3));
-          {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+	{$ENDIF LOG_UNAMSACMCLASSES_INFOS_EX }
 	end
 	else
 	  result := outStream.write(buf, size);
@@ -5051,7 +5469,7 @@ begin
   inherited create(true, true, overNum, overNum);
   //
   f_driver := driver;
-  f_realtime := realtime;
+  self.realtime := realtime;
   f_highPriority := highPriority;
   f_driverMode := driverMode;
   //
@@ -5337,6 +5755,8 @@ var
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
 begin
 {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+  internalConsumeData(buf, size);
+  //
   result := 0;
   //
   {$IFDEF DEBUG_LOG_MARKBUFF }
@@ -5383,13 +5803,13 @@ begin
               unacdm_internal:
                 f_acmHeader := nil;
 
-              else
+	      else
                 f_acmHeader := nil;
 
             end;
           end;
           //
-          {
+	  {
           case (driverMode) of
 
             unacdm_acm:
@@ -5421,7 +5841,7 @@ begin
             // that means no data was encoded/decoded in last operation, which is strange
             //
             {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
-            logMessage(self._classID + '.doWrite(), no data has been handled in last convertion..');
+	    logMessage(self._classID + '.doWrite(), no data has been handled in last convertion..');
             {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
             //
             if ((chunkSize = f_subSize) and (0 < int(size) - int(f_subSize))) then begin
@@ -5430,13 +5850,13 @@ begin
               //
               // -------------------------------------------------
               // NOTE: experimental, probably will do nothing good
-              // -------------------------------------------------
+	      // -------------------------------------------------
               f_header.grow(size + f_subSize);
               deltaSize := size;
               //
               f_header.write(@pArray(buf)[bufOffs], size, f_subSize);
               inc(bufOffs, deltaSize);
-            end;
+	    end;
           end;
           //
           dec(size, deltaSize);
@@ -5477,13 +5897,13 @@ begin
               // --
               // -- end of fix: 06/JUL/2010 --
               // -----------------------------------------------------------------
-              // -- Thanks to Glen Fraser for contibuting support for this fix --
+	      // -- Thanks to Glen Fraser for contibuting support for this fix --
               // -----------------------------------------------------------------
             end;
             //
             f_flags := f_flags and not ACM_STREAMCONVERTF_START;	// clear START flag
             f_header.isDone := true;
-            //
+	    //
             {$IFDEF VCX_DEMO }
               inc(f_headersServed);
             {$ENDIF VCX_DEMO }
@@ -5491,7 +5911,7 @@ begin
           else begin
             // convertion request was not accepted
             {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
-            logMessage(self._classID + '.doWrite() - error during convertion:  ' + srcFormatInfo + ' -> ' + dstFormatInfo + '; error(' + int2str(res) + ')=' + getErrorText(res));
+	    logMessage(self._classID + '.doWrite() - error during convertion:  ' + srcFormatInfo + ' -> ' + dstFormatInfo + '; error(' + int2str(res) + ')=' + getErrorText(res));
             {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
           end;
           //
@@ -5663,7 +6083,7 @@ begin
       else
 	sleepThread(1000);	// all job will be done in doWrite()
       {$ELSE }
-      if (1 > f_inProgress) then
+      if (1 > inProgress) then
 	// no buffers were added into stream on last cycle, wait for new chunk
 	waitForData(true, f_waitInterval, chunkSize);
       //
@@ -5708,7 +6128,7 @@ begin
   if (0 = flags) then begin
     //
     flags := choice(false{f_async}, ACM_STREAMOPENF_ASYNC or CALLBACK_EVENT, uint(0)) or
-	     choice(f_realtime, uint(0), ACM_STREAMOPENF_NONREALTIME) or
+	     choice(realtime, uint(0), ACM_STREAMOPENF_NONREALTIME) or
 	     choice(query, ACM_STREAMOPENF_QUERY, uint(0));
   end;
   //
@@ -5772,9 +6192,9 @@ begin
   //
   try
 {$IFDEF DEBUG_LOG_CODEC }
-    logMessage('CODEC LOOP: inProgress=' + int2str(f_inProgress) + '; DataAvail_in=' + int2str(getDataAvailable(true)));
+    logMessage('CODEC LOOP: inProgress=' + int2str(inProgress) + '; DataAvail_in=' + int2str(getDataAvailable(true)));
 {$ENDIF DEBUG_LOG_CODEC }
-    busy := (0 < f_inProgress);
+    busy := (0 < inProgress);
     //if (f_async) then
     //  f_header := nil;
     //
@@ -5834,10 +6254,10 @@ begin
     end;
     //
     // do not pass more than 2 buffers at a time
-    busy := (2 < f_inProgress);
+    busy := (2 < inProgress);
     //
 {$IFDEF DEBUG_LOG_CODEC }
-    logMessage('CODEC LOOP: middle busy, inProgress=' + int2str(f_inProgress));
+    logMessage('CODEC LOOP: middle busy, inProgress=' + int2str(inProgress));
 {$ENDIF DEBUG_LOG_CODEC }
     //
 {$IFDEF VCX_DEMO }
@@ -6584,6 +7004,26 @@ end;
 
 { unaWaveDevice }
 
+{$IFDEF UNA_VCACM_USE_ASIO }
+
+// --  --
+function unaWaveDevice.asioDriver(): unaAsioDriver;
+begin
+  result := f_asioDriver;
+end;
+
+{$ENDIF UNA_VCACM_USE_ASIO }
+
+// --  --
+procedure unaWaveDevice.BeforeDestruction();
+begin
+  inherited;
+  //
+{$IFDEF UNA_VCACM_USE_ASIO }
+  freeAndNil(f_asioDriverList);
+{$ENDIF UNA_VCACM_USE_ASIO }
+end;
+
 // --  --
 function unaWaveDevice.close2(timeout: tTimeout): MMRESULT;
 begin
@@ -6591,8 +7031,30 @@ begin
   //
   if ((nil = inStream) and (0 <> f_handles[1])) then begin
     //
-    CloseHandle(f_handles[1]); // release dummy event
+    if (unavcwe_MME = waveEngine) then
+      CloseHandle(f_handles[1]); // release dummy event
+    //
     f_handles[1] := 0;
+  end;
+  //
+  case (waveEngine) of
+
+    unavcwe_ASIO: begin
+  {$IFDEF UNA_VCACM_USE_ASIO }
+      //
+      if (not f_ASIODriverIsShared and (nil <> f_asioDriver)) then
+	f_asioDriver.stop();
+      //
+      if (nil <> f_asioDriverList) then
+	f_asioDriverList.asioCloseDriver(f_asioDriverlist.asioGetDrvID(deviceID));
+      //
+      f_asioDriver := nil;
+      //
+      freeAndNil(f_asioBP);
+      //
+  {$ENDIF UNA_VCACM_USE_ASIO }
+    end;
+
   end;
 end;
 
@@ -6617,7 +7079,8 @@ begin
   i := 0;
   d := 0;
   q := 0;
-  {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+  //
+{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
   cnt := f_nextHdr;
   while (i < unsigned(f_nextHdr)) do begin
     //
@@ -6630,7 +7093,7 @@ begin
     //
     inc(i);
   end;
-  {$ELSE }
+{$ELSE }
   if (f_headers.lock(20)) then begin
     try
       //
@@ -6648,9 +7111,9 @@ begin
       f_headers.unlock();
     end;
   end;
-  {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
   //
-  logMessage(_classID + ': ' + int2Str(cnt) + ' headers;   inProgress= ' + int2Str(f_inProgress) + '   inQueue= ' + int2Str(q) + '   isDone= ' + int2Str(d));
+  logMessage(_classID + ': ' + int2Str(cnt) + ' headers;   inProgress= ' + int2Str(inProgress) + '   inQueue= ' + int2Str(q) + '   isDone= ' + int2Str(d));
   result := true;
 end;
 
@@ -6686,9 +7149,9 @@ begin
 	  //
 	{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
 	  //
-	  if (WAIT_OBJECT_0 + 2 <= state) then begin
+	  if (WAIT_OBJECT_0 + f_handlesNonHdrCnt <= state) then begin
 	    //
-	    header := f_headers[state - WAIT_OBJECT_0 - 2];
+	    header := f_headers[state - WAIT_OBJECT_0 - f_handlesNonHdrCnt];
 	    {$IFDEF DEBUG_LOG_MARKBUFF }
 	    if ((nil <> header) and (4 < header.dwBufferLength) and (nil <> header.lpData)) then
 	      logMessage('BUFMARK: main thread got new BUF#' + int2str(pUint32(header.lpData)^));
@@ -6720,7 +7183,7 @@ begin
 	  logMessage('WAVE_execute(' + _classID + '): got header = ' + int2str(int(header)));
 {$ENDIF DEBUG_LOG }
 	  //
-	  onHeaderDone(header, (WAIT_OBJECT_0 = state) or (WAIT_OBJECT_0 + 2 <= state));
+	  onHeaderDone(header, (WAIT_OBJECT_0 = state) or (WAIT_OBJECT_0 + f_handlesNonHdrCnt <= state));
 	  //
 	until ({$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }true or {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS } shouldStop or (nil = header) or (f_closing and not f_flushing));
       end
@@ -6729,7 +7192,7 @@ begin
 {$IFDEF DEBUG_LOG }
 	logMessage('WAVE_execute(' + _classID + '): wake up by timeout.');
 {$ENDIF DEBUG_LOG }
-	if (not realTime and (not f_closing or f_flushing) and ((0 = overNumIn) or (overNumIn > f_inProgress))) then
+	if (not realTime and (not f_closing or f_flushing) and ((0 = overNumIn) or (overNumIn > inProgress))) then
 	  onHeaderDone(nil, false);	// feed more chunks if any
 	//
       end;
@@ -6763,31 +7226,265 @@ begin
   result := true;
 end;
 
+{$IFDEF UNA_VCACM_USE_ASIO }
+
+type
+  {*
+	AIOS Buffer Processor
+  }
+  unaASIOWaveBP = class(unaAsioBufferProcessor)
+  private
+    f_isIN, f_isOUT: bool;
+    f_device: unaWaveDevice;
+    f_outBuf, f_inBuf: pInt16Array;
+    f_bufSize: int;
+  protected
+    function doBufferSwitchTimeInfo(timeInfo: pASIOTime; index: long; processNow: bool; res: pASIOTime): bool; override;
+  public
+    {*
+	Device could be both IN and OUT at the same time.
+    }
+    constructor create(driver: unaAsioDriver; isIN, isOUT: bool);
+    {*
+    }
+    procedure BeforeDestruction(); override;
+  end;
+
+
+{ unaASIOWaveBP }
+
+// --  --
+constructor unaASIOWaveBP.create(driver: unaAsioDriver; isIN, isOUT: bool);
+begin
+  f_isIN := isIN;
+  f_isOUT := isOUT;
+  //
+  inherited create(driver);
+end;
+
+// --  --
+function unaASIOWaveBP.doBufferSwitchTimeInfo(timeInfo: pASIOTime; index: long; processNow: bool; res: pASIOTime): bool;
+var
+  i, o: int32;
+  sz: int;
+  f: PWAVEFORMATEXTENSIBLE;
+  ms: unaMemoryStream;
+begin
+  sz := drv.bufActualSize * drv.inputChannels shl 1;	// 16 bit samples
+  if (sz > f_bufSize) then begin
+    //
+    if (f_isIN) then
+      mrealloc(f_outBuf, sz);
+    //
+    if (f_isOUT) then
+      mrealloc(f_inBuf, sz);
+    //
+    f_bufSize := sz;
+  end;
+  //
+  if (f_isIN) then begin
+    //
+    drv.getSamples(-1, index, f_outBuf);	// get all samples from all channels
+    //
+    if (nil <> f_device.dstFormatExt) then
+      f := f_device.dstFormatExt
+    else
+      f := f_device.srcFormatExt;
+    //
+    f_device.internalWrite(f_outBuf, sz, f);
+  end;
+  //
+  if (f_isOUT) then begin
+    //
+    ms := unaWaveOutDevice(f_device).f_asioBuf;
+    if (ms.getSize() >= sz) then begin
+      //
+      ms.read(f_inBuf, sz);
+      drv.setSamples(-1, index, f_inBuf);
+    end;
+  end;
+  //
+  if (f_device.f_ASIODuplex) then begin
+    //
+    // loop input to output
+    // 1. first, we map all input channels to output, making a loopback
+    i := 0;
+    o := drv.inputChannels;
+    while (i < drv.inputChannels) do begin
+      //
+      if (bool(drv.channelInfo[i].isInput)) then begin
+	//
+	while (o < drv.inputChannels + drv.outputChannels) do begin
+	  //
+	  if (not bool(drv.channelInfo[o].isInput)) then begin
+	    //
+	    // do map
+	    sz := min(drv.getBufferSizeInBytes(i), drv.getBufferSizeInBytes(o));
+	    if (0 < sz) then begin
+	      //
+	      move(drv.bufferInfo[i].buffers[index]^, drv.bufferInfo[o].buffers[index]^, sz);
+	    end;
+	    //
+	    inc(o);
+	    break;
+	  end;
+	  //
+	  inc(o);
+	end;
+      end;
+      //
+      inc(i);
+    end;
+  end;
+  //
+  // finally if the driver supports the ASIOOutputReady() optimization, do it here, all data is in place
+  if (drv.postOutput) then
+    drv.outputReady();
+  //
+  result := true;	// no further processing is neccessary
+end;
+
+// --  --
+procedure unaASIOWaveBP.BeforeDestruction();
+begin
+  mrealloc(f_outBuf);
+  mrealloc(f_inBuf);
+end;
+
+{$ENDIF UNA_VCACM_USE_ASIO }
+
+
 // --  --
 function unaWaveDevice.open2(query: bool; timeout: tTimeout; flags: uint; startDevice: bool): MMRESULT;
+{$IFDEF UNA_VCACM_USE_ASIO }
+var
+  sps: int;
+  //
+  {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
+    ch: int32;
+  {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
+  //
+  res: ASIOError;
+{$ENDIF UNA_VCACM_USE_ASIO }
 begin
-  f_handles[0] := f_deviceEvent.handle;
-  if (nil <> inStream) then
-    f_handles[1] := inStream.dataEvent.handle
-  else
-    f_handles[1] := CreateEvent(nil, false, false, nil); // use dummy event
+  case (waveEngine) of
+
+    unavcwe_ASIO: begin
+      //
+      fillChar(f_handles, sizeof(f_handles), #0);
+      f_handlesCnt := 0;
+      f_handlesNonHdrCnt := 0;
+      //
+  {$IFDEF UNA_VCACM_USE_ASIO }
+      result := MMSYSERR_NOERROR;
+      //
+      if (nil <> f_sharedASIODevice) then begin
+	//
+	f_asioDriver := f_sharedASIODevice.asioDriver;
+	f_ASIODriverIsShared := true;
+      end
+      else begin
+	//
+	f_ASIODriverIsShared := false;
+	//
+	if (nil = f_asioDriverlist) then
+	  f_asioDriverlist := unaAsioDriverList.create();
+      end;
+      //
+      if (not f_ASIODriverIsShared) then begin
+	//
+	if ((ASE_OK = f_asioDriverlist.asioOpenDriver(f_asioDriverlist.asioGetDrvID(deviceID), f_asioDriver)) and (nil <> f_asioDriver)) then begin
+	  //
+	  if (nil <> dstFormatExt) then
+	    sps := dstFormatExt.Format.nSamplesPerSec
+	  else
+	    if (nil <> srcFormatExt) then
+	      sps := srcFormatExt.Format.nSamplesPerSec
+	    else
+	      sps := c_defSamplingSamplesPerSec;
+	  //
+	  if (ASE_OK = f_asioDriver.init(0, true, sps div int(c_defChunksPerSecond))) then begin  // default buffer size
+	    //
+	    if (f_asioDriver.canSampleRate(sps)) then
+	      res := f_asioDriver.setSampleRate(sps)
+	    else
+	      res := f_asioDriver.setSampleRate(c_defSamplingSamplesPerSec);
+	    //
+	  {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
+	    with (f_asioDriver) do begin
+	      //
+	      logMessage('ASIO driver name: ' + driverInfo.name);
+	      logMessage('ASIO Buffers	: min=' + int2str(bufMinSize) + ', max=' + int2str(bufMaxSize) + ', preferred/actual=' + int2str(bufPreferredSize) + '/' + int2str(bufActualSize) + ', granularity=' + int2str(bufGranularity));
+	      logMessage('ASIO Latencies 	: input=' + int2str(inputLatency) + ', output=' + int2str(outputLatency));
+	      //
+	      for ch := 0 to inputChannels + outputChannels - 1 do
+		logMessage('ASIO ' + choice(bool(channelInfo[ch].isInput), 'input', 'output') + ' channel [' + string(channelInfo[ch].name) + '], format=' + asioChannelType2str(channelInfo[ch]._type));
+	    end;
+	    //
+	  {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
+	    //
+	    if (ASE_OK = res) then begin
+	      //
+	      f_asioBP := unaASIOWaveBP.create(f_asioDriver, self is unaWaveInDevice, self is unaWaveOutDevice);
+	      unaASIOWaveBP(f_asioBP).f_device := self;
+	      //
+	      if (ASE_OK <> f_asioDriver.start()) then
+		result := MMSYSERR_NOTENABLED;
+	    end
+	    else
+	      result := MMSYSERR_INVALPARAM;
+	  end
+	  else
+	    result := MMSYSERR_INVALPARAM;
+	end
+	else
+	  result := MMSYSERR_BADDEVICEID;
+      end;
+      //
+      if (MMSYSERR_NOERROR <> result) then
+	close2();	// release driver
+  {$ELSE}
+      //
+      result := MMSYSERR_NOTSUPPORTED;
+  {$ENDIF UNA_VCACM_USE_ASIO }
+    end;
+
+    unavcwe_MME: begin
+      //
+      f_handles[0] := f_deviceEvent.handle;
+      if (nil <> inStream) then
+	f_handles[1] := inStream.dataEvent.handle
+      else
+	f_handles[1] := CreateEvent(nil, false, false, nil); // use dummy event
+      //
+      f_handlesCnt := 2;
+      f_handlesNonHdrCnt := 2;
+      //
+      if (0 = flags) then begin
+	//
+	flags :=
+    {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+	CALLBACK_FUNCTION or
+    {$ELSE }
+	CALLBACK_EVENT or
+    {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+		 choice(f_mapped, uint(WAVE_MAPPED), 0) or
+		 choice(f_direct, uint(WAVE_FORMAT_DIRECT), 0) or
+		 choice(query, uint(WAVE_FORMAT_QUERY), 0);
+      end;
+      //
+      result := MMSYSERR_NOERROR;
+    end;
+
+    unavcwe_DS: result := MMSYSERR_NOTSUPPORTED;
+
+    else
+      result := MMSYSERR_NODRIVER;
+
+  end;
   //
-  f_handlesCnt := 2;
-  //
-  if (0 = flags) then begin
-    //
-    flags :=
-{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-    CALLBACK_FUNCTION or
-{$ELSE }
-    CALLBACK_EVENT or
-{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-	     choice(f_mapped, uint(WAVE_MAPPED), 0) or
-	     choice(f_direct, uint(WAVE_FORMAT_DIRECT), 0) or
-	     choice(query, uint(WAVE_FORMAT_QUERY), 0);
-  end;	     
-  //
-  result := inherited open2(query, timeout, flags, startDevice);
+  if (MMSYSERR_NOERROR = result) then
+    result := inherited open2(query, timeout, flags, startDevice);
 end;
 
 // --  --
@@ -6815,6 +7512,16 @@ end;
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
 
 // --  --
+procedure unaWaveDevice.setDeviceId(value: uint);
+begin
+  if (deviceId <> value) then begin
+    //
+    f_deviceId := value;
+    f_noCaps := true;
+  end;
+end;
+
+// --  --
 function unaWaveDevice.setSampling(const pcmFormat: unaPCMFormat): bool;
 var
   format: WAVEFORMATEX;
@@ -6829,6 +7536,35 @@ begin
     isSrc := getMasterIsSrc();
   //
   result := setFormatExt(isSrc, format);
+end;
+
+// --  --
+procedure unaWaveDevice.setWaveEngine(value: unavcWaveEngine);
+begin
+  if (waveEngine <> value) then begin
+    //
+    if (isOpen) then
+      close();
+    //
+    f_waveEngine := value;
+    f_noCaps := true;
+  end;
+end;
+
+// --  --
+procedure unaWaveDevice.shareASIOwith(device: unaWaveDevice);
+begin
+  if (f_sharedASIODevice <> device) then begin
+    //
+    if (nil <> f_sharedASIODevice) then
+      f_sharedASIODevice.f_ASIODuplex := false;
+    //
+    f_sharedASIODevice := device;
+    //
+    if (nil <> device) then
+      device.f_ASIODuplex := ((self is unaWaveInDevice ) and (device is unaWaveOutDevice)) or
+			     ((self is unaWaveOutDevice) and (device is unaWaveInDevice ));
+  end;
 end;
 
 
@@ -6852,34 +7588,39 @@ begin
 end;
 
 // --  --
-procedure unaWaveInDevice.AfterConstruction();
-begin
-  inherited;
-  //
-  getCaps(f_deviceID, f_caps);
-end;
-
-// --  --
 function unaWaveInDevice.afterOpen(): MMRESULT;
 begin
   result := inherited afterOpen();
   if (mmNoError(result)) then begin
     //
     f_inProgress := 0;
-    feedHeader();       // feed 5 headers
-    result := waveInStart(int(f_handle));
+    //
+    case (waveEngine) of
+
+      unavcwe_ASIO: begin
+      {$IFDEF UNA_VCACM_USE_ASIO }
+	// ASIO alreay opened
+      {$ELSE }
+	result := MMSYSERR_NOTSUPPORTED;
+      {$ENDIF UNA_VCACM_USE_ASIO }
+      end;
+
+      unavcwe_MME: begin
+	//
+	feedHeader();       // feed 5 headers
+	result := waveInStart(int(f_handle));
+      end;
+
+      unavcwe_DS:
+	result := MMSYSERR_NOTSUPPORTED;
+
+    end;	// case
   end
   else begin
-    {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
+  {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
     logMessage(self._classID + '.afterOpen() fials, code=' + getErrorText(result));
-    {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+  {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
   end;
-end;
-
-// --  --
-procedure unaWaveInDevice.BeforeDestruction();
-begin
-  inherited;
 end;
 
 // --  --
@@ -6974,7 +7715,7 @@ begin
 	  {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
 	    logMessage(wave.className + '.myMMWaveInCallback() - WIM_DATA, dwParam1(hdr) = nil!');
 	  {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
-          end;
+	  end;
 	end;
       end;
 
@@ -6991,26 +7732,46 @@ var
 begin
   result := inherited doOpen(flags);
   if (MMSYSERR_NOERROR = result) then begin
-    // first try to open it as Ext format
-  {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-    result := waveInOpen(PHWAVEIN(@f_handle), f_deviceID, pWAVEFORMATEX(f_dstFormatExt), UIntPtr(@myMMWaveInCallback), UIntPtr(self), flags);
-  {$ELSE }
-    result := waveInOpen(PHWAVEIN(@f_handle), f_deviceID, pWAVEFORMATEX(f_dstFormatExt), f_deviceEvent.handle,         UIntPtr(self), flags);
-  {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-    if (MMSYSERR_NOERROR <> result) then begin
-      //
-      // now try old-school
-      fmt := nil;
-      try
-	if (waveExt2wave(f_dstFormatExt, fmt)) then
-	{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-	  result := waveInOpen(PHWAVEIN(@f_handle), f_deviceID, fmt, UIntPtr(@myMMWaveInCallback), UIntPtr(self), flags);
+    //
+    case (waveEngine) of
+
+      unavcwe_ASIO: begin
+	//
+	{$IFDEF UNA_VCACM_USE_ASIO }
+	  // already opened
+	  f_handle := 1;
 	{$ELSE }
-	  result := waveInOpen(PHWAVEIN(@f_handle), f_deviceID, fmt, f_deviceEvent.handle, UIntPtr(self), flags);
-	{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-      finally
-	mrealloc(fmt);
+	  result := MMSYSERR_NOTSUPPORTED;
+	{$ENDIF UNA_VCACM_USE_ASIO }
       end;
+
+      unavcwe_MME: begin
+	//
+	// first try to open it as Ext format
+      {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+	result := waveInOpen(PHWAVEIN(@f_handle), f_deviceID, pWAVEFORMATEX(f_dstFormatExt), UIntPtr(@myMMWaveInCallback), UIntPtr(self), flags);
+      {$ELSE }
+	result := waveInOpen(PHWAVEIN(@f_handle), f_deviceID, pWAVEFORMATEX(f_dstFormatExt), f_deviceEvent.handle,         UIntPtr(self), flags);
+      {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+	if (MMSYSERR_NOERROR <> result) then begin
+	  //
+	  // now try old-school
+	  fmt := nil;
+	  try
+	    if (waveExt2wave(f_dstFormatExt, fmt)) then
+	    {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+	      result := waveInOpen(PHWAVEIN(@f_handle), f_deviceID, fmt, UIntPtr(@myMMWaveInCallback), UIntPtr(self), flags);
+	    {$ELSE }
+	      result := waveInOpen(PHWAVEIN(@f_handle), f_deviceID, fmt, f_deviceEvent.handle, UIntPtr(self), flags);
+	    {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+	  finally
+	    mrealloc(fmt);
+	  end;
+	end;
+      end;
+
+      unavcwe_DS: result := MMSYSERR_NOTSUPPORTED;
+
     end;
   end;
 end;
@@ -7020,7 +7781,7 @@ function unaWaveInDevice.feedHeader(header: unaWaveHeader; feedMore: bool): bool
 var
   res: int;
 begin
-  if (not shouldStop and (c_defRecordingChunksAheadNum > f_inProgress)) then begin
+  if (not shouldStop and (c_defRecordingChunksAheadNum > inProgress)) then begin
     //
     if (nil = header) then begin
       //
@@ -7083,8 +7844,14 @@ begin
 end;
 
 // --  --
-function unaWaveInDevice.getCCaps(): pWAVEINCAPSW;
+function unaWaveInDevice.getInCaps(): pWAVEINCAPSW;
 begin
+  if (f_noCaps) then begin
+    //
+    f_noCaps := false;
+    getCaps(deviceID, f_caps);
+  end;
+  //
   result := @f_caps;
 end;
 
@@ -7108,7 +7875,7 @@ begin
 	vDriverVersion := capsA.vDriverVersion;
         {$IFDEF __BEFORE_D6__ }
 	str2arrayW(wString(capsA.szPname), szPname);
-        {$ELSE }
+	{$ELSE }
 	str2arrayW(wString(capsA.szPname), szPname);
         {$ENDIF __BEFORE_D6__ }
 	dwFormats := capsA.dwFormats;
@@ -7265,13 +8032,13 @@ begin
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
   //
   {$IFDEF DEBUG_LOG_JITTER }
-  logMessage('Add header: 0x' + int2str(int(header), 16) + ':' + int2str(header.dwBufferLength) + '; INP=' + int2str(f_inProgress));
+  logMessage('Add header: 0x' + int2str(int(header), 16) + ':' + int2str(header.dwBufferLength) + '; INP=' + int2str(inProgress));
   {$ENDIF DEBUG_LOG_JITTER }
   //
   hdr.dwFlags := hdr.dwFlags and not WHDR_DONE;
   result := waveOutWrite(int(f_handle), hdr, sizeof(WAVEHDR));
   //
-  if (MMSYSERR_NOERROR = result) then
+  if (mmNoError(result)) then
     InterlockedIncrement(int(f_inProgress));
   //
   {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
@@ -7280,16 +8047,16 @@ begin
   {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
   //
 {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-  if (f_paused and (MMSYSERR_NOERROR = result)) then begin
+  if (awaitingPrefill and (MMSYSERR_NOERROR = result)) then begin
     //
-    if (c_waveOut_unpause_after < f_inProgress) then begin
+    if (c_waveOut_unpause_after < inProgress) then begin
       //
     {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
       logMessage(className + '.addHeader() - WaveOut unpaused.');
     {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
       //
       waveOutRestart(f_handle);
-      f_paused := false;
+      f_awaitingPrefill := false;
     end;
   end;
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
@@ -7300,7 +8067,9 @@ procedure unaWaveOutDevice.AfterConstruction();
 begin
   inherited;
   //
-  getCaps(deviceId, f_caps);
+{$IFDEF UNA_VCACM_USE_ASIO }
+  f_asioBuf := unaMemoryStream.create();
+{$ENDIF UNA_VCACM_USE_ASIO }
 end;
 
 // --  --
@@ -7315,13 +8084,24 @@ begin
 end;
 
 // --  --
+procedure unaWaveOutDevice.BeforeDestruction();
+begin
+  inherited;
+  //
+{$IFDEF UNA_VCACM_USE_ASIO }
+  freeAndNil(f_asioBuf);
+{$ENDIF UNA_VCACM_USE_ASIO }
+end;
+
+// --  --
 constructor unaWaveOutDevice.create(deviceID: uint; mapped, direct: bool; overNum: unsigned);
 begin
   inherited create(deviceID, mapped, direct, false, overNum);
   //
-  {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-  f_ji := true;
-  {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+  smoothStartup := true;
+  jitterRepeat := true;
+{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
 end;
 
 // --  --
@@ -7384,20 +8164,20 @@ begin
 	  // remove header from statistic
 	  InterlockedDecrement(int(wave.f_inProgress));
 	  //
-	  {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
-	  if (1 > wave.f_inProgress) then
+	  {$IFDEF LOG_UNAMSACMCLASSES_INFOS_EX }
+	  if (1 > wave.inProgress) then
 	    logMessage(wave.className + 'WOM_DONE: buffer underrun');
-	  {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+	  {$ENDIF LOG_UNAMSACMCLASSES_INFOS_EX }
 	  //
 	  if (wave.acquire(true, 6)) then try
 	    //
-    {$IFDEF DEBUG_LOG_JITTER }
+	  {$IFDEF DEBUG_LOG_JITTER }
 	    logMessage('WOM_DONE, hdr=' + int2str(int(dwParam1), 16));
-    {$ENDIF DEBUG_LOG_JITTER }
+	  {$ENDIF DEBUG_LOG_JITTER }
 	    //
-    {$IFDEF DEBUG_LOG }
+	  {$IFDEF DEBUG_LOG }
 	    logMessage(wave.className + '.myMMWaveOutCallback() - WOM_DONE, size=' + int2str(pWAVEHDR(dwParam1).dwBytesRecorded));
-    {$ENDIF DEBUG_LOG }
+	  {$ENDIF DEBUG_LOG }
 	    //
 	    wave.onHeaderDone(pointer(dwParam1), true);
 	    //
@@ -7439,40 +8219,62 @@ begin
   }
   result := inherited doOpen(flags);
   if (MMSYSERR_NOERROR = result) then begin
-    // first try to open it as is
-  {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-    result := waveOutOpen(PHWAVEOUT(@f_handle), f_deviceID, pWAVEFORMATEX(f_srcFormatExt), UIntPtr(@myMMWaveOutCallback), UIntPtr(self), flags);
-  {$ELSE }
-    result := waveOutOpen(PHWAVEOUT(@f_handle), f_deviceID, pWAVEFORMATEX(f_srcFormatExt), f_deviceEvent.handle, UIntPtr(self), flags);
-  {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-    if (MMSYSERR_NOERROR <> result) then begin
-      //
-      // now try old-school
-      fmt := nil;
-      try
-	if (waveExt2wave(f_srcFormatExt, fmt)) then
-  {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-	  result := waveOutOpen(PHWAVEOUT(@f_handle), f_deviceID, fmt, UIntPtr(@myMMWaveOutCallback), UIntPtr(self), flags);
-  {$ELSE }
-	  result := waveOutOpen(PHWAVEOUT(@f_handle), f_deviceID, fmt, f_deviceEvent.handle, UIntPtr(self), flags);
-  {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-	//
-      finally
-	mrealloc(fmt);
+
+    case (waveEngine) of
+
+      unavcwe_ASIO: begin
+      {$IFDEF UNA_VCACM_USE_ASIO }
+	// already opened
+	f_handle := 1;
+      {$ELSE }
+	result := MMSYSERR_NOTSUPPORTED;
+      {$ENDIF UNA_VCACM_USE_ASIO }
       end;
+
+      unavcwe_MME: begin
+	// first try to open it as is
+      {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+	result := waveOutOpen(PHWAVEOUT(@f_handle), f_deviceID, pWAVEFORMATEX(f_srcFormatExt), UIntPtr(@myMMWaveOutCallback), UIntPtr(self), flags);
+      {$ELSE }
+	result := waveOutOpen(PHWAVEOUT(@f_handle), f_deviceID, pWAVEFORMATEX(f_srcFormatExt), f_deviceEvent.handle, UIntPtr(self), flags);
+      {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+	if (MMSYSERR_NOERROR <> result) then begin
+	  //
+	  // now try old-school
+	  fmt := nil;
+	  try
+	    if (waveExt2wave(f_srcFormatExt, fmt)) then
+      {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+	      result := waveOutOpen(PHWAVEOUT(@f_handle), f_deviceID, fmt, UIntPtr(@myMMWaveOutCallback), UIntPtr(self), flags);
+      {$ELSE }
+	      result := waveOutOpen(PHWAVEOUT(@f_handle), f_deviceID, fmt, f_deviceEvent.handle, UIntPtr(self), flags);
+      {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+	    //
+	  finally
+	    mrealloc(fmt);
+	  end;
+	end;
+	//
+      {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+	//
+	if (smoothStartup and (MMSYSERR_NOERROR = result)) then begin
+	  //
+	  waveOutPause(int(f_handle));	// wait till we have enough data for smooth playback startup
+	  f_awaitingPrefill := true;
+	end
+	else
+	  f_awaitingPrefill := false;
+	//
+      {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+      end;
+
+      unavcwe_DS: begin
+	//
+	result := MMSYSERR_NOTSUPPORTED;	// not yet
+      end;
+
     end;
-    //
-{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-    //
-    if (f_ji and (MMSYSERR_NOERROR = result)) then begin
-      //
-      waveOutPause(int(f_handle));
-      f_paused := true;
-    end
-    else
-      f_paused := false;
-    //
-{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+
   end;
 end;
 
@@ -7484,133 +8286,197 @@ var
   h: unaWaveHeader;
 {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
 begin
-{$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
-  //
-  {$IFDEF DEBUG_LOG_MARKBUFF }
-  if ((4 < size) and (nil <> buf)) then
-    logMessage('BUFMARK: waveOut got new BUF#' + int2str(pUint32(buf)^));
-  {$ENDIF DEBUG_LOG_MARKBUFF }
-  //
-  if (not isOpen() or (1 > overNumIn)) then
-    result := inherited doWrite(buf, size)	// since we cannot provide unlimited number of buffers,
-						// and since no one cares about latency, use old method
-  else begin
-    //
-    result := 0;
-    re := InterlockedIncrement(f_dwReentranceCnt);
-    try
-      if (5 > re) then begin
+  case (waveEngine) of
+
+    unavcwe_MME: begin
+  {$IFDEF UNA_VC_ACMCLASSES_USE_CALLBACKS }
+      //
+    {$IFDEF DEBUG_LOG_MARKBUFF }
+      if ((4 < size) and (nil <> buf)) then
+	logMessage('BUFMARK: waveOut got new BUF#' + int2str(pUint32(buf)^));
+    {$ENDIF DEBUG_LOG_MARKBUFF }
+      //
+      if (not isOpen() or (1 > overNumIn)) then
+	result := inherited doWrite(buf, size)	// since we cannot provide unlimited number of buffers,
+						    // and since no one cares about latency, use old method
+      else begin
 	//
-	if ((nil <> buf) and (0 < size) and beforeNewChunk(buf, size, srcFormatExt) and (f_inProgress <= overNumIn + 2)) then begin
-	  //
-	  {$IFDEF DEBUG }
-	  if (0 = f_hdrIndex) then
-	    f_hdrIndex := maxInt - 3;
-	  {$ENDIF DEBUG }
-	  //
-	{$IFOPT R+ }
-	  {$DEFINE 100277E4-A801-42CF-9168-FF670CAF9B4C }
-	{$ENDIF R+ }
-	  {$R-} // need to disable that
-	  c := InterlockedIncrement(f_hdrIndex);
-	{$IFDEF 100277E4-A801-42CF-9168-FF670CAF9B4C }
-	  {$R+ }
-	{$ENDIF 100277E4-A801-42CF-9168-FF670CAF9B4C }
-	  //
-	  c := unsigned(c) mod high(f_headers);
-	  h := f_headers[c];
-	  if (nil = h) then begin
+	internalConsumeData(buf, size);
+	//
+	result := 0;
+	re := InterlockedIncrement(f_dwReentranceCnt);
+	try
+	  if (5 > re) then begin
 	    //
-	    f_headers[c] := newWaveHdr(self, size, buf, false);
-	    h := f_headers[c];
-	    h.dwUser := size;
-	  end;
-	  //
-	  if (acquire(true, 20)) then try
-	    //
-	    if ((nil <> h) and (0 = (WHDR_INQUEUE and h.dwFlags))) then begin
+	    if ((nil <> buf) and (0 < size) and beforeNewChunk(buf, size, srcFormatExt) and (inProgress <= overNumIn + 2)) then begin
 	      //
-	      if (0 <> (h.dwFlags and WHDR_PREPARED)) then
-		unprepareHeader(h);
+	      {$IFDEF DEBUG }
+	      if (0 = f_hdrIndex) then
+		f_hdrIndex := maxInt - 3;
+	      {$ENDIF DEBUG }
 	      //
-	      if (h.dwUser < size) then begin
+	    {$IFOPT R+ }
+	      {$DEFINE 100277E4-A801-42CF-9168-FF670CAF9B4C }
+	    {$ENDIF R+ }
+	      {$R-} // need to disable that
+	      c := InterlockedIncrement(f_hdrIndex);
+	    {$IFDEF 100277E4-A801-42CF-9168-FF670CAF9B4C }
+	      {$R+ }
+	    {$ENDIF 100277E4-A801-42CF-9168-FF670CAF9B4C }
+	      //
+	      c := unsigned(c) mod high(f_headers);
+	      h := f_headers[c];
+	      if (nil = h) then begin
 		//
-		mrealloc(h.lpData, size);
+		f_headers[c] := newWaveHdr(self, size, buf, false);
+		h := f_headers[c];
 		h.dwUser := size;
+		h.dwBufferLength := 0;
+		//
+		prepareHeader(h);
 	      end;
 	      //
-	      move(buf^, h.lpData^, size);
-	      h.dwBufferLength := size;
-	      result := size;
-	      //
-	      prepareHeader(h);
-	      if (not mmNoError(addHeader(h))) then begin
+	      if (acquire(true, 20)) then try
 		//
-		InterlockedDecrement(int(f_inProgress));
-  	      {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
-	        logMessage(className + '.doWrite() - prepareHeader() fails');
-	      {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+		if ((nil <> h) and (0 = (WHDR_INQUEUE and h.dwFlags))) then begin
+		  //
+		  if (h.dwUser < size) then begin
+		    //
+		    if (0 <> (h.dwFlags and WHDR_PREPARED)) then
+		      unprepareHeader(h);
+		    //
+		    mrealloc(h.lpData, size);
+		    h.dwUser := size;
+		    h.dwBufferLength := 0;
+		    //
+		    prepareHeader(h);
+		  end;
+		  //
+		  move(buf^, h.lpData^, size);
+		  h.dwBufferLength := size;
+		  result := size;
+		  //
+		  if (0 = (h.dwFlags and WHDR_PREPARED)) then
+		    prepareHeader(h);
+		  //
+		  if (not mmNoError(addHeader(h))) then begin
+		    //
+		  {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
+		    logMessage(className + '.doWrite() - prepareHeader() fails');
+		  {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+		  end
+		  else begin
+		    //
+		    if (assigned(f_onACF)) then
+		      f_onACF(self, pointer(h.lpData), size);
+		    //
+		    {$IFDEF LOG_UNAMSACMCLASSES_INFOS_EX }
+		    if (1 < re) then
+		      logMessage(className + '.doWrite() - repeat OK, inpropgress=' + int2str(inProgress));
+		    {$ENDIF LOG_UNAMSACMCLASSES_INFOS_EX }
+		    //
+		    if ((inProgress < c_waveOut_unpause_after) and not awaitingPrefill) then begin
+		      //
+		      if (smoothStartup) then begin
+			//
+			waveOutPause(int(f_handle));	// wait till we have enough data for smooth playback startup
+			f_awaitingPrefill := true;
+		      end;
+		      //
+		      if (jitterRepeat) then begin
+			//
+			// repeat the same chunk to fill up the queue
+		      {$IFDEF LOG_UNAMSACMCLASSES_INFOS_EX }
+			logMessage(className + '.doWrite() - have to repeat the same chunk to fill up the queue (inprogress=' + int2str(inProgress) + ')');
+		      {$ENDIF LOG_UNAMSACMCLASSES_INFOS_EX }
+			//
+			doWrite(buf, size);
+		      end;
+		    end;
+		  end;
+		  //
+		end // if (nil <> header) and (header is not enqueued) then ...
+		else begin
+		  //
+		{$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
+		  logMessage(className + '.doWrite() - run out of headers');
+		{$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+		end;
+	      finally
+		releaseRO();
 	      end
 	      else begin
 		//
-		if (assigned(f_onACF)) then
-		  f_onACF(self, pointer(h.lpData), size);
-		//
-		if (f_inProgress < 4) then begin
-		  //
-		  // repeat the same chunk to fill up the queue
-                {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
-                  logMessage(className + '.doWrite() - have to repeat the same chunk to fill up the queue (inprogress=' + int2str(f_inProgress) + ')');
-                {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
-                  //
-		  doWrite(buf, size);
-		end;
+	      {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
+		logMessage(className + '.doWrite() - aquire(20ms) fail!');
+	      {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
 	      end;
 	      //
-	    end // if (nil <> header) and (header is not enqueued) then ...
+	    end // if (buf is ok) ...
 	    else begin
 	      //
-	    {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
-	      logMessage(className + '.doWrite() - run out of headers');
-	    {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+	      if (inProgress > overNumIn + 2) then begin
+		//
+		if (2 > re) then
+		  inc(f_inOverloadTotal, size);
+		//
+	      {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
+		logMessage(className + '.doWrite() - wave out overloaded ' + choice(re > 1, '[re-entry]', '') + ', total overload size=' + int2str(f_inOverloadTotal, 10, 3));
+	      {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+	      end;
 	    end;
-	  finally
-	    releaseRO();
 	  end
 	  else begin
 	    //
-          {$IFDEF LOG_UNAMSACMCLASSES_ERRORS }
-            logMessage(className + '.doWrite() - aquire(20ms) fail!');
-          {$ENDIF LOG_UNAMSACMCLASSES_ERRORS }
+	  {$IFDEF LOG_UNAMSACMCLASSES_INFOS_EX }
+	    logMessage(className + '.doWrite() - hit recursion limit');
+	  {$ENDIF LOG_UNAMSACMCLASSES_INFOS_EX }
 	  end;
 	  //
-	end // if (buf is ok) ...
-	else begin
-	  //
-	  if (f_inProgress > overNumIn + 2) then
-	    inc(f_inOverloadTotal, size);
+	finally
+	  InterlockedDecrement(f_dwReentranceCnt);
 	end;
-      end
-      else begin
-	//
-      {$IFDEF LOG_UNAMSACMCLASSES_INFOS }
-        logMessage(className + '.doWrite() - hit recursion limit');
-      {$ENDIF LOG_UNAMSACMCLASSES_INFOS }
       end;
       //
-    finally
-      InterlockedDecrement(f_dwReentranceCnt);
+  {$ELSE }
+      result := inherited doWrite(buf, size);
+  {$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
     end;
+
+    unavcwe_ASIO: begin
+      //
+    {$IFDEF UNA_VCACM_USE_ASIO }
+      if ((1 > overNumIn) or (int(overNumIn * chunkSize) >= f_asioBuf.getSize() + int(size))) then begin
+	//
+	f_asioBuf.write(buf, size);
+      end;
+      //
+      result := size;
+    {$ELSE }
+      result := 0;
+    {$ENDIF UNA_VCACM_USE_ASIO }
+    end;
+
+    unavcwe_DS: begin
+      //
+      result := inherited doWrite(buf, size);
+    end;
+
+    else
+      result := 0;
+
   end;
-  //
-{$ELSE }
-  result := inherited doWrite(buf, size);
-{$ENDIF UNA_VC_ACMCLASSES_USE_CALLBACKS }
 end;
 
 // --  --
-function unaWaveOutDevice.getCCaps(): pWAVEOUTCAPSW;
+function unaWaveOutDevice.getOutCaps(): pWAVEOUTCAPSW;
 begin
+  if (f_noCaps) then begin
+    //
+    getCaps(deviceID, f_caps);
+    f_noCaps := false;
+  end;
+  //
   result := @f_caps;
 end;
 
@@ -7663,7 +8529,7 @@ begin
 	end;
 	//
 	f_sanity := 0;
-	while (f_closing and (getStatus() = unatsRunning) and (GetCurrentThreadId() <> getThreadId()) and (0 < f_inProgress)) do begin
+	while (f_closing and (status = unatsRunning) and (GetCurrentThreadId() <> getThreadId()) and (0 < inProgress)) do begin
 	  //
 	  Sleep(20);
 	  inc(f_sanity);
@@ -7678,7 +8544,7 @@ begin
 	f_flushing := true;
 	try
 	  //
-	  while ((getStatus() = unatsRunning) and (getDataAvailable(true) > chunkSize)) do
+	  while ((status = unatsRunning) and (getDataAvailable(true) > chunkSize)) do
 	    internalRead(chunk, chunkSize, nil);	// do not perform volume/silence calculations
 	  //
 	  waveOutReset(int(f_handle));
@@ -7855,16 +8721,16 @@ begin
     davail := getDataAvailable(true);
     //
     // -- are we out of in-progress buffers? --
-    if (c_defPlaybackChunksAheadNumber <= f_inProgress) then
+    if (c_defPlaybackChunksAheadNumber <= inProgress) then
       // -- NO: check, if we can feed some more buffer
-      result := (c_def_max_playbackChunksAheadNumber > f_inProgress) and
+      result := (c_def_max_playbackChunksAheadNumber > inProgress) and
 		(chunkSize <= davail)
     else
       // -- YES: check if we have enough data for AheadNumber of chunks
-      result :=	(chunkSize * (c_defPlaybackChunksAheadNumber - f_inProgress) <= davail);
+      result :=	(chunkSize * (c_defPlaybackChunksAheadNumber - inProgress) <= davail);
     //
 {$IFDEF DEBUG_LOG }
-    logMessage('WOUT_ohd: check=' + bool2strStr(result) + ', f_inProgress=' + int2str(f_inProgress) + ', DA=' + int2str(getDataAvailable(true)) + ', chunkSize=' + int2str(chunkSize));
+    logMessage('WOUT_ohd: check=' + bool2strStr(result) + ', inProgress=' + int2str(inProgress) + ', DA=' + int2str(getDataAvailable(true)) + ', chunkSize=' + int2str(chunkSize));
 {$ENDIF DEBUG_LOG }
     //
     // and fill it
@@ -7924,7 +8790,7 @@ begin
     end
     else
       // check if we are out of pre-buffer
-      if (1 > f_inProgress) then begin
+      if (1 > inProgress) then begin
 	//
       {$IFDEF DEBUG_LOG }
 	logMessage('WOUT_ohd: out of pre-buffers!');
@@ -7932,7 +8798,7 @@ begin
 	inc(f_outOfStream);
       end;
     //
-    if (result and not shouldStop and (c_defPlaybackChunksAheadNumber >= f_inProgress) and (chunkSize <= davail)) then
+    if (result and not shouldStop and (c_defPlaybackChunksAheadNumber >= inProgress) and (chunkSize <= davail)) then
       // feed one more chunk
       onHeaderDone(nil, false);
     //
@@ -8026,8 +8892,8 @@ end;
 // --  --
 procedure unaWaveSoftwareDevice.adjustRTInterval(isSrc: bool);
 begin
-  if (f_realTime and (isSrc = getMasterIsSrc()) and (0 < chunkPerSecond))then
-    f_realTimer.interval := 1000 div chunkPerSecond;
+  if (realTime and (isSrc = getMasterIsSrc()) and (0 < chunkPerSecond))then
+    realTimer.interval := 1000 div chunkPerSecond;
 end;
 
 // --  --
@@ -8035,8 +8901,8 @@ procedure unaWaveSoftwareDevice.afterClose(closeResult: MMRESULT);
 begin
   inherited;
   //
-  if (nil <> f_realTimer) then
-    f_realTimer.stop();
+  if (nil <> realTimer) then
+    realTimer.stop();
 end;
 
 // --  --
@@ -8056,11 +8922,26 @@ begin
   //
   if (mmNoError(result)) then
     //
-    if (nil <> f_realTimer) then begin
+    if (nil <> realTimer) then begin
       //
       f_realTimerCount := 0;
-      f_realTimer.start();
+    {$IFDEF DEBUG_LOG_RT }
+      f_timerTM := timeMarkU();
+      f_timerPassed := 0;
+    {$ENDIF DEBUG_LOG_RT }
+      //
+      realTimer.start();
     end;
+end;
+
+// --  --
+procedure unaWaveSoftwareDevice.BeforeDestruction();
+begin
+  close();
+  //
+  freeAndNil(f_realTimer);
+  //
+  inherited;
 end;
 
 // --  --
@@ -8068,12 +8949,13 @@ procedure unaWaveSoftwareDevice.checkRealTimer();
 begin
   freeAndNil(f_realTimer);
   //
-  if (f_realTime) then begin
+  if (realTime) then begin
     //
     f_realTimer := unaMMTimer.create(1000);
 { thread timers does not work fine with interval changes }
 //    f_realTimer := unaThreadTimer.create(1000);
-    f_realTimer.onTimer := onTick;
+    realTimer.onTimer := onTick;
+    //
     priority := THREAD_PRIORITY_TIME_CRITICAL;
     //
     adjustRTInterval(getMasterIsSrc());
@@ -8087,15 +8969,7 @@ constructor unaWaveSoftwareDevice.create(realTime, isIn: bool; overNum: unsigned
 begin
   inherited create(WAVE_MAPPER, false, false, isIn, overNum);
   //
-  f_realTime := realTime;
-end;
-
-// --  --
-destructor unaWaveSoftwareDevice.Destroy();
-begin
-  inherited;
-  //
-  freeAndNil(f_realTimer);
+  self.realTime := realTime;
 end;
 
 // --  --
@@ -8111,18 +8985,31 @@ begin
   //
   if (result) then begin
     //
-    if (f_realTime) then begin
+    if (realTime) then begin
       //
       result := (0 < f_realTimerCount);
       //
-      if (result) then
-	InterlockedDecrement(f_realTimerCount)
+      if (result) then begin
+	//
+	if (0 < InterlockedDecrement(f_realTimerCount)) then begin
+	  //
+	{$IFDEF DEBUG_LOG_RT }
+	  logMessage(className + '.onHeaderDone(' + _classID + '): RTC > 0 after dec, will set state again');
+	{$ENDIF DEBUG_LOG_RT }
+	  //
+	  f_deviceEvent.setState();	// call onHeaderDone once more
+	end;
+	//
+      {$IFDEF DEBUG_LOG_RT }
+	logMessage(className + '.onHeaderDone(' + _classID + '): RT dec, RTC=' + int2str(f_realTimerCount));
+      {$ENDIF DEBUG_LOG_RT }
+      end
       else
-      	result := false;
+	result := false;
     end;
   end;
   //
-  if (not f_realTime) then begin
+  if (not realTime) then begin
     //
     if (nil = header) then begin
       //
@@ -8148,7 +9035,8 @@ end;
 procedure unaWaveSoftwareDevice.onTick(sender: tObject);
 begin
 {$IFDEF DEBUG_LOG_RT }
-  logMessage('RT_TICK (' + _classID + '): RTC=' + int2str(f_realTimerCount));
+  inc(f_timerPassed, realTimer.interval);
+  logMessage('RT_TICK (' + _classID + '): RTC=' + int2str(f_realTimerCount) + ' RTElapsed: ' + int2str(f_timerPassed) + '  \  TMElapsed: ' + int2str(timeElapsed64U(f_timerTM)));
 {$ENDIF DEBUG_LOG_RT }
   //
   InterlockedIncrement(f_realTimerCount);
@@ -8376,7 +9264,6 @@ begin
 	else
 	  result := MMSYSERR_INVALPARAM;	// some problems with file
       end;
-      //
     end;
   end;
 end;
@@ -8429,6 +9316,7 @@ begin
       //
       // override source format
       fillPCMFormatExt(f_srcFormatExt, KSDATAFORMAT_SUBTYPE_MPEG, f_mpeg.mpegSamplingRate, 16, 16, f_mpeg.mpegChannels);
+      duplicateFormat(f_srcFormatExt, f_dstFormatExt);
       //
       f_fileType := c_unaRiffFileType_mpeg;
       //
@@ -8468,7 +9356,7 @@ begin
 
     c_unaRiffFileType_riff: begin
       //
-      f_originalSize := fileSize(fileName);
+      f_factSize := 0;
       //
       if (nil <> f_srcFormatExt) then begin
 	//
@@ -8710,14 +9598,16 @@ begin
       end
       else begin
 	// WAVE uncompressed size header ?
-	if (chunk.isID('fact') and (4 <= chunk.header.r_size)) then
-	  chunk.readBuf(0, @f_originalSize, sizeof(uint32))
+	if (chunk.isID('fact') and (4 <= chunk.header.r_size)) then begin
+	  //
+	  chunk.readBuf(0, @f_factSize, 4);
+	end
 	else begin
 	  // WAVE data?
 	  if (chunk.isID('data')) then begin
 	    //
 	    if (0 <> (cUnaRiffBrowse_calcStreamSize and options)) then
-	      inc(f_streamSize, chunk.header.r_size);
+	      inc(f_streamSize, min(chunk.header.r_size, chunk.maxSize64) );
 	    //
 	    if (0 <> (cUnaRiffBrowse_locateDataChunk and options)) then begin
 	      //
@@ -8827,6 +9717,8 @@ function unaRiffStream.doWrite(buf: pointer; size: unsigned): unsigned;
 begin
   if (1 = f_status) then begin
     //
+    internalConsumeData(buf, size);
+    //
     // should we use codec?
     if (nil = f_codec) then begin
       // no codec
@@ -8874,7 +9766,7 @@ begin
 	sanity := 0;
 	f_nonrealTimeDelay := 0;
 	prevSize := getDataAvailable(true);
-	while ((getStatus() = unatsRunning) and (GetCurrentThreadId() <> GetThreadId()) and (chunkSize < getDataAvailable(true))) do begin
+	while ((inherited status = unatsRunning) and (GetCurrentThreadId() <> GetThreadId()) and (chunkSize < getDataAvailable(true))) do begin
 	  //
 	  Sleep(50);
 	  //
@@ -9022,7 +9914,7 @@ begin
 	      //
 	      f_streamIsDone := f_readingIsDone and (f_codec.getDataAvailable(true) < f_codec.f_chunkSize);
 	      //
-	      if (f_realTime and not f_streamIsDone) then begin
+	      if (realTime and not f_streamIsDone) then begin
 		// check if we have supplied enough data for real time consumer
 		inc(f_realTimeFeedSize, size);
 		//
@@ -9036,8 +9928,7 @@ begin
 	      end
 	    end;
 	    //
-	  until (shouldStop or not f_realTime or f_streamIsDone);
-	  //
+	  until (shouldStop or not realTime or f_streamIsDone);
 	end;
 
 {$IFNDEF VC_LIC_PUBLIC }
@@ -9046,15 +9937,30 @@ begin
 	  // feed more frames to consumer (if needed)
 	  inc(f_mpegSamplesNeeded, f_mpegSamplesPerChunk);
 	  //
+	{$IFDEF DEBUG_LOG_RIFF_MPEG }
+	  logMessage(className + '.onHeaderDone(RIFF_MPEG) - mpegSamplesNeeded=' + int2str(f_mpegSamplesNeeded) + '; mpegSamplesPerChunk=' + int2str(f_mpegSamplesPerChunk) + '; mpegSamplesWritten=' + int2str(f_mpegSamplesWritten));
+	{$ENDIF DEBUG_LOG_RIFF_MPEG }
 	  // need to feed more samples now?
 	  while (not shouldStop and (f_mpegSamplesNeeded > f_mpegSamplesWritten)) do begin
 	    //
+	  {$IFDEF DEBUG_LOG_RIFF_MPEG }
+	    logMessage(className + '.onHeaderDone(RIFF_MPEG) - need to feed now (N > W = ' + int2str(f_mpegSamplesNeeded) + ' > ' + int2str(f_mpegSamplesWritten) + ')');
+	  {$ENDIF DEBUG_LOG_RIFF_MPEG }
+	    //
 	    if (0 < f_mpegBufInUse) then begin
+	      //
+	    {$IFDEF DEBUG_LOG_RIFF_MPEG }
+	      logMessage(className + '.onHeaderDone(RIFF_MPEG) - have ' + int2str(f_mpegBufInUse) + ' bytes in buf, will feed (that is ' + int2str(f_mpeg.mpegSamplesPerFrame) + ' samples)');
+	    {$ENDIF DEBUG_LOG_RIFF_MPEG }
 	      //
 	      internalWrite(f_mpegBuf, f_mpegBufInUse, nil);
 	      inc(f_mpegSamplesWritten, f_mpeg.mpegSamplesPerFrame);
 	      //
 	      if (SUCCEEDED(f_mpeg.nextFrame(f_mpegHdr, fa, sor, f_mpegBuf, fs))) then begin
+		//
+	      {$IFDEF DEBUG_LOG_RIFF_MPEG }
+		logMessage(className + '.onHeaderDone(RIFF_MPEG) - read another ' + int2str(fs) + ' bytes from file.');
+	      {$ENDIF DEBUG_LOG_RIFF_MPEG }
 		//
 		f_mpegBufInUse := fs;
 	      end
@@ -9089,7 +9995,7 @@ begin
       //
       if (f_streamIsDone) then begin
 	//
-	if (not f_realTime and (1 > f_nonrealTimeDelay)) then
+	if (not realTime and (1 > f_nonrealTimeDelay)) then
 	  // ensure it will not eat CPU too much until closed
 	  f_nonrealTimeDelay := 20;
 	//
@@ -9134,7 +10040,7 @@ begin
 {$IFDEF VCX_DEMO }
     dec(f_headersServedRiff);
 {$ENDIF VCX_DEMO }
-    size := min(chunkSize - tsize, f_dataChunk.header.r_size - f_dataChunkOfs);
+    size := min(chunkSize - tsize, min(f_dataChunk.header.r_size, f_dataChunk.maxSize64) - f_dataChunkOfs);
     if (0 < size) then begin
       //
       //move(f_dataChunk.data[f_dataChunkOfs], pAnsiChar(f_srcChunk)[tsize], size);
@@ -9156,7 +10062,7 @@ begin
     if (chunkSize > tsize) then begin
       // try to locate next data chunk
       f_playbackHistory.add(f_dataChunk);
-      inc(f_streamPosHistory, f_dataChunk.header.r_size);
+      inc(f_streamPosHistory, min(f_dataChunk.header.r_size, f_dataChunk.maxSize64));
       //
       f_dataChunk := nil;
       browseRiff(f_riff.rootChunk, cUnaRiffBrowse_locateDataChunk);
@@ -9355,6 +10261,7 @@ var
   required_size: unsigned;
   samples: unsigned;
   nCh: unsigned;
+  stream: unaAbstractStream;
   //
   buf: pArray;
   okmix: bool;
@@ -9412,7 +10319,12 @@ begin
 {$ENDIF DEBUG_LOG_MIXER }
 	//
 	// read data into buffer
-	cur_size := getStream(i).read(buf, int(required_size));
+	stream := getStream(i);
+	if (nil <> stream) then
+	  cur_size := stream.read(buf, int(required_size))
+	else
+	  cur_size := 0;
+	//
 	if (cur_size < required_size) then begin
 	  //
 	  if (i <= high(f_oob)) then
@@ -9714,12 +10626,14 @@ end;
 // --  --
 function unaWaveResampler.doWrite(buf: pointer; size: unsigned): unsigned;
 var
-  c: unsigned;
-  cs, len, ns: spx_uint32_t;
+  c, cs, len, ns: spx_uint32_t;
 begin
   if (realTime) then
     result := inherited doWrite(buf, size)
   else begin
+    //
+    if (not f_inputConsumed) then
+      internalConsumeData(buf, size);
     //
     result := 0;
     if ((0 < size) and not shouldStop and acquire(false, f_waitInterval shl 1)) then try
@@ -9737,9 +10651,9 @@ begin
 	  if (2 > f_srcChunk.chunkFormat.pcmNumChannels) then begin
 	    // resample "in place"
 	    f_dstChunk.chunkDataLen := f_speexdsp[0].frameSize;
-            len := f_dstChunk.chunkDataLen;
+	    len := f_dstChunk.chunkDataLen;
 	    f_speexdsp[0].resampleSrc(buf, ns, f_srcChunk.chunkFormat.pcmSamplesPerSecond, f_dstChunk.chunkData, len);
-            f_dstChunk.chunkDataLen := len shl 1;
+	    f_dstChunk.chunkDataLen := len shl 1;
 	  end
 	  else begin
 	    //
@@ -9762,6 +10676,10 @@ begin
 	    f_dstChunk.chunkDataLen := cs * f_srcChunk.chunkFormat.pcmNumChannels * (f_dstChunk.chunkFormat.pcmBitsPerSample shr 3);
 	  end;
 	  //
+	  if (0 < f_dstChunk.chunkDataLen) then
+	    internalWrite(f_dstChunk.chunkData, f_dstChunk.chunkDataLen, f_dstFormatExt);	// apply volume/silence again
+	  //
+	  result := size;
 	end
 	else begin
 	  //
@@ -9771,16 +10689,31 @@ begin
 	    f_useSpeexDSPwasAutoReset := true;
 	  end;
 	  //
-	  move(buf^, f_srcChunk.chunkData^, size);
-	  f_srcChunk.chunkDataLen := size;
-	  f_dstChunk.chunkDataLen := waveResample(f_srcChunk, f_dstChunk);
+	  ns := 0;
+	  result := size;
+	  //
+	  while (0 < size) do begin
+	    //
+	    len := min(size, f_srcChunk.chunkBufSize);
+	    if (0 < len) then begin
+	      //
+	      move(pArray(buf)[ns], f_srcChunk.chunkData^, len);
+	      f_srcChunk.chunkDataLen := len;
+	      f_dstChunk.chunkDataLen := waveResample(f_srcChunk, f_dstChunk);
+	      if (0 < f_dstChunk.chunkDataLen) then
+		internalWrite(f_dstChunk.chunkData, f_dstChunk.chunkDataLen, f_dstFormatExt);	// apply volume/silence again
+	      //
+	      dec(size, len);
+	      inc(ns, len);
+	    end
+	    else
+	      break;
+	  end;
 	end;
-	//
-	if (0 < f_dstChunk.chunkDataLen) then
-	  result := internalWrite(f_dstChunk.chunkData, f_dstChunk.chunkDataLen, f_dstFormatExt)	// apply volume/silence again
       end
       else begin
 	//
+	// store extra data
 	if (f_subBufSize - f_subBufPos < int(size)) then begin
 	  //
 	  f_subBufSize := f_subBufPos + int(size);
@@ -9790,18 +10723,23 @@ begin
 	move(buf^, f_subBuf[f_subBufPos], size);
 	inc(f_subBufPos, size);
 	//
-	while (int(f_srcChunk.chunkBufSize) <= f_subBufPos) do begin
+	// if we have enough data, pass it to device
+	if (int(f_srcChunk.chunkBufSize) <= f_subBufPos) then begin
 	  //
-	  doWrite(f_subBuf, f_srcChunk.chunkBufSize);
-	  move(f_subBuf[f_srcChunk.chunkBufSize], f_subBuf[0], f_subBufPos - int(f_srcChunk.chunkBufSize));
-	  dec(f_subBufPos, f_srcChunk.chunkBufSize);
+	  f_inputConsumed := true;
+	  try
+	    doWrite(f_subBuf, f_subBufPos);
+	  finally
+	    f_inputConsumed := false;
+	  end;
+	  //
+	  f_subBufPos := 0;
 	end;
 	//
       end;
     finally
       releaseWO();
     end;
-    //
   end;
 end;
 
@@ -9829,7 +10767,7 @@ begin
     end;
     //
     sanity := 0;
-    while (waitForComplete and (getStatus() = unatsRunning) and (GetCurrentThreadId() <> GetThreadId()) and (chunkSize < getDataAvailable(true))) do begin
+    while (waitForComplete and (status = unatsRunning) and (GetCurrentThreadId() <> GetThreadId()) and (chunkSize < getDataAvailable(true))) do begin
       //
       Sleep(f_waitInterval);
       //

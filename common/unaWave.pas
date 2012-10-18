@@ -30,8 +30,11 @@
   Set of routines to work with PCM wave data.
 
   @Author Lake
-  @Version 2.5.2008.07 Still here
-  @Version 2.5.2011.12 x64 compatibility
+
+  Version 2.5.2008.07 Still here
+
+  Version 2.5.2011.12 x64 compatibility
+
 }
 
 unit
@@ -77,7 +80,6 @@ type
   // -- unavclWavePipeFormatExchange --
   //
   {*
-	Pointer to <A href="unaWave/unavclWavePipeFormatExchange.html">unavclWavePipeFormatExchange</A>.
   }
   punavclWavePipeFormatExchange = ^unavclWavePipeFormatExchange;
   {*
@@ -85,10 +87,13 @@ type
   }
   unavclWavePipeFormatExchange = packed record
     //
-    r_formatM: unaWaveFormat;	/// data format
+// data format
+    r_formatM: unaWaveFormat;	
     //
-    r_driverMode: int32;		        /// custom driver mode
-    r_driverLib8: array[0..129] of aChar;	/// library module name  (same size as "array [0..64] of WideChar" for backward compatibility)
+// custom driver mode
+    r_driverMode: int32;		        
+// library module name  (same size as "array [0..64] of WideChar" for backward compatibility)
+    r_driverLib8: array[0..129] of aChar;	
   end;
 
 
@@ -131,14 +136,16 @@ function waveGetVolume(buf: pointer; samples: unsigned; bits: unsigned; numChann
   Returns Logarithmic volume.
 
   @param volume range is from 0 to 32768
-  @result range is from 0 to 300
+  @return value range from 0 to 300
 }
 function waveGetLogVolume(volume: int): unsigned;
 
 {*
   Returns Logarithmic volume.
-  <BR />Input range is from 0 to 32768.
-  <BR />Result range is from 0 to 100.
+
+  Input range is from 0 to 32768.
+
+  Result range is from 0 to 100.
 }
 function waveGetLogVolume100(volume: int): unsigned;
 
