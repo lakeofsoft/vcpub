@@ -126,6 +126,10 @@ type
   // BroadcastClient component.
   TunavclIPBroadcastClient	= class(unavclIPBroadcastClient) end;
 
+
+{$IFDEF VC_LIC_PUBLIC }
+{$ELSE }
+
 // --
 // STUN
 // --
@@ -141,6 +145,8 @@ type
 
   // DNS Client component.
   TunavclDNSClient		= class(unavclDNSClient) end;
+
+{$ENDIF VC_LIC_PUBLIC }
 
 
 {$IFDEF UNAVCIDE_SCRIPT_COMPONENT }
@@ -192,10 +198,15 @@ begin
   //
   RegisterComponents(c_VC_reg_IP_section_name, [
     //
+{$IFDEF VC_LIC_PUBLIC }
+{$ELSE }
+
     //
     TunavclSTUNClient,
     TunavclSTUNServer,
     TunavclDNSClient
+{$ENDIF VC_LIC_PUBLIC }
+
   ]);
 end;
 

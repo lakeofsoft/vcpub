@@ -75,7 +75,11 @@ uses
   Windows, Classes,
   unaTypes, unaClasses,
   MMSystem, WinSock, unaSockets,
-  unaVC_pipe, unaSocks_DNS, unaSocks_STUN;
+{$IFDEF VC_LIC_PUBLIC }
+{$ELSE }
+  unaSocks_DNS, unaSocks_STUN,
+{$ENDIF VC_LIC_PUBLIC }
+  unaVC_pipe;
 
 
 // ---------------------
@@ -1162,6 +1166,9 @@ type
   end;
 
 
+{$IFDEF VC_LIC_PUBLIC }
+{$ELSE }
+
 // ==== STUN ====
 
   {*
@@ -1342,6 +1349,8 @@ type
     }
     property onAnswer: TNotifyEvent read f_onAnswer write f_onAnswer;
   end;
+
+{$ENDIF VC_LIC_PUBLIC }
 
 
 implementation
@@ -4648,6 +4657,10 @@ begin
 end;
 
 
+{$IFDEF VC_LIC_PUBLIC }
+{$ELSE }
+
+
 { unavclSTUNBase }
 
 // --  --
@@ -4910,6 +4923,8 @@ function unavclDNSClient.isActive(): bool;
 begin
   result := (nil <> client) and (unatsRunning = client.status);
 end;
+
+{$ENDIF VC_LIC_PUBLIC }
 
 
 initialization

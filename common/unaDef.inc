@@ -368,6 +368,7 @@
                             {$IFDEF VER230 }
                               //
                               // Delphi XE2 (DF)
+			      //
                               {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
                               //
                               {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
@@ -389,6 +390,7 @@
                               {$IFDEF VER240 }
                                 //
                                 // Delphi XE3 (D24)
+				//
                                 {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
                                 {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
                                 {$DEFINE __AFTER_D3__ }  	// Delphi 4.0 or later
@@ -403,10 +405,28 @@
                                 {$DEFINE __AFTER_DC__ }	// Delphi 2010 or later
                                 {$DEFINE __AFTER_DD__ }	// Delphi XE or later
                                 {$DEFINE __AFTER_DE__ }	// Delphi XE2 or later
-                                {$DEFINE __AFTER_D24__}	// Not Delphi XE3 yet
+                                {$DEFINE __AFTER_DF__ }	// Delphi XE3 or later
 
                               {$ELSE }
-                                 // ... after XE2
+                                  // ... new future ...
+                                  //
+                                  {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
+                                  {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
+                                  {$DEFINE __AFTER_D3__ }  	// Delphi 4.0 or later
+                                  {$DEFINE __AFTER_D4__ }  	// Delphi 5.0 or later
+                                  {$DEFINE __AFTER_D5__ }  	// Delphi 6.0 or later
+                                  {$DEFINE __AFTER_D6__ }  	// Delphi 7.0 or later
+                                  {$DEFINE __AFTER_D7__ }  	// Delphi 8.0 or later
+                                  {$DEFINE __AFTER_D8__ }  	// Delphi 2005 or later
+                                  {$DEFINE __AFTER_D9__ }	// Delphi 2006 or later
+                                  {$DEFINE __AFTER_DA__ }	// Delphi 2007 or later
+                                  {$DEFINE __AFTER_DB__ }	// Delphi 2009 or later
+                                  {$DEFINE __AFTER_DC__ }	// Delphi 2010 or later
+                                  {$DEFINE __AFTER_DD__ }	// Delphi XE or later
+                                  {$DEFINE __AFTER_DE__ }	// Delphi XE2 or later
+                                  {$DEFINE __AFTER_DF__ }	// Delphi XE3 or later
+                                  {$DEFINE __AFTER_D24__}	// Delphi XE4(?) or later
+                                  //
                               {$ENDIF VER240 }
                             {$ENDIF VER230 }
                           {$ENDIF VER210 }
