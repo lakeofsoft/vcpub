@@ -368,7 +368,6 @@
                             {$IFDEF VER230 }
                               //
                               // Delphi XE2 (DF)
-			      //
                               {$DEFINE __BEFORE_D24__ }	// Not Delphi XE3 yet
                               //
                               {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
@@ -390,7 +389,6 @@
                               {$IFDEF VER240 }
                                 //
                                 // Delphi XE3 (D24)
-				//
                                 {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
                                 {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
                                 {$DEFINE __AFTER_D3__ }  	// Delphi 4.0 or later
@@ -405,11 +403,12 @@
                                 {$DEFINE __AFTER_DC__ }	// Delphi 2010 or later
                                 {$DEFINE __AFTER_DD__ }	// Delphi XE or later
                                 {$DEFINE __AFTER_DE__ }	// Delphi XE2 or later
-                                {$DEFINE __AFTER_DF__ }	// Delphi XE3 or later
+                                {$DEFINE __AFTER_DF__}	// Delphi XE3 or later
 
                               {$ELSE }
-                                  // ... new future ...
-                                  //
+                                 // ... after XE3
+
+                                  // Delphi XE4 (D25) or later
                                   {$DEFINE __AFTER_D1__ }  	// Delphi 2.0 or later
                                   {$DEFINE __AFTER_D2__ }  	// Delphi 3.0 or later
                                   {$DEFINE __AFTER_D3__ }  	// Delphi 4.0 or later
@@ -425,8 +424,9 @@
                                   {$DEFINE __AFTER_DD__ }	// Delphi XE or later
                                   {$DEFINE __AFTER_DE__ }	// Delphi XE2 or later
                                   {$DEFINE __AFTER_DF__ }	// Delphi XE3 or later
-                                  {$DEFINE __AFTER_D24__}	// Delphi XE4(?) or later
-                                  //
+                                  {$DEFINE __AFTER_D24__}	// Delphi XE4 or later
+
+
                               {$ENDIF VER240 }
                             {$ENDIF VER230 }
                           {$ENDIF VER210 }
@@ -598,7 +598,13 @@
 
 {$WRITEABLECONST OFF }	// $J- turn off writeable const
 {$TYPEINFO OFF }	// $M- turn off RTTI (when possible)
-{$TYPEDADDRESS ON }	// $T+ turn on typed pointers
+
+{$IFDEF __AFTER_D24__}
+  {$TYPEDADDRESS OFF }	// $T- turn off typed pointers for XE4 and later
+{$ELSE}
+  {$TYPEDADDRESS ON }	// $T+ turn on typed pointers
+{$ENDIF __AFTER_D24__ }
+
 {$EXTENDEDSYNTAX ON }   // $X+ turn on extended syntax
 {$MINENUMSIZE 4 }	// $Z+ or $Z4 set enum element size to 4 bytes
 
@@ -654,5 +660,4 @@
 {$IFDEF WIN64 }		// defined by dcc64 only
   {$DEFINE CPU64 }
 {$ENDIF CPUX64 }
-
 

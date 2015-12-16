@@ -85,8 +85,7 @@ Carsten Bormann
   GSM6.10 codec. Delphi implementation based on C-source code by Jutta Degener and Carsten Bormann
 
   @Author Lake
-
-  1.0 First release
+  @Version 1.0 First release
 }
 
 unit
@@ -576,7 +575,7 @@ type
     {*
         Each processing is specific and thus must be overrided.
 
-        @param len is guaranted to be at least one frame, or more integer number of frames
+        @len is guaranted to be at least one frame, or more integer number of frames
     }
     procedure processFrames(data: pointer; len: int); virtual; abstract;
     //
@@ -693,7 +692,7 @@ begin
   result := _word(SASR( _longword(a) * _longword(b), 15));
 end;
 
-//* word a, word b */	\
+///* word a, word b */	\
 function GSM_L_MULT(a, b: _longword): _longword;
 begin
   result := sshl(a * b, 1);
@@ -2918,7 +2917,7 @@ var
   //
   d: pArray absolute c;
 begin
-  Gsm_Coder(s, source, _pword(@LARc), _pword(@Nc), _pword(@bc), _pword(@Mc), _pword(@xmaxc), _pword(@xmc) );
+  Gsm_Coder(s, _pword(source), _pword(@LARc), _pword(@Nc), _pword(@bc), _pword(@Mc), _pword(@xmaxc), _pword(@xmc) );
   //
 {$IFDEF WAV49 }
   if (0 <> s.wav_fmt) then begin
@@ -3405,7 +3404,7 @@ begin
   end;
 {$ENDIF WAV49 }
   //
-  Gsm_Decoder(s, _pword(@LARc), _pword(@Nc), _pword(@bc), _pword(@Mc), _pword(@xmaxc), _pword(@xmc), target);
+  Gsm_Decoder(s, _pword(@LARc), _pword(@Nc), _pword(@bc), _pword(@Mc), _pword(@xmaxc), _pword(@xmc), _pword(target));
 
   result := 0;
 end;
@@ -3678,4 +3677,3 @@ end;
 
 
 end.
-
