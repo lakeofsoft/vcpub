@@ -1,7 +1,7 @@
 
-With the release of VC Public Components full sources this reposotory is now obsolete, and kept for historical reasons only.
+With the release of VC Public Components full sources, this reposotory is now obsolete, and being kept for historical reasons only.
 
-You can find full sources release here:
+Please visit VC Public Components here:
 https://github.com/lakeofsoft/vcp
 
 
